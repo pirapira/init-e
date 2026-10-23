@@ -1,6 +1,7 @@
 import InitE
 import InitECandidate.Proofs.FullBaseline
 import InitECandidate.Proofs.BaselineSubmission
+import InitECandidate.Solver.PanToTargetLinearClockAndGasMaster
 
 namespace InitE.Challenge
 open Flapjack
