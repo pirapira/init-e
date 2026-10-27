@@ -1,6 +1,7 @@
 import InitE
 import InitECandidate.Proofs.FullBaseline
 import InitECandidate.Proofs.BaselineSubmission
+import InitECandidate.FiniteScore
 
 namespace InitE.Challenge
 open Flapjack
@@ -35,7 +36,14 @@ theorem certificate : InitE.Certificate submission claimedScore := by
   rw [InitE.baselineSubmission_machineConfig, InitE.baselineSubmission_initialState] at execution
   exact (InitE.full_baseline_correct input nonfail behaviour execution).trans source
 
+/-- The initial ROM also has a finite score: its covered runs take finitely many
+distinct step counts. The bound is only shown to exist, not computed. -/
+theorem finite_score_exists :
+    ∃ bound : Nat, InitE.Certificate { submission with K := .finite bound } (.finite bound) :=
+  InitECandidate.FiniteScore.finite_certificate_of_infinity submission certificate
+
 end InitE.Challenge
 
 #print axioms InitE.Challenge.certificate
 #print axioms InitE.Challenge.machine_termination_iff_infinity
+#print axioms InitE.Challenge.finite_score_exists
