@@ -48,14 +48,13 @@ permanent provenance links; parser agreement is not a certificate premise.
 using `PanSemStateFiniteExact.semanticsDecls`, the source evaluator used by
 Flapjack's compiler correctness theorem. Words are 64 bits and byte order is
 little-endian. Declaration maps and locals begin empty. Ordinary memory uses
-aligned eight-byte cells in the scratch region and ordinary memory above
-`@base`. The shared-memory domain contains aligned cells in the input and
-output arenas. The base is `0xa1000000`; the guest's allocation ceiling is
-`0xb0000000`. The compiler-managed source-memory domain extends from
-`sourceBase` to the stack split minus the 67 global words. Its first five words
-contain the startup pointers; the remaining words begin at zero. The separate
-scratch arena is present in the executable guest model, but is outside this
-compiler installation domain.
+aligned eight-byte cells above `@base`. The shared-memory domain contains
+aligned cells in the input and output arenas. The base is `0xa1000000`; the
+guest's allocation ceiling is `0xb0000000`. The compiler-managed source-memory
+domain extends from `sourceBase` to the stack split minus the 67 global words.
+Its first five words contain the startup pointers; the remaining words begin at
+zero. The guest's scratch arena starts at its allocation ceiling, so it lies in
+this domain (`InitE.scratch_in_ordinaryDomain`).
 
 The fixed oracle is `InitE.sourceOracle`. It uses the shared-memory
 specification in [`Guest/Model.lean`](../Guest/Model.lean), with terminal
@@ -150,20 +149,20 @@ may use the available ordinary RAM according to the fixed machine domain.
 
 | Region | Start | End |
 | --- | --- | --- |
-| Shared input, including 16-byte framing | `0x40000000` | `0x48000000` |
+| Shared input, including 16-byte framing | `0x40000000` | `0x80000000` |
 | Submitted code window | `0x80000000` | `0x88000000` |
 | Available RAM | `0xa0000000` | `0x7e0000000` |
-| Shared public output within RAM | `0xa0410000` | `0xa0420000` |
-| Reserved source startup page | `0xa1000000` | `0xa1001000` |
-| Scratch and EVM frame memory | `0xa1001000` | `0xa1c00000` |
-| Persistent bump allocation | `0xa1c00000` | `0x7defffd18` |
-| 93 scalar globals (744 bytes) | `0x7defffd18` | `0x7df000000` |
+| Shared public output within RAM | `0xa0410000` | `0xa0411000` |
+| Source-memory domain (`@base` to globals) | `0xa1000000` | `0x7defffde8` |
+| Persistent bump allocation, from `@base` | `0xa1000000` | `0xb0000000` |
+| EVM frame memory (up) and scratch (down) | `0xb0000000` | `0xb0bee000` |
+| 67 scalar globals (536 bytes) | `0x7defffde8` | `0x7df000000` |
 | Machine stack (16 MiB) | `0x7df000000` | `0x7e0000000` |
 
-Scratch is above the source base. The bump allocator starts after scratch,
-so persistent allocations cannot overwrite its temporary frame storage or the
-reserved startup page. The RAM endpoint and heap/stack split are 4 KiB aligned;
-the allocation ceiling is eight-byte aligned and excludes globals.
+Scratch is above the bump allocator's ceiling, so persistent allocations cannot
+overwrite temporary frame storage, and every scratch cell is in the source
+memory domain. The RAM endpoint and heap/stack split are 4 KiB aligned; the
+source-memory top is eight-byte aligned and excludes globals.
 [`InitE/Parameters.lean`](../InitE/Parameters.lean) fixes these constants and
 proves region ordering and alignment.
 

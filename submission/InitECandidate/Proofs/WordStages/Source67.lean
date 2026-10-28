@@ -55,7 +55,7 @@ Flapjack.WordLangProgHOL.assign 4
       Flapjack.WordLangExpHOL.const 24#64])
 
 def sourceBody67_13 : WordLangProgHOL (BitVec 64) :=
-Flapjack.WordLangProgHOL.assign 6 (Flapjack.WordLangExpHOL.const 2701127680#64)
+Flapjack.WordLangProgHOL.assign 6 (Flapjack.WordLangExpHOL.const 2965299200#64)
 
 def sourceBody67_14 : WordLangProgHOL (BitVec 64) :=
 .seq sourceBody67_13 sourceBody67_7
@@ -82,7 +82,7 @@ Flapjack.WordLangProgHOL.assign 4
       Flapjack.WordLangExpHOL.const 32#64])
 
 def sourceBody67_20 : WordLangProgHOL (BitVec 64) :=
-Flapjack.WordLangProgHOL.assign 6 (Flapjack.WordLangExpHOL.const 2688618496#64)
+Flapjack.WordLangProgHOL.assign 6 (Flapjack.WordLangExpHOL.const 2952790016#64)
 
 def sourceBody67_21 : WordLangProgHOL (BitVec 64) :=
 .seq sourceBody67_20 sourceBody67_7

@@ -11,10 +11,10 @@ def body7_0 : Prog (BitVec 64) :=
 Flapjack.Prog.assign Flapjack.VarKind.global "heap_ptr" Flapjack.Exp.baseAddr
 
 def body7_1 : Prog (BitVec 64) :=
-Flapjack.Prog.assign Flapjack.VarKind.global "scratch_ptr" (Flapjack.Exp.const 2701127680#64)
+Flapjack.Prog.assign Flapjack.VarKind.global "scratch_ptr" (Flapjack.Exp.const 2965299200#64)
 
 def body7_2 : Prog (BitVec 64) :=
-Flapjack.Prog.assign Flapjack.VarKind.global "frame_mem_ptr" (Flapjack.Exp.const 2688618496#64)
+Flapjack.Prog.assign Flapjack.VarKind.global "frame_mem_ptr" (Flapjack.Exp.const 2952790016#64)
 
 def body7_3 : Prog (BitVec 64) :=
 Flapjack.Prog.return (Flapjack.Exp.const 0#64)

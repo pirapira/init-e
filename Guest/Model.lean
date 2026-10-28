@@ -71,9 +71,12 @@ def inputArenaSize : Word := 1073741824
 def maxInputBytes : Nat := 1073741824 - 16
 /-- `OUTPUT_ADDR` (0xa0410000, ZisK >= 1.1.0-alpha): start of the public output region. -/
 def outputAddr : Word := 2688614400
-/-- `SCRATCH_BASE`: first byte after the reserved startup page at @base. -/
-def scratchBase : Word := 2688618496
-/-- Pancake memory start, `@base`; persistent allocation starts after scratch. -/
+/-- End of the public output region, `OUTPUT_ADDR + 0x1000`. -/
+def outputEnd : Word := 2688618496
+/-- `SCRATCH_BASE`: the frame memory and scratch arena start at the guest
+allocator's `HEAP_END`, inside the compiler's source-memory domain. -/
+def scratchBase : Word := 2952790016
+/-- Pancake memory start, `@base`; persistent allocation starts here. -/
 def heapBase : Word := 2701131776
 /-- Source-memory top for the compiler layout. The guest allocator itself caps
 allocations at `HEAP_END = 0xb0000000` in the committed Pancake source. -/
@@ -91,7 +94,7 @@ regions are not here: the guest reaches them only through shared-memory
 accesses, i.e. through the FFI oracle below. -/
 def guestInitialMemory : Memory :=
   fun address =>
-    if scratchBase ≤ address ∧ address < heapEnd then
+    if heapBase ≤ address ∧ address < heapEnd then
       some (.word (if heapBase ≤ address ∧ address < heapBase + 40 then
         startupHeaders[(address.toNat - heapBase.toNat) / 8]?.getD 0 else 0))
     else none
@@ -129,7 +132,7 @@ def guestHostMemory (input : InputBlob) : HostMemory :=
   fun address =>
     if inputAddr ≤ address ∧ address < inputAddr + BitVec.ofNat 64 bytes.length then
       bytes[(address - inputAddr).toNat]?
-    else if outputAddr ≤ address ∧ address < scratchBase then some 0
+    else if outputAddr ≤ address ∧ address < outputEnd then some 0
     else none
 
 /-- Access width of a shared-memory call from its configuration byte (`0`
@@ -173,7 +176,7 @@ def guestFfiState (input : InputBlob) : FfiState HostMemory :=
 def guestFfiContext : PanValueFfiContext Word :=
   { sharedDomain := fun address =>
       decide ((inputAddr ≤ address ∧ address < inputAddr + inputArenaSize) ∨
-        (outputAddr ≤ address ∧ address < scratchBase))
+        (outputAddr ≤ address ∧ address < outputEnd))
     -- Exact address in the payload, as CakeML does (see the module docstring).
     byteAlign := id
     bigEndian := false

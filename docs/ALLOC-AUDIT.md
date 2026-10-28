@@ -98,7 +98,7 @@ an OOM one or the reverse.
 | Arena | Region | Size | Used for |
 |---|---|---|---|
 | heap (`alloc`) | `[0xa1000000, 0xb0000000)` | 240 MiB | persistent state, logs, tables, code, input, the 16 MiB journal |
-| EVM frame memory (`frame_mem_alloc`) | bottom of `[0xa0411000, 0xa0fff000)` | shares 11.9 MiB with scratch | per-frame EVM `MEMORY` |
+| EVM frame memory (`frame_mem_alloc`) | bottom of `[0xb0000000, 0xb0bee000)` | shares 11.9 MiB with scratch | per-frame EVM `MEMORY` |
 | scratch (`scratch_alloc`) | top of the same region | | per-frame struct, stack, jumpdest bitmap, tables |
 
 ## Memory price per gas

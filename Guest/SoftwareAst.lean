@@ -3,6 +3,8 @@
 -- Made with `tools/gen-guest-ast.sh`, which cpp-expands the Pancake guest and
 -- runs Flapjack's parser on the preprocessed source.
 -- Upstream source: https://github.com/flamingoponderado/stateless-pancaketh/blob/35569814e3fd569fd98cccdf2a9704683d42d2d9/Guest/guest-software.pp.pnk
+-- init-e moves the scratch arena to [0xb0000000, 0xb0bee000) in guest/src/config.h,
+-- inside the compiler's source-memory domain.
 import Flapjack.Pancake.PanLang
 
 set_option maxRecDepth 100000
@@ -55,9 +57,9 @@ def guestFn_mem_init : Decl (BitVec 64) :=
         (Prog.seq
           (Prog.assign VarKind.global "heap_ptr" Exp.baseAddr)
           (Prog.seq
-          (Prog.assign VarKind.global "scratch_ptr" (Exp.const (BitVec.ofNat 64 2701127680)))
+          (Prog.assign VarKind.global "scratch_ptr" (Exp.const (BitVec.ofNat 64 2965299200)))
           (Prog.seq
-          (Prog.assign VarKind.global "frame_mem_ptr" (Exp.const (BitVec.ofNat 64 2688618496)))
+          (Prog.assign VarKind.global "frame_mem_ptr" (Exp.const (BitVec.ofNat 64 2952790016)))
           (Prog.return (Exp.const (BitVec.ofNat 64 0))))))
       returnShape := Shape.one }
 

@@ -14,9 +14,11 @@ def ramStart : Nat := 0xa0000000
 def ramSize : Nat := 29 * 1024 * 1024 * 1024
 def ramEnd : Nat := ramStart + ramSize
 def sourceBase : Nat := 0xa1000000
-def scratchStart : Nat := 0xa0411000
-def scratchEnd : Nat := 0xa0fff000
 def heapStart : Nat := sourceBase
+/-- The guest's frame memory and scratch arena start at its allocator ceiling
+`HEAP_END`, inside the compiler's source-memory domain above `sourceBase`. -/
+def scratchStart : Nat := 0xb0000000
+def scratchEnd : Nat := 0xb0bee000
 /-- Reserve the final 16 MiB of RAM for the compiler's stack. -/
 def stackSize : Nat := 16 * 1024 * 1024
 def stackStart : Nat := ramEnd - stackSize
@@ -28,9 +30,9 @@ def gasLimit : Nat := 200000000
 
 theorem regions_disjoint :
     inputEnd ≤ initialPc ∧ initialPc + codeSizeLimit ≤ ramStart ∧
-    ramStart ≤ outputStart ∧ outputEnd ≤ scratchStart ∧
-    scratchStart < scratchEnd ∧ scratchEnd ≤ heapStart ∧
-    heapStart < heapEnd ∧ heapEnd < stackStart ∧ stackStart < ramEnd := by
+    ramStart ≤ outputStart ∧ outputEnd ≤ heapStart ∧ heapStart < scratchStart ∧
+    scratchStart < scratchEnd ∧ scratchEnd ≤ heapEnd ∧
+    heapEnd < stackStart ∧ stackStart < ramEnd := by
   decide
 
 theorem ramEnd_aligned : ramEnd % 4096 = 0 := by decide

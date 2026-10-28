@@ -1,6 +1,7 @@
 /* lib/mem.pnk -- bump allocator over the Pancake heap and byte helpers.
    Persistent objects use [@base, HEAP_END); frame memory and scratch use the
-   reserved [SCRATCH_BASE, SCRATCH_END) region before the Pancake heap. */
+   reserved [SCRATCH_BASE, SCRATCH_END) region after it. Both lie inside the
+   compiler's word-memory domain, which starts at @base. */
 
 var 1 heap_ptr = 0;
 var 1 journal_n = 0;   /* shared with state.pnk for trap diagnostics */

@@ -14,10 +14,12 @@
    (0.18.0's address) up by 0x400000. tools/spike/spike_run.cc (a fork of
    evm-asm's) targets this same address so Spike and ZisK agree. */
 #define OUTPUT_ADDR      2688614400   /* 0xa0410000 */
-#define SCRATCH_BASE     2688618496   /* 0xa0411000: after the output/debug prefix */
+#define SCRATCH_BASE     2952790016   /* 0xb0000000: at the heap ceiling, so the
+                                         arena lies in the compiler's memory
+                                         domain [@base, stack) */
 #define HEAP_BASE        2701131776   /* 0xa1000000 (= @base) */
 #define HEAP_END         2952790016   /* 0xb0000000 */
-#define SCRATCH_END      2701127680   /* 0xa0fff000: below the Pancake heap */
+#define SCRATCH_END      2965299200   /* 0xb0bee000: above the Pancake heap */
 /* State journal (state.pnk): 32-byte undo records, reset at every state_fresh_tx.
    Every journal-writing operation costs at least JOURNAL_MIN_GAS regular gas
    (TSTORE, 100), so one transaction writes at most gas/JOURNAL_MIN_GAS records;

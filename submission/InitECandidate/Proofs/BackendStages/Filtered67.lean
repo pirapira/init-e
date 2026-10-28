@@ -59,7 +59,7 @@ def Filtered67 : LabSem.LabSectionHOL 64 :=
         [] 0,
       Flapjack.Compiler.Backend.LabLang.Line.asm
         (Flapjack.Compiler.Backend.LabLang.AsmOrCbw.asmi
-          (Flapjack.Compiler.Encoders.Asm.HolAsm.inst (Flapjack.Compiler.Encoders.Asm.HolInst.const 12 2701127680#64)))
+          (Flapjack.Compiler.Encoders.Asm.HolAsm.inst (Flapjack.Compiler.Encoders.Asm.HolInst.const 12 2965299200#64)))
         [] 0,
       Flapjack.Compiler.Backend.LabLang.Line.asm
         (Flapjack.Compiler.Backend.LabLang.AsmOrCbw.asmi
@@ -76,7 +76,7 @@ def Filtered67 : LabSem.LabSectionHOL 64 :=
         [] 0,
       Flapjack.Compiler.Backend.LabLang.Line.asm
         (Flapjack.Compiler.Backend.LabLang.AsmOrCbw.asmi
-          (Flapjack.Compiler.Encoders.Asm.HolAsm.inst (Flapjack.Compiler.Encoders.Asm.HolInst.const 11 2688618496#64)))
+          (Flapjack.Compiler.Encoders.Asm.HolAsm.inst (Flapjack.Compiler.Encoders.Asm.HolInst.const 11 2952790016#64)))
         [] 0,
       Flapjack.Compiler.Backend.LabLang.Line.asm
         (Flapjack.Compiler.Backend.LabLang.AsmOrCbw.asmi

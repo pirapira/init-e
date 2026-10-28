@@ -23,7 +23,7 @@ def crepBody3_4 : CrepProg (BitVec 64) :=
 .dec 1 (Flapjack.CrepExp.op Flapjack.BinOp.sub [Flapjack.CrepExp.topAddr, Flapjack.CrepExp.const 8#64]) crepBody3_3
 
 def crepBody3_5 : CrepProg (BitVec 64) :=
-.dec 2 (Flapjack.CrepExp.const 2701127680#64) crepBody3_2
+.dec 2 (Flapjack.CrepExp.const 2965299200#64) crepBody3_2
 
 def crepBody3_6 : CrepProg (BitVec 64) :=
 .dec 1 (Flapjack.CrepExp.op Flapjack.BinOp.sub [Flapjack.CrepExp.topAddr, Flapjack.CrepExp.const 24#64]) crepBody3_5
@@ -32,7 +32,7 @@ def crepBody3_7 : CrepProg (BitVec 64) :=
 .seq crepBody3_4 crepBody3_6
 
 def crepBody3_8 : CrepProg (BitVec 64) :=
-.dec 2 (Flapjack.CrepExp.const 2688618496#64) crepBody3_2
+.dec 2 (Flapjack.CrepExp.const 2952790016#64) crepBody3_2
 
 def crepBody3_9 : CrepProg (BitVec 64) :=
 .dec 1 (Flapjack.CrepExp.op Flapjack.BinOp.sub [Flapjack.CrepExp.topAddr, Flapjack.CrepExp.const 32#64]) crepBody3_8
