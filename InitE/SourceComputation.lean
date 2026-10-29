@@ -1,5 +1,8 @@
 import InitE.SourceRun
 
+set_option maxRecDepth 1000000
+set_option maxHeartbeats 0
+
 namespace InitE
 open Flapjack Flapjack.PanSemStateFiniteExact
 
@@ -30,14 +33,6 @@ theorem ordinaryDomain_iff (a : BitVec 64) :
 
 def ordinaryDomainDecidable (a : BitVec 64) : Decidable (ordinaryDomain a) :=
   decidable_of_iff _ (ordinaryDomain_iff a).symm
-
-/-- The fixed source domain excludes the lower scratch arena. This matters
-when interpreting guest routines that allocate scratch below `sourceBase`. -/
-theorem scratch_not_ordinaryDomain (a : BitVec 64) (below : a.toNat < scratchEnd) :
-    ¬ ordinaryDomain a := by
-  rw [ordinaryDomain_iff]
-  simp only [scratchEnd] at below
-  omega
 
 theorem sharedDomain_iff (a : BitVec 64) : sharedDomain a ↔
     a.toNat % 8 = 0 ∧ ((inputStart ≤ a.toNat ∧ a.toNat < inputEnd) ∨
@@ -78,6 +73,49 @@ theorem source_declarations_domains {σ : Type}
         · exact @ih (setGlobalHOLFinite name value state) ‹DecidablePred state.memaddrs› run
         · cases run
       · cases run
+
+/-- Compose independently checked declaration chunks, irrespective of the
+operational memory deciders used by each chunk. -/
+theorem source_declarations_append {σ : Type}
+    (xs ys : List (Pancake.PanLang.DeclHOL 64))
+    (s t u : PanSemStateFiniteExact 64 σ)
+    (ds : DecidablePred s.memaddrs) (dt : DecidablePred t.memaddrs)
+    (first : @evaluateDeclsHOLFinite 64 σ _ s ds xs = some t)
+    (second : @evaluateDeclsHOLFinite 64 σ _ t dt ys = some u) :
+    @evaluateDeclsHOLFinite 64 σ _ s ds (xs ++ ys) = some u := by
+  induction xs generalizing s with
+  | nil =>
+    cases first
+    have equal : ds = dt := Subsingleton.elim _ _
+    cases equal
+    exact second
+  | cons declaration xs ih =>
+    cases declaration with
+    | name _ _ => exact ih s ds first
+    | function fn =>
+      simp only [List.cons_append, evaluateDeclsHOLFinite] at first ⊢
+      split at first
+      next valid =>
+        rw [if_pos valid]
+        exact ih { s with code := s.code.update (fn.name, fn.params, fn.body, fn.returnShape) } ds first
+      next invalid => cases first
+    | exnDecl name shape =>
+      simp only [List.cons_append, evaluateDeclsHOLFinite] at first ⊢
+      split at first
+      next valid =>
+        rw [if_pos valid]
+        exact ih { s with eshapes := s.eshapes.update (name, shape) } ds first
+      next invalid => cases first
+    | decl shape name expression =>
+      simp only [List.cons_append, evaluateDeclsHOLFinite] at first ⊢
+      split at first
+      next value expressionRun =>
+        split at first
+        next valid =>
+          rw [if_pos valid]
+          exact ih (setGlobalHOLFinite name value s) ds first
+        next invalid => cases first
+      next noValue => cases first
 
 /-- Address domains bundled with their operational decision procedures. -/
 structure SourceDomains where
@@ -127,24 +165,52 @@ def sourceRunWithDomains (domains : SourceDomains) (input : Guest.InputBlob) (cl
 def sourceDomains : SourceDomains :=
   ⟨ordinaryDomain, sharedDomain, ordinaryDomainDecidable, sharedDomainDecidable⟩
 
+def arithmeticOrdinaryDomain (a : BitVec 64) : Prop :=
+  2701131776 ≤ a.toNat ∧ a.toNat < 33806089704 ∧ a.toNat % 8 = 0
+
+instance (a : BitVec 64) : Decidable (arithmeticOrdinaryDomain a) := by
+  unfold arithmeticOrdinaryDomain
+  infer_instance
+
+def arithmeticSharedDomain (a : BitVec 64) : Prop :=
+  a.toNat % 8 = 0 ∧ ((inputStart ≤ a.toNat ∧ a.toNat < inputEnd) ∨
+    (outputStart ≤ a.toNat ∧ a.toNat < outputEnd))
+
+instance (a : BitVec 64) : Decidable (arithmeticSharedDomain a) := by
+  unfold arithmeticSharedDomain
+  infer_instance
+
 def sourceArithmeticDomains : SourceDomains :=
-  { ordinary := fun a => 2701131776 ≤ a.toNat ∧ a.toNat < 33806089704 ∧ a.toNat % 8 = 0
-    shared := fun a => a.toNat % 8 = 0 ∧
-      ((inputStart ≤ a.toNat ∧ a.toNat < inputEnd) ∨
-        (outputStart ≤ a.toNat ∧ a.toNat < outputEnd))
-    ordinaryDecider := fun _ => inferInstance
-    sharedDecider := fun _ => inferInstance }
+  ⟨arithmeticOrdinaryDomain, arithmeticSharedDomain, fun _ => inferInstance,
+    fun _ => inferInstance⟩
 
 def sourceRun (input : Guest.InputBlob) (clock : Nat) :=
   sourceRunWithDomains sourceDomains input clock
 
-/-- Arithmetic domain predicates avoid expanding the recursive address set
-when the kernel checks a concrete interpreter computation. -/
-def sourceRunArithmetic (input : Guest.InputBlob) (clock : Nat) :=
-  sourceRunWithDomains sourceArithmeticDomains input clock
+/-- Direct application of the arithmetic interpreters keeps the operational
+deciders out of a bundled argument during proof-producing reduction. -/
+def sourceRunArithmetic (input : Guest.InputBlob) (clock : Nat) :
+    Option (Option (PanSemResultExact 64) × PanSemStateFiniteExact 64 Guest.HostMemory) :=
+  match decsStcnamesHOLExact [] (Guest.Software.guestAst.map Pancake.PanLang.declToHOL) with
+  | none => none
+  | some context =>
+    let state : PanSemStateFiniteExact 64 Guest.HostMemory := { sourceInitialState input with
+      structs := context
+      memaddrs := arithmeticOrdinaryDomain
+      shMemaddrs := arithmeticSharedDomain }
+    match evaluateDeclsHOLFinite state (Guest.Software.guestAst.map Pancake.PanLang.declToHOL) with
+    | none => none
+    | some entry =>
+      let entry : PanSemStateFiniteExact 64 Guest.HostMemory := { entry with
+        memaddrs := arithmeticOrdinaryDomain
+        shMemaddrs := arithmeticSharedDomain
+        clock := clock }
+      some (evaluateHOLFiniteStateWithDeciders entry
+        (.call none (Basis.Pure.MlString.ofString "main") []))
 
 theorem sourceRunArithmetic_eq (input : Guest.InputBlob) (clock : Nat) :
     sourceRunArithmetic input clock = sourceRun input clock := by
+  change sourceRunWithDomains sourceArithmeticDomains input clock = _
   apply congrArg (fun domains => sourceRunWithDomains domains input clock)
   apply SourceDomains.eq_of_domains
   · funext a
