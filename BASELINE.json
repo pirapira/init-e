@@ -4,8 +4,8 @@
     "branch": "riscv-im",
     "revision": "034bb5a1ed0b757082768d5406206bd2f8e31b7c"
   },
-  "source_sha256": "2cc9024d6979d623c503521b219123bc5f63cd69504bea97b93b3aad62e5360c",
-  "elf_sha256": "933d2a7cb79b59f3cd0c47670a1c97d2baebb1aceb3d5b638a2730e2acc15ab4",
+  "source_sha256": "ecb1d09e01fe1cb5e945a6a4c00fcf510d62d278f5eabee9979c0d83a34fe3d9",
+  "elf_sha256": "ed60494ff1264573f151431856c068ce29dd7d216652ec8cb37aa2bb7b3a625e",
   "native_code_bytes": 979140,
   "claimed_score": "pending_current_software_guest_verification",
   "historical_results_scope": "EEST and outside verification records below concern the previous accelerated guest and do not certify this software guest revision.",

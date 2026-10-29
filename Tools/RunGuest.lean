@@ -6,6 +6,8 @@ import Guest.Model
 Runs the guest under flapjack's step-counted stateful-FFI source semantics
 exactly as `Guest.runGuestStepped` defines it, and prints the control result,
 the step count, and the output region as the guest left it in host memory.
+An ordinary memory access outside the source-memory domain prints `error`.
+`tools/run-guest-manifest.sh` runs it over an EEST input manifest.
 
 `input` is a guest input as `tools/make-inputs.sh` writes it (the input
 packing: 8-byte little-endian blob length, the blob, zero padding to a multiple
@@ -26,6 +28,7 @@ def unpackInput (bytes : ByteArray) : Except String InputBlob := do
 
 def describe : PanValueFfiControlResult Word HostMemory → String
   | .normal _ _ _ _ => "normal"
+  | .error _ _ _ _ => "error (memory fault or other evaluation error)"
   | .returned _ _ _ _ values => s!"returned {values.length} value(s)"
   | .raised _ _ _ _ exception _ => s!"raised {exception}"
   | .broke _ _ _ _ => "broke"

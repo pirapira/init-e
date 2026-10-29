@@ -195,6 +195,16 @@ reviewing the improvement. Each check gets a PASS/FAIL line, detailed output
 is saved under `work/check-all/`, and regressions make the script exit
 non-zero.
 
+The machine runs above cannot see the source semantics' memory domain:
+ordinary RAM outside it works on Spike and ZisK. To check that a manifest is
+also accepted by the source model, run
+`tools/run-guest-manifest.sh work/inputs/manifest.tsv [JOBS] [SECONDS]`. It
+runs each input through `lake exe run-guest`, whose ordinary memory is
+confined to the challenge's `ordinaryDomain`, and compares the output region
+with the expected bytes. A store outside the domain ends the run as `error`.
+The model is an interpreter, so heavy blocks can need hours; a `TIMEOUT` line
+means the run did not finish within `SECONDS`.
+
 ## Plan
 
 1. Port the Pancake compiler, formally verified in HOL, to Lean (flapjack).

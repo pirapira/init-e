@@ -86,6 +86,23 @@ theorem source_empty_maps (input : Guest.InputBlob) :
 theorem source_memory_domain (input : Guest.InputBlob) :
     (sourceInitialState input).memaddrs = ordinaryDomain := rfl
 
+/-- Every aligned cell of the guest's scratch arena is ordinary source memory,
+so `frame_new`'s scratch stores do not fail in the source semantics. -/
+theorem scratch_in_ordinaryDomain (address : BitVec 64) (aligned : address.toNat % 8 = 0)
+    (inside : scratchStart ≤ address.toNat ∧ address.toNat < scratchEnd) :
+    ordinaryDomain address := by
+  refine (StackRemove.mem_addresses _ _ _).mpr
+    ⟨(address.toNat - sourceBase) / 8, ?_, ?_⟩
+  · simp only [scratchStart, scratchEnd, sourceBase, stackStart, ramEnd, ramStart, ramSize,
+      stackSize, globalsWords] at inside ⊢
+    omega
+  · apply BitVec.eq_of_toNat_eq
+    change address.toNat = (BitVec.ofNat 64 sourceBase +
+      BitVec.ofNat 64 ((address.toNat - sourceBase) / 8) * BitVec.ofNat 64 8).toNat
+    rw [BitVec.ofNat_mul_ofNat, BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
+    simp only [scratchStart, scratchEnd, sourceBase] at inside ⊢
+    omega
+
 theorem halt_is_terminal (host : Guest.HostMemory) (config bytes : List (BitVec 8)) :
     sourceOracle (.extCall (ofString "halt")) host config bytes = .final .failed := by
   simp [sourceOracle]

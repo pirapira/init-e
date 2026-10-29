@@ -16,14 +16,14 @@ Flapjack.Prog.store (Flapjack.Exp.op Flapjack.BinOp.sub [Flapjack.Exp.topAddr, F
 
 def globalBody7_1 : Prog (BitVec 64) :=
 Flapjack.Prog.store (Flapjack.Exp.op Flapjack.BinOp.sub [Flapjack.Exp.topAddr, Flapjack.Exp.const 24#64])
-  (Flapjack.Exp.const 2701127680#64)
+  (Flapjack.Exp.const 2965299200#64)
 
 def globalBody7_2 : Prog (BitVec 64) :=
 .seq globalBody7_0 globalBody7_1
 
 def globalBody7_3 : Prog (BitVec 64) :=
 Flapjack.Prog.store (Flapjack.Exp.op Flapjack.BinOp.sub [Flapjack.Exp.topAddr, Flapjack.Exp.const 32#64])
-  (Flapjack.Exp.const 2688618496#64)
+  (Flapjack.Exp.const 2952790016#64)
 
 def globalBody7_4 : Prog (BitVec 64) :=
 .seq globalBody7_2 globalBody7_3
