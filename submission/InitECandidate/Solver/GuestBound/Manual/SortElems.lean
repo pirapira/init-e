@@ -957,4 +957,126 @@ theorem run_loop_zero (hE : GuestEnv E) {blk : Prog Word}
       rw [hfr "n" (by decide)]
       exact hn
 
+/-- `width` is 0 or a power of two. -/
+def WOk (ww : Word) : Prop := ww = 0 ∨ ∃ t, t ≤ 63 ∧ ww = BitVec.ofNat 64 (2 ^ t)
+
+/-- Doublings left before `width` wraps to 0. -/
+def wMu (ww : Word) : Nat := if ww = 0 then 0 else 65 - Nat.log2 ww.toNat
+
+theorem pow_word_toNat {t : Nat} (ht : t ≤ 63) : (BitVec.ofNat 64 (2 ^ t)).toNat = 2 ^ t := by
+  rw [BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) (by omega))
+
+theorem pow_word_ne {t : Nat} (ht : t ≤ 63) : BitVec.ofNat 64 (2 ^ t) ≠ (0 : Word) := by
+  intro h0
+  have := congrArg BitVec.toNat h0
+  rw [pow_word_toNat ht] at this
+  exact absurd this (Nat.two_pow_pos t).ne'
+
+theorem pow_word_double (t : Nat) :
+    BitVec.ofNat 64 (2 ^ t) * (BitVec.ofNat 64 2 : Word) = BitVec.ofNat 64 (2 ^ (t + 1)) := by
+  rw [Nat.pow_succ, BitVec.ofNat_mul]
+
+theorem wOk_double {ww : Word} (h : WOk ww) : WOk (ww * BitVec.ofNat 64 2) := by
+  rcases h with rfl | ⟨t, ht, rfl⟩
+  · left
+    simp
+  · rw [pow_word_double]
+    by_cases h63 : t = 63
+    · subst h63
+      left
+      decide
+    · right
+      exact ⟨t + 1, by omega, rfl⟩
+
+theorem wMu_double {ww : Word} (h : ∃ t, t ≤ 63 ∧ ww = BitVec.ofNat 64 (2 ^ t)) :
+    wMu (ww * BitVec.ofNat 64 2) < wMu ww := by
+  obtain ⟨t, ht, rfl⟩ := h
+  rw [pow_word_double]
+  unfold wMu
+  rw [if_neg (pow_word_ne ht), pow_word_toNat ht, Nat.log2_two_pow]
+  by_cases h63 : t = 63
+  · subst h63
+    have h0 : BitVec.ofNat 64 (2 ^ (63 + 1)) = (0 : Word) := by decide
+    rw [if_pos h0]
+    omega
+  · have ht1 : t + 1 ≤ 63 := by omega
+    rw [if_neg (pow_word_ne ht1), pow_word_toNat ht1, Nat.log2_two_pow]
+    omega
+
+/-- The end of an outer iteration: swap the buffers and double `width`. -/
+def swapTail : Prog Word :=
+  .dec "swap" .one (.var .local "src")
+    (.seq (.assign .local "src" (.var .local "dst"))
+      (.seq (.assign .local "dst" (.var .local "swap"))
+        (.assign .local "width"
+          (.panOp .mul [.var .local "width", .const (BitVec.ofNat 64 2)]))))
+
+def SwapPost (ww nw : Word) : Result σ → Prop
+  | .normal l _ _ _ =>
+      l "width" = some (.word (ww * BitVec.ofNat 64 2)) ∧ l "n" = some (.word nw)
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+set_option maxHeartbeats 2000000 in
+theorem swapTail_runs (hE : GuestEnv E) {ww nw : Word} {s : St σ} {r : Result σ}
+    (hw : s.locals "width" = some (.word ww)) (hn : s.locals "n" = some (.word nw)) :
+    Runs E s swapTail r → SwapPost ww nw r := by
+  intro h
+  unfold swapTail at h
+  rw [runs_dec] at h
+  split at h
+  swap
+  · subst h
+    simp only [St.err, SwapPost]
+  split at h
+  swap
+  · subst h
+    simp only [St.err, SwapPost]
+  rename_i vs _ _
+  obtain ⟨rb, hb, rfl⟩ := h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb
+  rw [runs_assign_local] at h₁
+  split at h₁
+  swap
+  · subst h₁
+    simp only [St.err] at hrest
+    subst hrest
+    simp only [restorePanValueFfiLocal, SwapPost]
+  split at h₁
+  swap
+  · subst h₁
+    simp only [St.err] at hrest
+    subst hrest
+    simp only [restorePanValueFfiLocal, SwapPost]
+  subst h₁
+  simp only at hrest
+  obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hrest
+  rw [runs_assign_local] at h₂
+  split at h₂
+  swap
+  · subst h₂
+    simp only [St.err] at hrest₂
+    subst hrest₂
+    simp only [restorePanValueFfiLocal, SwapPost]
+  split at h₂
+  swap
+  · subst h₂
+    simp only [St.err] at hrest₂
+    subst hrest₂
+    simp only [restorePanValueFfiLocal, SwapPost]
+  subst h₂
+  simp only at hrest₂
+  rw [runs_assign_local] at hrest₂
+  simp (config := { decide := true }) only [evalF_panOp, evalArgs_cons, evalArgs_nil,
+    evalF_local, eval_const, update_lookup, if_false, hw, Option.map_some, evalPanOp_mul,
+    panValueAssignmentValid, shape_word, shape_matches_self, if_true] at hrest₂
+  subst hrest₂
+  simp only [restorePanValueFfiLocal, SwapPost]
+  refine ⟨?_, ?_⟩
+  · simp (config := { decide := true }) only [restorePanValueLocal, update_lookup, if_false,
+      if_true]
+  · simp (config := { decide := true }) only [restorePanValueLocal, update_lookup, if_false]
+    exact hn
+
 end InitECandidate.Solver.GuestBound
