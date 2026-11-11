@@ -1079,4 +1079,122 @@ theorem swapTail_runs (hE : GuestEnv E) {ww nw : Word} {s : St σ} {r : Result �
   · simp (config := { decide := true }) only [restorePanValueLocal, update_lookup, if_false]
     exact hn
 
+/-- One iteration of the outer loop, around the inner block `blk`. -/
+def outerS (blk : Prog Word) : Prog Word :=
+  .dec "left" .one (.const (BitVec.ofNat 64 0)) (.seq (.while runGuard (runBody blk)) swapTail)
+
+/-- An outer iteration with `width` a power of two doubles it and keeps `n`. -/
+def OuterSPost (ww nw : Word) : Result σ → Prop
+  | .normal l _ _ _ =>
+      (∃ t, t ≤ 63 ∧ ww = BitVec.ofNat 64 (2 ^ t)) ∧
+        l "width" = some (.word (ww * BitVec.ofNat 64 2)) ∧ l "n" = some (.word nw)
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+set_option maxHeartbeats 2000000 in
+theorem outerS_triple (hE : GuestEnv E) {blk : Prog Word}
+    (hblk : ∀ (s : St σ) (r : Result σ), Runs E s blk r → InnerPost s r)
+    (hz : ∀ (s : St σ) (r : Result σ), s.locals "left" = some (.word 0) →
+      s.locals "mid" = some (.word 0) → s.locals "right" = some (.word 0) →
+      Runs E s blk r → ∃ l g m f, r = .normal l g m f)
+    {b bs : Nat} (hb : Costs E (runBody blk) b) (hs : Costs E swapTail bs) (ww nw : Word)
+    (hok : WOk ww) (hlt : bias ww < bias nw) :
+    Triple E (fun s => s.locals "width" = some (.word ww) ∧ s.locals "n" = some (.word nw))
+      (outerS blk)
+      (panValueExpStepCost (Exp.const (BitVec.ofNat 64 0) : Exp Word) +
+        ((18446744073709551616 + 1) * (panValueExpStepCost runGuard + b + 1) + bs + 1) + 1)
+      (OuterSPost ww nw) := by
+  -- the run loop under the outer guard
+  have hrl : ∀ (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat),
+      s.locals "left" = some (.word 0) → s.locals "width" = some (.word ww) →
+      s.locals "n" = some (.word nw) →
+      E.run fuel s (.while runGuard (runBody blk)) = some (r, n) → r.isError = false →
+      n ≤ (18446744073709551616 + 1) * (panValueExpStepCost runGuard + b + 1) ∧
+        (∃ t, t ≤ 63 ∧ ww = BitVec.ofNat 64 (2 ^ t)) ∧
+        match r with
+        | .normal l _ _ _ => l "width" = some (.word ww) ∧ l "n" = some (.word nw)
+        | .continued _ _ _ _ | .broke _ _ _ _ => False
+        | _ => True := by
+    intro fuel s r n hl hw hn hrun hne
+    rcases hok with rfl | ⟨t, ht, rfl⟩
+    · have herr := run_loop_zero hE hblk hz hlt fuel s r n hl hw hn hrun
+      rw [herr] at hne
+      cases hne
+    · have h1 : 1 ≤ (BitVec.ofNat 64 (2 ^ t) : Word).toNat := by
+        rw [pow_word_toNat ht]
+        exact Nat.two_pow_pos t
+      have h2 : (BitVec.ofNat 64 (2 ^ t) : Word).toNat ≤ 2 ^ 63 := by
+        rw [pow_word_toNat ht]
+        exact Nat.pow_le_pow_right (by decide) ht
+      obtain ⟨hcost, hpost⟩ := run_loop hE hblk hb _ nw h1 h2 s.locals hw hn fuel s r n
+        ⟨fun _ _ => rfl, hl⟩ hrun hne
+      refine ⟨hcost, ⟨t, ht, rfl⟩, ?_⟩
+      cases r with
+      | normal l g m f =>
+        exact ⟨(hpost "width" (by decide)).trans hw, (hpost "n" (by decide)).trans hn⟩
+      | continued l g m f => exact hpost.elim
+      | broke l g m f => exact hpost.elim
+      | _ => trivial
+  intro fuel s r n hP hrun hne
+  obtain ⟨hw, hn⟩ := hP
+  constructor
+  · -- the step bound
+    have hT : Triple E (fun s => s.locals "width" = some (.word ww) ∧
+          s.locals "n" = some (.word nw)) (outerS blk)
+        (panValueExpStepCost (Exp.const (BitVec.ofNat 64 0) : Exp Word) +
+          ((18446744073709551616 + 1) * (panValueExpStepCost runGuard + b + 1) + bs + 1) + 1)
+        (fun _ => True) := by
+      refine Triple.dec (P' := fun s => s.locals "left" = some (.word 0) ∧
+        s.locals "width" = some (.word ww) ∧ s.locals "n" = some (.word nw)) _ _ _ ?_ ?_
+      · intro s v hP heval _
+        simp only [eval_const, Option.some.injEq] at heval
+        subst heval
+        exact ⟨by simp [update_lookup],
+          by simp (config := { decide := true }) only [update_lookup, if_false]; exact hP.1,
+          by simp (config := { decide := true }) only [update_lookup, if_false]; exact hP.2⟩
+      · refine Triple.seq (Mid := fun _ => True) (Q := fun _ => True) ?_ hs
+        intro fuel s r n hP hrun hne
+        exact ⟨(hrl fuel s r n hP.1 hP.2.1 hP.2.2 hrun hne).1, by cases r <;> trivial⟩
+    exact (hT fuel s r n ⟨hw, hn⟩ hrun hne).1
+  · -- the postcondition
+    have hR := Runs.of_run hrun
+    unfold outerS at hR
+    rw [runs_dec] at hR
+    simp only [eval_const, shape_word, shape_matches_self, if_true] at hR
+    obtain ⟨rb, hb', rfl⟩ := hR
+    obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb'
+    obtain ⟨f', n', hrun'⟩ := h₁
+    by_cases herr : r₁.isError = true
+    · cases r₁ with
+      | error l g m f =>
+        simp only at hrest
+        subst hrest
+        cases hne
+      | _ => cases herr
+    have hne₁ : r₁.isError = false := by simpa using herr
+    obtain ⟨-, hpow, hpost⟩ := hrl f' _ r₁ n' (by simp [update_lookup])
+      (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hw)
+      (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hn) hrun' hne₁
+    cases r₁ with
+    | normal l1 g1 m1 f1 =>
+      simp only at hrest hpost
+      have hsp := swapTail_runs hE hpost.1 hpost.2 hrest
+      cases rb with
+      | normal l g m f =>
+        simp only [restorePanValueFfiLocal, OuterSPost]
+        refine ⟨hpow, ?_, ?_⟩
+        · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+          exact hsp.1
+        · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+          exact hsp.2
+      | continued l g m f => exact hsp.elim
+      | broke l g m f => exact hsp.elim
+      | _ => simp only [restorePanValueFfiLocal, OuterSPost]
+    | continued l1 g1 m1 f1 => exact hpost.elim
+    | broke l1 g1 m1 f1 => exact hpost.elim
+    | _ =>
+      simp only at hrest
+      subst hrest
+      simp only [restorePanValueFfiLocal, OuterSPost]
+
 end InitECandidate.Solver.GuestBound
