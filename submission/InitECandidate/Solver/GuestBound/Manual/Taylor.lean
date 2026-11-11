@@ -178,4 +178,82 @@ theorem tayTail_zero (hE : GuestEnv E) {dw : Word} {s : St σ} {r : Result σ}
   · intro z h1 h2 h3 h4
     simp [update_lookup, h1, h2, h3, h4]
 
+/-- The tail increments `i` and changes only `di`, `acc`, `i`, `nz`. -/
+theorem tayTail_frame (hE : GuestEnv E) {iw : Word} {s : St σ} {r : Result σ}
+    (hi : s.locals "i" = some (.word iw)) :
+    Runs E s tayTail r →
+    match r with
+    | .normal l _ _ _ => l "i" = some (.word (iw + 1)) ∧
+        ∀ z, z ≠ "di" → z ≠ "acc" → z ≠ "i" → z ≠ "nz" → l z = s.locals z
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  intro h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp h
+  have f1 := call_local_frame h₁
+  cases r₁ with
+  | normal l1 g1 m1 ff1 =>
+    simp only at f1 hrest
+    obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hrest
+    have f2 := call_local_frame h₂
+    cases r₂ with
+    | normal l2 g2 m2 ff2 =>
+      simp only at f2 hrest₂
+      obtain ⟨r₃, h₃, hrest₃⟩ := runs_seq.mp hrest₂
+      rw [runs_assign_local] at h₃
+      have hi2 : l2 "i" = some (.word iw) := by
+        rw [f2 "i" (by decide), f1 "i" (by decide)]
+        exact hi
+      simp only [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_local, eval_const, hi2,
+        wordsProj_cons, wordsProj_nil, wordOp, List.foldr, Option.map_some] at h₃
+      split at h₃
+      · subst h₃
+        simp only at hrest₃
+        have f4 := call_local_frame hrest₃
+        cases r with
+        | normal l g m f =>
+          simp only at f4
+          refine ⟨?_, ?_⟩
+          · rw [f4 "i" (by decide)]
+            simp [update_lookup]
+          · intro z h1 h2 h3 h4
+            have h3' : (z == "i") = false := by simpa using h3
+            rw [f4 z h4]
+            simp only [update_lookup, h3', Bool.false_eq_true, if_false]
+            rw [f2 z h2, f1 z h1]
+        | continued l g m f => exact f4.elim
+        | broke l g m f => exact f4.elim
+        | _ => trivial
+      · subst h₃
+        simp only [St.err] at hrest₃
+        subst hrest₃
+        trivial
+    | continued l2 g2 m2 ff2 => exact f2.elim
+    | broke l2 g2 m2 ff2 => exact f2.elim
+    | _ =>
+      simp only at hrest₂
+      subst hrest₂
+      trivial
+  | continued l1 g1 m1 ff1 => exact f1.elim
+  | broke l1 g1 m1 ff1 => exact f1.elim
+  | _ =>
+    simp only at hrest
+    subst hrest
+    trivial
+
+/-- The tail of the loop body. -/
+theorem tayTail_runs (hE : GuestEnv E) {iw dw : Word} {s : St σ} {r : Result σ}
+    (hi : s.locals "i" = some (.word iw))
+    (hden : s.locals "den" = some (.rStruct [.word dw, .word 0, .word 0, .word 0]))
+    (hdi : s.locals "di" = some (.rStruct [.word iw, .word 0, .word 0, .word 0]))
+    (h : Runs E s tayTail r) : TayPost iw s r := by
+  by_cases hz : iw = 0
+  · subst hz
+    exact tayTail_zero hE hi hden hdi h
+  · have hf := tayTail_frame hE hi h
+    cases r with
+    | normal l g m f => exact ⟨hf.1, fun h0 => absurd h0 hz, hf.2⟩
+    | continued l g m f => exact hf.elim
+    | broke l g m f => exact hf.elim
+    | _ => trivial
+
 end InitECandidate.Solver.GuestBound
