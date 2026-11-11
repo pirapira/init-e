@@ -136,4 +136,60 @@ def globalKeeper (E : Env σ) (g : VarName) : Keeper E where
           | (obtain ⟨_, _, rfl, -⟩ := hrun; rfl)
       | _ => simp [globalLeaf] at hallow
 
+/-- Leaves that write no global. -/
+def globalsLeaf : Prog Word → Bool
+  | .skip | .tick | .annot _ _ | .break | .continue | .return _ | .raise _ _
+  | .assign .local _ _ | .primitive _ _ _ | .store _ _ | .store32 _ _ | .storeByte _ _
+  | .shMemStore _ _ _ | .shMemLoad _ .local _ _ | .extCall _ _ _ _ _ => true
+  | _ => false
+
+/-- All globals are unchanged. -/
+def globalsKeeper (E : Env σ) : Keeper E where
+  rel s s' := s'.globals = s.globals
+  refl _ := rfl
+  trans h₁ h₂ := h₂.trans h₁
+  right_locals _ h := h
+  left_locals _ h := h
+  allow := globalsLeaf
+  leaf := by
+    intro fuel p s r n hallow hrun
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
+    | succ fuel =>
+      simp only [Env.run] at hrun
+      cases p with
+      | skip =>
+        simp only [evalPanValueFfiProgSteps, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        rfl
+      | tick => keeper_same rfl
+      | annot key text => keeper_same rfl
+      | «break» => keeper_same rfl
+      | «continue» => keeper_same rfl
+      | «return» value => keeper_leaf panValueReturnResult rfl
+      | raise exception value => keeper_leaf panValueRaiseResult rfl
+      | primitive name operator arguments => keeper_leaf panValuePrimitiveResult rfl
+      | store address value => keeper_leaf panValueStoreResult rfl
+      | store32 address value => keeper_leaf panValueStore32Result rfl
+      | storeByte address value => keeper_leaf panValueStoreByteResult rfl
+      | shMemStore size address value => keeper_leaf panValueShMemStoreResult rfl
+      | assign kind name value =>
+        cases kind with
+        | «local» => keeper_leaf panValueAssignLocalResult rfl
+        | global => simp [globalsLeaf] at hallow
+      | shMemLoad size kind name address =>
+        cases kind with
+        | «local» => keeper_leaf panValueShMemLoadResult rfl
+        | global => simp [globalsLeaf] at hallow
+      | extCall function configuration configurationLength array arrayLength =>
+        rw [evalPanValueFfiProgSteps] at hrun
+        simp only [panValueFfiExtCallSteps] at hrun
+        repeat' split at hrun
+        all_goals (try (simp only [Option.some.injEq, Prod.mk.injEq, Option.pure_def,
+          Option.bind_eq_bind, Option.bind_eq_some_iff] at hrun))
+        all_goals first
+          | (obtain ⟨rfl, -⟩ := hrun; rfl)
+          | (obtain ⟨_, _, rfl, -⟩ := hrun; rfl)
+      | _ => simp [globalsLeaf] at hallow
+
 end InitECandidate.Solver.GuestBound
