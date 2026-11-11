@@ -55,11 +55,17 @@ theorem «state_fresh_tx» (hE : GuestEnv E) : FunCost E "state_fresh_tx" 3705 :
 theorem «acct_empty» (hE : GuestEnv E) : FunCost E "acct_empty" 122 := by
   guest_cost 362
 
+theorem «ws_get_code» (hE : GuestEnv E) : FunCost E "ws_get_code" 9647647150550095495873 := by
+  guest_cost 370
+
 theorem «bal_init» (hE : GuestEnv E) : FunCost E "bal_init" 1427 := by
   guest_cost 411
 
 theorem «lst_upsert_idx» (hE : GuestEnv E) : FunCost E "lst_upsert_idx" 3836922767331586736311 := by
   guest_cost 413
+
+theorem «validate_block_access_list_gas_limit» (hE : GuestEnv E) : FunCost E "validate_block_access_list_gas_limit" 1776419791114430656309127565608405627340982538825405032300625 := by
+  guest_cost 434
 
 theorem «stack_push_word» (hE : GuestEnv E) : FunCost E "stack_push_word" 3394200909562557497538 := by
   guest_cost 455
@@ -69,6 +75,9 @@ theorem «stack_push_bool» (hE : GuestEnv E) : FunCost E "stack_push_bool" 3394
 
 theorem «memory_gas_cost» (hE : GuestEnv E) : FunCost E "memory_gas_cost" 140 := by
   guest_cost 457
+
+theorem «access_gas_cost» (hE : GuestEnv E) : FunCost E "access_gas_cost" 5220428572859803107687 := by
+  guest_cost 473
 
 theorem «op_add» (hE : GuestEnv E) : FunCost E "op_add" 3394200909562557497714 := by
   guest_cost 475
@@ -117,14 +126,5 @@ theorem «op_dupn» (hE : GuestEnv E) : FunCost E "op_dupn" 33942009095625574976
 
 theorem «log_append» (hE : GuestEnv E) : FunCost E "log_append" 3394200909562557497517 := by
   guest_cost 523
-
-theorem «op_address» (hE : GuestEnv E) : FunCost E "op_address" 4593239274353678352842 := by
-  guest_cost 531
-
-theorem «op_origin» (hE : GuestEnv E) : FunCost E "op_origin" 4593239274353678352847 := by
-  guest_cost 533
-
-theorem «op_caller» (hE : GuestEnv E) : FunCost E "op_caller" 4593239274353678352842 := by
-  guest_cost 534
 
 end InitECandidate.Solver.GuestBound.Fn

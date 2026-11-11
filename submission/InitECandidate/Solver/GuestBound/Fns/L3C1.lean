@@ -7,6 +7,18 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_tload» (hE : GuestEnv E) : FunCost E "op_tload" 15403031301547475600788 := by
+  guest_cost 529
+
+theorem «op_address» (hE : GuestEnv E) : FunCost E "op_address" 4593239274353678352842 := by
+  guest_cost 531
+
+theorem «op_origin» (hE : GuestEnv E) : FunCost E "op_origin" 4593239274353678352847 := by
+  guest_cost 533
+
+theorem «op_caller» (hE : GuestEnv E) : FunCost E "op_caller" 4593239274353678352842 := by
+  guest_cost 534
+
 theorem «op_callvalue» (hE : GuestEnv E) : FunCost E "op_callvalue" 3394200909562557497592 := by
   guest_cost 535
 
@@ -114,17 +126,5 @@ theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step
 
 theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
   guest_cost 787
-
-theorem «iso_map_g1» (hE : GuestEnv E) : FunCost E "iso_map_g1" 1209516115424987880401068 := by
-  guest_cost 790
-
-theorem «iso_horner_fp2» (hE : GuestEnv E) : FunCost E "iso_horner_fp2" 856574561062703029289208 := by
-  guest_cost 794
-
-theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
-  guest_cost 801
-
-theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
-  guest_cost 823
 
 end InitECandidate.Solver.GuestBound.Fn

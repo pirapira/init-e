@@ -7,6 +7,18 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «iso_map_g1» (hE : GuestEnv E) : FunCost E "iso_map_g1" 1209516115424987880401068 := by
+  guest_cost 790
+
+theorem «iso_horner_fp2» (hE : GuestEnv E) : FunCost E "iso_horner_fp2" 856574561062703029289208 := by
+  guest_cost 794
+
+theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
+  guest_cost 801
+
+theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
+  guest_cost 823
+
 theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
   guest_cost 861
 

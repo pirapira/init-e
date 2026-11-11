@@ -94,6 +94,9 @@ theorem «compact_to_nibbles» (hE : GuestEnv E) : FunCost E "compact_to_nibbles
 theorem «nibbles_concat» (hE : GuestEnv E) : FunCost E "nibbles_concat" 6788401819125114994822 := by
   guest_cost 252
 
+theorem «nodedb_lookup» (hE : GuestEnv E) : FunCost E "nodedb_lookup" 5220428572859803107715 := by
+  guest_cost 254
+
 theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
   guest_cost 255
 
@@ -112,19 +115,16 @@ theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
 theorem «validate_transaction» (hE : GuestEnv E) : FunCost E "validate_transaction" 5460236245818027278892 := by
   guest_cost 346
 
+theorem «jdel» (hE : GuestEnv E) : FunCost E "jdel" 13835058055282163713076 := by
+  guest_cost 357
+
 theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
   guest_cost 361
 
 theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
   guest_cost 363
 
-theorem «lst_new» (hE : GuestEnv E) : FunCost E "lst_new" 194 := by
-  guest_cost 408
-
-theorem «lst_new_scratch» (hE : GuestEnv E) : FunCost E "lst_new_scratch" 192 := by
-  guest_cost 409
-
-theorem «lst_push» (hE : GuestEnv E) : FunCost E "lst_push" 3394200909562557497505 := by
-  guest_cost 410
+theorem «stor_lookup» (hE : GuestEnv E) : FunCost E "stor_lookup" 10440857145719606215399 := by
+  guest_cost 377
 
 end InitECandidate.Solver.GuestBound.Fn

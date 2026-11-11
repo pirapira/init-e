@@ -7,6 +7,30 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp2_sqr» (hE : GuestEnv E) : FunCost E "fp2_sqr" 15086 := by
+  guest_cost 732
+
+theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
+  guest_cost 733
+
+theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
+  guest_cost 734
+
+theorem «fp6_set_one» (hE : GuestEnv E) : FunCost E "fp6_set_one" 4869940435459321626703 := by
+  guest_cost 740
+
+theorem «g1_neg» (hE : GuestEnv E) : FunCost E "g1_neg" 207 := by
+  guest_cost 761
+
+theorem «g2_set_inf» (hE : GuestEnv E) : FunCost E "g2_set_inf" 2434970217729660813395 := by
+  guest_cost 770
+
+theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 269285569988012034490382 := by
+  guest_cost 789
+
+theorem «kzg_neg_scalar» (hE : GuestEnv E) : FunCost E "kzg_neg_scalar" 1199038364791120855367 := by
+  guest_cost 799
+
 theorem «pre_blake2f» (hE : GuestEnv E) : FunCost E "pre_blake2f" 34403177697468313764447 := by
   guest_cost 827
 

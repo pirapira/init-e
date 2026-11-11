@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «logs_encoded_bound» (hE : GuestEnv E) : FunCost E "logs_encoded_bound" 553402322211286548497 := by
+  guest_cost 834
+
 theorem «tx_is_blob» (hE : GuestEnv E) : FunCost E "tx_is_blob" 12 := by
   guest_cost 865
 

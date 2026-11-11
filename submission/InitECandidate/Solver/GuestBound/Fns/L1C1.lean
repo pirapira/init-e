@@ -7,6 +7,15 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «sk_make» (hE : GuestEnv E) : FunCost E "sk_make" 6788401819125114994734 := by
+  guest_cost 360
+
+theorem «acct_is_empty» (hE : GuestEnv E) : FunCost E "acct_is_empty" 4427218577690292388173 := by
+  guest_cost 384
+
+theorem «bal_list_remove_idx» (hE : GuestEnv E) : FunCost E "bal_list_remove_idx" 62611955513452677278459966132236471762959 := by
+  guest_cost 424
+
 theorem «ceil32» (hE : GuestEnv E) : FunCost E "ceil32" 31 := by
   guest_cost 442
 
@@ -117,14 +126,5 @@ theorem «bls_fp_half_can» (hE : GuestEnv E) : FunCost E "bls_fp_half_can" 213 
 
 theorem «fp2_copy» (hE : GuestEnv E) : FunCost E "fp2_copy" 3394200909562557497367 := by
   guest_cost 721
-
-theorem «fp2_set_zero» (hE : GuestEnv E) : FunCost E "fp2_set_zero" 2434970217729660813332 := by
-  guest_cost 722
-
-theorem «fp2_eq» (hE : GuestEnv E) : FunCost E "fp2_eq" 107 := by
-  guest_cost 725
-
-theorem «fp6_copy» (hE : GuestEnv E) : FunCost E "fp6_copy" 3394200909562557497367 := by
-  guest_cost 738
 
 end InitECandidate.Solver.GuestBound.Fn

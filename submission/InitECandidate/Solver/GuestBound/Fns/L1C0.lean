@@ -76,6 +76,15 @@ theorem «rlp_bytes_to_word» (hE : GuestEnv E) : FunCost E "rlp_bytes_to_word" 
 theorem «rlp_check_uint_bytes» (hE : GuestEnv E) : FunCost E "rlp_check_uint_bytes" 43 := by
   guest_cost 117
 
+theorem «htab_get» (hE : GuestEnv E) : FunCost E "htab_get" 5220428572859803107690 := by
+  guest_cost 132
+
+theorem «htab_has» (hE : GuestEnv E) : FunCost E "htab_has" 5220428572859803107668 := by
+  guest_cost 133
+
+theorem «htab_del» (hE : GuestEnv E) : FunCost E "htab_del" 5220428572859803107846 := by
+  guest_cost 139
+
 theorem «fp_add» (hE : GuestEnv E) : FunCost E "fp_add" 317 := by
   guest_cost 149
 
@@ -117,14 +126,5 @@ theorem «tx_chain_id» (hE : GuestEnv E) : FunCost E "tx_chain_id" 306 := by
 
 theorem «calculate_intrinsic_cost» (hE : GuestEnv E) : FunCost E "calculate_intrinsic_cost" 5460236245818027278784 := by
   guest_cost 345
-
-theorem «sk_make» (hE : GuestEnv E) : FunCost E "sk_make" 6788401819125114994734 := by
-  guest_cost 360
-
-theorem «acct_is_empty» (hE : GuestEnv E) : FunCost E "acct_is_empty" 4427218577690292388173 := by
-  guest_cost 384
-
-theorem «bal_list_remove_idx» (hE : GuestEnv E) : FunCost E "bal_list_remove_idx" 62611955513452677278459966132236471762959 := by
-  guest_cost 424
 
 end InitECandidate.Solver.GuestBound.Fn

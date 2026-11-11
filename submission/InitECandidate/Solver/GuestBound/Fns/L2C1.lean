@@ -7,6 +7,24 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «get_transient_storage» (hE : GuestEnv E) : FunCost E "get_transient_storage" 12008830391984918102449 := by
+  guest_cost 380
+
+theorem «lst_new» (hE : GuestEnv E) : FunCost E "lst_new" 194 := by
+  guest_cost 408
+
+theorem «lst_new_scratch» (hE : GuestEnv E) : FunCost E "lst_new_scratch" 192 := by
+  guest_cost 409
+
+theorem «lst_push» (hE : GuestEnv E) : FunCost E "lst_push" 3394200909562557497505 := by
+  guest_cost 410
+
+theorem «bal_remove_change» (hE : GuestEnv E) : FunCost E "bal_remove_change" 62611955513452677283680394705096274870671 := by
+  guest_cost 425
+
+theorem «remove_storage_write» (hE : GuestEnv E) : FunCost E "remove_storage_write" 62611955513452677294121251850815881086233 := by
+  guest_cost 426
+
 theorem «words_of» (hE : GuestEnv E) : FunCost E "words_of" 37 := by
   guest_cost 443
 
@@ -27,6 +45,12 @@ theorem «msg_new» (hE : GuestEnv E) : FunCost E "msg_new" 24349702177296608134
 
 theorem «msg_new_scratch» (hE : GuestEnv E) : FunCost E "msg_new_scratch" 2434970217729660813417 := by
   guest_cost 466
+
+theorem «is_warm_address» (hE : GuestEnv E) : FunCost E "is_warm_address" 5220428572859803107676 := by
+  guest_cost 471
+
+theorem «is_warm_storage_key» (hE : GuestEnv E) : FunCost E "is_warm_storage_key" 12008830391984918102413 := by
+  guest_cost 525
 
 theorem «set_retdata» (hE : GuestEnv E) : FunCost E "set_retdata" 3394200909562557497513 := by
   guest_cost 595
@@ -102,29 +126,5 @@ theorem «fp2_conj» (hE : GuestEnv E) : FunCost E "fp2_conj" 192 := by
 
 theorem «fp2_mul» (hE : GuestEnv E) : FunCost E "fp2_mul" 22752 := by
   guest_cost 731
-
-theorem «fp2_sqr» (hE : GuestEnv E) : FunCost E "fp2_sqr" 15086 := by
-  guest_cost 732
-
-theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
-  guest_cost 733
-
-theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
-  guest_cost 734
-
-theorem «fp6_set_one» (hE : GuestEnv E) : FunCost E "fp6_set_one" 4869940435459321626703 := by
-  guest_cost 740
-
-theorem «g1_neg» (hE : GuestEnv E) : FunCost E "g1_neg" 207 := by
-  guest_cost 761
-
-theorem «g2_set_inf» (hE : GuestEnv E) : FunCost E "g2_set_inf" 2434970217729660813395 := by
-  guest_cost 770
-
-theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 269285569988012034490382 := by
-  guest_cost 789
-
-theorem «kzg_neg_scalar» (hE : GuestEnv E) : FunCost E "kzg_neg_scalar" 1199038364791120855367 := by
-  guest_cost 799
 
 end InitECandidate.Solver.GuestBound.Fn

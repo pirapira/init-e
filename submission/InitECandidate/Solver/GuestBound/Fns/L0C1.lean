@@ -49,6 +49,9 @@ theorem «rlp_put_be» (hE : GuestEnv E) : FunCost E "rlp_put_be" 35048813740048
 theorem «htab_first_diff» (hE : GuestEnv E) : FunCost E "htab_first_diff" 8507059173023461587045533787636944076807 := by
   guest_cost 130
 
+theorem «htab_find_leaf» (hE : GuestEnv E) : FunCost E "htab_find_leaf" 793209995169510719508 := by
+  guest_cost 131
+
 theorem «htab_count» (hE : GuestEnv E) : FunCost E "htab_count" 5 := by
   guest_cost 141
 
@@ -123,8 +126,5 @@ theorem «state_snapshot» (hE : GuestEnv E) : FunCost E "state_snapshot" 2 := b
 
 theorem «track_ancestor_access» (hE : GuestEnv E) : FunCost E "track_ancestor_access" 22 := by
   guest_cost 402
-
-theorem «bal_sort_gt» (hE : GuestEnv E) : FunCost E "bal_sort_gt" 590295810358705651742 := by
-  guest_cost 429
 
 end InitECandidate.Solver.GuestBound.Fn
