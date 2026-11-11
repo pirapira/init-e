@@ -166,4 +166,22 @@ theorem funCost_of_index {declarations : List (Decl Word)} {f : FunName} {d : Fu
   rw [← hbody']
   exact hbody
 
+/-- A registered body of `f` is the body of the declaration at position `i`,
+with its declared parameters, when that is the only declaration named `f`. -/
+theorem fun_of_index {declarations : List (Decl Word)} {f : FunName} {d : FunDecl Word}
+    (i : Nat) (hfrom : FunctionsFrom E.functions declarations)
+    (hget : declarations[i]? = some (Decl.function d))
+    (hunique : uniqueAt f i declarations 0 = true) {parameters : List VarName}
+    {body : Prog Word} (hlookup : lookupPanFunction f E.functions = some (parameters, body)) :
+    body = d.body ∧ parameters = d.params.map Prod.fst := by
+  obtain ⟨d', hmem, hname, hbody', hparams⟩ :=
+    hfrom f parameters body (lookupPanFunction_mem hlookup)
+  obtain ⟨k, hk, hik⟩ := uniqueAt_mem hunique hmem hname
+  have hki : k = i := by omega
+  subst hki
+  rw [hget] at hk
+  simp only [Option.some.injEq, Decl.function.injEq] at hk
+  subst hk
+  exact ⟨hbody'.symm, hparams.symm⟩
+
 end InitECandidate.Solver.GuestBound
