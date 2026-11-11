@@ -13,6 +13,9 @@ theorem «u256_div» (hE : GuestEnv E) : FunCost E "u256_div" 382113894483143445
 theorem «u256_mod» (hE : GuestEnv E) : FunCost E "u256_mod" 3821138944831434450842141720696545146376477132127326556325638171314057790882573 := by
   guest_cost 71
 
+theorem «rlp_validate_items» (hE : GuestEnv E) : FunCost E "rlp_validate_items" 2836944446140402507513345218333742159442252724713519847359476939076076454838065996028214915883461382905084562636800042 := by
+  guest_cost 111
+
 theorem «htab_new_leaf» (hE : GuestEnv E) : FunCost E "htab_new_leaf" 13576803638250229989951 := by
   guest_cost 135
 
@@ -123,8 +126,5 @@ theorem «op_returndatasize» (hE : GuestEnv E) : FunCost E "op_returndatasize" 
 
 theorem «op_timestamp» (hE : GuestEnv E) : FunCost E "op_timestamp" 3394200909562557497607 := by
   guest_cost 556
-
-theorem «op_number» (hE : GuestEnv E) : FunCost E "op_number" 3394200909562557497607 := by
-  guest_cost 557
 
 end InitECandidate.Solver.GuestBound.Fn

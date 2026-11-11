@@ -207,6 +207,52 @@ def loopBody (i k : Nat) : Prog Word :=
   | some (_, body) => body
   | none => .skip
 
+namespace Derive
+open Lean Meta
+
+/-- The loops of a program term in pre-order, mirroring `loopsOf`. -/
+partial def loopsExpr (p : Expr) : Array (Expr × Expr) :=
+  let args := p.getAppArgs
+  match p.getAppFn.constName? with
+  | some ``Flapjack.Prog.dec => loopsExpr args[4]!
+  | some ``Flapjack.Prog.seq => loopsExpr args[1]! ++ loopsExpr args[2]!
+  | some ``Flapjack.Prog.ite => loopsExpr args[2]! ++ loopsExpr args[3]!
+  | some ``Flapjack.Prog.while => #[(args[1]!, args[2]!)] ++ loopsExpr args[2]!
+  | some ``Flapjack.Prog.decCall => loopsExpr args[5]!
+  | some ``Flapjack.Prog.call =>
+      let info := args[1]!
+      if info.isAppOf ``Option.some then
+        let handler := info.appArg!.appArg!
+        if handler.isAppOf ``Option.some then loopsExpr handler.appArg!.appArg!.appArg!
+        else #[]
+      else #[]
+  | _ => #[]
+
+end Derive
+
+open Lean Elab Tactic Meta in
+/-- Replace `loopGuard i k` and `loopBody i k` in the goal by the literal guard
+and body read from the AST. The kernel checks the replacement. -/
+elab "loop_reduce" i:num k:num : tactic => do
+  let goal ← getMainGoal
+  let target ← instantiateMVars (← goal.getType)
+  let mut list ← whnfD (mkConst ``Guest.Software.guestAst)
+  for _ in [0:i.getNat] do
+    let some (_, _, tail) := list.app3? ``List.cons | throwError "loop_reduce: index out of range"
+    list ← whnfD tail
+  let some (_, entry, _) := list.app3? ``List.cons | throwError "loop_reduce: index out of range"
+  let some entryName := entry.constName? | throwError "loop_reduce: entry is not a constant"
+  let value := (← getConstInfo entryName).value!
+  let declaration := value.appArg!
+  let body := declaration.getAppArgs[5]!
+  let loops := Derive.loopsExpr body
+  let some (guard, loopBodyTerm) := loops[k.getNat]? | throwError "loop_reduce: no such loop"
+  let newTarget := target.replace fun e =>
+    if e.isAppOfArity ``loopBody 2 then some loopBodyTerm
+    else if e.isAppOfArity ``loopGuard 2 then some guard
+    else none
+  replaceMainGoal [← goal.replaceTargetDefEq newTarget]
+
 /-- Namespace of the per-function cost theorems `Fn.<name>`. -/
 def fnNamespace : Lean.Name := `InitECandidate.Solver.GuestBound.Fn
 

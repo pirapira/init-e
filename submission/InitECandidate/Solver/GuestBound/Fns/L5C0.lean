@@ -19,6 +19,9 @@ theorem «u256_addmod» (hE : GuestEnv E) : FunCost E "u256_addmod" 764227788966
 theorem «u256_mulmod» (hE : GuestEnv E) : FunCost E "u256_mulmod" 11463416834494303352526425162089635439129431396381979668975623241857013704035962 := by
   guest_cost 76
 
+theorem «rlp_item_total» (hE : GuestEnv E) : FunCost E "rlp_item_total" 2836944446140402507513345218333742159442252724713519847359476939076076454838065996028214915883462046987871216180658517 := by
+  guest_cost 112
+
 theorem «htab_set» (hE : GuestEnv E) : FunCost E "htab_set" 24160048051386630952311605217108774881572 := by
   guest_cost 138 [1]
 

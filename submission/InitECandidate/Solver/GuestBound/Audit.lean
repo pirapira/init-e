@@ -80,3 +80,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms decCall_run_inv
 #print axioms trap_with_noReturn
 #print axioms scratch_alloc_spec
+#print axioms rankedWalk_costs
+#print axioms StepOk.alloc_push
+#print axioms Manual.«_rlp_validate_items_body».loop0
+#print axioms Fn.«_rlp_validate_items_body»

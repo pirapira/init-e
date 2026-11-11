@@ -6,3 +6,4 @@
 #     Costs E (.while (loopGuard i K) (loopBody i K)) (N * (expCost (loopGuard i K) + b + 1))
 # with i the position of the function in Guest.Software.guestAst. See GuestEnv.lean.
 # Example (not registered): Manual/Example.lean proves rlp_be_len loop 0 in this form.
+_rlp_validate_items_body 0 4271974071841820168495390267933222483964884098185561298029418866064329946018268565607043563520000 InitECandidate.Solver.GuestBound.Manual.RlpValidate
