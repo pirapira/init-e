@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «sat_word» (hE : GuestEnv E) : FunCost E "sat_word" 16 := by
+  guest_cost 440
+
+theorem «add_sat» (hE : GuestEnv E) : FunCost E "add_sat" 13 := by
+  guest_cost 441
+
 theorem «is_valid_delegation» (hE : GuestEnv E) : FunCost E "is_valid_delegation" 36 := by
   guest_cost 446
 
@@ -120,11 +126,5 @@ theorem «bls_g2_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g2_msm_discou
 
 theorem «logs_encoded_bound» (hE : GuestEnv E) : FunCost E "logs_encoded_bound" 553402322211286548497 := by
   guest_cost 834
-
-theorem «tx_is_blob» (hE : GuestEnv E) : FunCost E "tx_is_blob" 12 := by
-  guest_cost 865
-
-theorem «tx_is_setcode» (hE : GuestEnv E) : FunCost E "tx_is_setcode" 12 := by
-  guest_cost 866
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «pre_blake2f» (hE : GuestEnv E) : FunCost E "pre_blake2f" 34403177697468313764447 := by
+  guest_cost 827
+
 theorem «modexp_gas» (hE : GuestEnv E) : FunCost E "modexp_gas" 527 := by
   guest_cost 828
 

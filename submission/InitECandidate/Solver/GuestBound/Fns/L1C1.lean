@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «charge_state_gas» (hE : GuestEnv E) : FunCost E "charge_state_gas" 82 := by
+  guest_cost 449
+
+theorem «credit_state_gas_refund» (hE : GuestEnv E) : FunCost E "credit_state_gas_refund" 51 := by
+  guest_cost 450
+
 theorem «buffer_read» (hE : GuestEnv E) : FunCost E "buffer_read" 5829171127292218310721 := by
   guest_cost 462
 
@@ -76,6 +82,9 @@ theorem «fq_mul» (hE : GuestEnv E) : FunCost E "fq_mul" 3130 := by
 theorem «fe_is_zero» (hE : GuestEnv E) : FunCost E "fe_is_zero" 332041393326771929098 := by
   guest_cost 667
 
+theorem «fe_eq» (hE : GuestEnv E) : FunCost E "fe_eq" 4427218577690292388131 := by
+  guest_cost 668
+
 theorem «fe_set_zero» (hE : GuestEnv E) : FunCost E "fe_set_zero" 2434970217729660813334 := by
   guest_cost 669
 
@@ -117,14 +126,5 @@ theorem «fp6_copy» (hE : GuestEnv E) : FunCost E "fp6_copy" 339420090956255749
 
 theorem «fp6_set_zero» (hE : GuestEnv E) : FunCost E "fp6_set_zero" 2434970217729660813332 := by
   guest_cost 739
-
-theorem «fp12_copy» (hE : GuestEnv E) : FunCost E "fp12_copy" 3394200909562557497367 := by
-  guest_cost 747
-
-theorem «g1_is_inf» (hE : GuestEnv E) : FunCost E "g1_is_inf" 28 := by
-  guest_cost 759
-
-theorem «g1_copy» (hE : GuestEnv E) : FunCost E "g1_copy" 3394200909562557497367 := by
-  guest_cost 760
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -28,6 +28,9 @@ theorem «ec_add» (hE : GuestEnv E) : FunCost E "ec_add" 54203 := by
 theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_stateless_input" 19977823831827444403211 := by
   guest_cost 207
 
+theorem «_insert_into_leaf» (hE : GuestEnv E) : FunCost E "_insert_into_leaf" 7249570420967853786029 := by
+  guest_cost 273
+
 theorem «extend_memory_cost1» (hE : GuestEnv E) : FunCost E "extend_memory_cost1" 470 := by
   guest_cost 458
 
@@ -97,6 +100,9 @@ theorem «fq12_sqr» (hE : GuestEnv E) : FunCost E "fq12_sqr" 146525587196156102
 theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
   guest_cost 737
 
+theorem «fp12_is_one» (hE : GuestEnv E) : FunCost E "fp12_is_one" 11732129230879274828276 := by
+  guest_cost 749
+
 theorem «fp12_mul» (hE : GuestEnv E) : FunCost E "fp12_mul" 10182602728687673128574 := by
   guest_cost 750
 
@@ -120,11 +126,5 @@ theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 2647845644340269040840
 
 theorem «swu_sqrt_division_fp2» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp2" 62611955513452679539108452365342022395239 := by
   guest_cost 792
-
-theorem «iso_map_g2» (hE : GuestEnv E) : FunCost E "iso_map_g2" 3433086646069937232303475 := by
-  guest_cost 795
-
-theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 268178765343589461430566 := by
-  guest_cost 797
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -49,6 +49,9 @@ theorem «fq12_frob» (hE : GuestEnv E) : FunCost E "fq12_frob" 3144209070349471
 theorem «bn254_parse_g1» (hE : GuestEnv E) : FunCost E "bn254_parse_g1" 9702987382771224166713 := by
   guest_cost 686
 
+theorem «bn254_parse_g2» (hE : GuestEnv E) : FunCost E "bn254_parse_g2" 21508903589945337237727 := by
+  guest_cost 687
+
 theorem «bls_fp_sgn0» (hE : GuestEnv E) : FunCost E "bls_fp_sgn0" 7172 := by
   guest_cost 715
 
@@ -123,8 +126,5 @@ theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
 
 theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
   guest_cost 823
-
-theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
-  guest_cost 861
 
 end InitECandidate.Solver.GuestBound.Fn

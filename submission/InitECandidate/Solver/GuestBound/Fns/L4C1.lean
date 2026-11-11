@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «iso_map_g2» (hE : GuestEnv E) : FunCost E "iso_map_g2" 3433086646069937232303475 := by
+  guest_cost 795
+
+theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 268178765343589461430566 := by
+  guest_cost 797
+
 theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
   guest_cost 811
 

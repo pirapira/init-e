@@ -37,6 +37,9 @@ theorem «memcpy» (hE : GuestEnv E) : FunCost E "memcpy" 3394200909562557497360
 theorem «memzero» (hE : GuestEnv E) : FunCost E "memzero" 2434970217729660813326 := by
   guest_cost 17
 
+theorem «memeq» (hE : GuestEnv E) : FunCost E "memeq" 4427218577690292388125 := by
+  guest_cost 18
+
 theorem «is_zero_bytes» (hE : GuestEnv E) : FunCost E "is_zero_bytes" 332041393326771929093 := by
   guest_cost 19
 
@@ -66,6 +69,9 @@ theorem «min» (hE : GuestEnv E) : FunCost E "min" 9 := by
 
 theorem «max» (hE : GuestEnv E) : FunCost E "max" 9 := by
   guest_cost 32
+
+theorem «ceil_log2» (hE : GuestEnv E) : FunCost E "ceil_log2" 184467440737095516165 := by
+  guest_cost 36
 
 theorem «u256_from_word» (hE : GuestEnv E) : FunCost E "u256_from_word" 6 := by
   guest_cost 39
@@ -120,11 +126,5 @@ theorem «mul64x64» (hE : GuestEnv E) : FunCost E "mul64x64" 67 := by
 
 theorem «nlz32» (hE : GuestEnv E) : FunCost E "nlz32" 79 := by
   guest_cost 62
-
-theorem «div64by32» (hE : GuestEnv E) : FunCost E "div64by32" 645636042579834306571 := by
-  guest_cost 63
-
-theorem «u256_to_digits» (hE : GuestEnv E) : FunCost E "u256_to_digits" 72 := by
-  guest_cost 64
 
 end InitECandidate.Solver.GuestBound.Fn

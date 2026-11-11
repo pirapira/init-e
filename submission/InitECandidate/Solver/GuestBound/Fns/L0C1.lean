@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «div64by32» (hE : GuestEnv E) : FunCost E "div64by32" 645636042579834306571 := by
+  guest_cost 63
+
+theorem «u256_to_digits» (hE : GuestEnv E) : FunCost E "u256_to_digits" 72 := by
+  guest_cost 64
+
 theorem «digits_to_u256» (hE : GuestEnv E) : FunCost E "digits_to_u256" 44 := by
   guest_cost 65
 
@@ -120,11 +126,5 @@ theorem «track_ancestor_access» (hE : GuestEnv E) : FunCost E "track_ancestor_
 
 theorem «bal_sort_gt» (hE : GuestEnv E) : FunCost E "bal_sort_gt" 590295810358705651742 := by
   guest_cost 429
-
-theorem «sat_word» (hE : GuestEnv E) : FunCost E "sat_word" 16 := by
-  guest_cost 440
-
-theorem «add_sat» (hE : GuestEnv E) : FunCost E "add_sat" 13 := by
-  guest_cost 441
 
 end InitECandidate.Solver.GuestBound.Fn

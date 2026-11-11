@@ -109,6 +109,9 @@ theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434
 theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
   guest_cost 268
 
+theorem «validate_transaction» (hE : GuestEnv E) : FunCost E "validate_transaction" 5460236245818027278892 := by
+  guest_cost 346
+
 theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
   guest_cost 361
 
@@ -123,8 +126,5 @@ theorem «lst_new_scratch» (hE : GuestEnv E) : FunCost E "lst_new_scratch" 192 
 
 theorem «lst_push» (hE : GuestEnv E) : FunCost E "lst_push" 3394200909562557497505 := by
   guest_cost 410
-
-theorem «words_of» (hE : GuestEnv E) : FunCost E "words_of" 37 := by
-  guest_cost 443
 
 end InitECandidate.Solver.GuestBound.Fn

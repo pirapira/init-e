@@ -112,19 +112,19 @@ theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
 theorem «tx_chain_id» (hE : GuestEnv E) : FunCost E "tx_chain_id" 306 := by
   guest_cost 338
 
+theorem «calculate_intrinsic_cost» (hE : GuestEnv E) : FunCost E "calculate_intrinsic_cost" 5460236245818027278784 := by
+  guest_cost 345
+
 theorem «sk_make» (hE : GuestEnv E) : FunCost E "sk_make" 6788401819125114994734 := by
   guest_cost 360
+
+theorem «acct_is_empty» (hE : GuestEnv E) : FunCost E "acct_is_empty" 4427218577690292388173 := by
+  guest_cost 384
 
 theorem «bal_list_remove_idx» (hE : GuestEnv E) : FunCost E "bal_list_remove_idx" 62611955513452677278459966132236471762959 := by
   guest_cost 424
 
 theorem «ceil32» (hE : GuestEnv E) : FunCost E "ceil32" 31 := by
   guest_cost 442
-
-theorem «charge_state_gas» (hE : GuestEnv E) : FunCost E "charge_state_gas" 82 := by
-  guest_cost 449
-
-theorem «credit_state_gas_refund» (hE : GuestEnv E) : FunCost E "credit_state_gas_refund" 51 := by
-  guest_cost 450
 
 end InitECandidate.Solver.GuestBound.Fn
