@@ -265,4 +265,91 @@ theorem while_not_escape {c : Exp Word} {body : Prog Word} :
             obtain ⟨rfl, -⟩ := hrun
             trivial
 
+/-- What a loop body must establish for an invariant `I` and a loop postcondition `Q`. -/
+def BodyInv (I : St σ → Prop) (Q : Result σ → Prop) : Result σ → Prop
+  | .normal l g m f | .continued l g m f => I ⟨l, g, m, f⟩
+  | .broke l g m f => Q (.normal l g m f)
+  | r => Q r
+
+/-- Partial correctness of a loop, without step counts: from an invariant
+state, every result satisfies `Q`, provided `Q` holds at exit, for the
+body's abrupt results, and for `.error`. -/
+theorem while_inv {I : St σ → Prop} {Q : Result σ → Prop} {c : Exp Word} {body : Prog Word}
+    (herr : ∀ r : Result σ, r.isError = true → Q r)
+    (hexit : ∀ s k, I s → E.cond s c = some (0, k) →
+      Q (.normal s.locals s.globals s.memory s.ffi))
+    (hbody : ∀ fuel s r n, I s → CondTrue E s c → E.run fuel s body = some (r, n) →
+      BodyInv I Q r) :
+    ∀ (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat), I s →
+      E.run fuel s (.while c body) = some (r, n) → Q r := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro s r n _ hrun
+    simp [Env.run, evalPanValueFfiProgSteps] at hrun
+  | succ fuel ih =>
+    intro s r n hI hrun
+    simp only [Env.run] at hrun
+    rw [evalPanValueFfiProgSteps] at hrun
+    cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
+        s.locals s.globals s.memory c E.memoryAccess with
+    | none =>
+      rw [hcond] at hrun
+      simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+      obtain ⟨rfl, -⟩ := hrun
+      exact herr _ rfl
+    | some pair =>
+      obtain ⟨v, k⟩ := pair
+      rw [hcond] at hrun
+      simp only [Option.elim_some] at hrun
+      by_cases hv : (v == 0) = true
+      · rw [if_pos hv] at hrun
+        simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        have hv0 : v = 0 := by simpa using hv
+        subst hv0
+        exact hexit s k hI hcond
+      · rw [if_neg hv] at hrun
+        cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+            E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals
+            s.memory s.ffi body (memoryAccess := E.memoryAccess)
+            (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
+        | none => rw [hb] at hrun; simp at hrun
+        | some bodyPair =>
+          obtain ⟨rb, nb⟩ := bodyPair
+          rw [hb] at hrun
+          have hpost := hbody fuel s rb nb hI ⟨v, k, hcond, by simpa using hv⟩ hb
+          have again : ∀ l g m f, I ⟨l, g, m, f⟩ → (do
+                let (loopResult, loopSteps) ← evalPanValueFfiProgSteps E.context E.primitive
+                  E.handler E.structs E.functions E.baseAddress E.topAddress E.bytesInWord fuel
+                  l g m f (.while c body) (memoryAccess := E.memoryAccess)
+                  (contracts := E.contracts) (memoryHandler := E.memoryHandler)
+                pure (loopResult, k + nb + loopSteps + 1)) = some (r, n) → Q r := by
+            intro l g m f hI' hrun
+            cases hloop : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
+                (.while c body) (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                (memoryHandler := E.memoryHandler) with
+            | none => rw [hloop] at hrun; simp at hrun
+            | some loopPair =>
+              obtain ⟨rl, nl⟩ := loopPair
+              rw [hloop] at hrun
+              simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+                Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              exact ih ⟨l, g, m, f⟩ rl nl hI' hloop
+          cases rb with
+          | normal l g m f => exact again l g m f hpost hrun
+          | continued l g m f => exact again l g m f hpost hrun
+          | broke l g m f =>
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact hpost
+          | _ =>
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact hpost
+
 end InitECandidate.Solver.GuestBound
