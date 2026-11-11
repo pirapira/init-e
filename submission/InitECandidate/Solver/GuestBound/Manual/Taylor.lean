@@ -256,4 +256,136 @@ theorem tayTail_runs (hE : GuestEnv E) {iw dw : Word} {s : St σ} {r : Result σ
     | broke l g m f => exact hf.elim
     | _ => trivial
 
+/-- The body of the loop of `taylor_exponential`. -/
+def tayBody : Prog Word :=
+  .seq (.call (some (some (.local, "out"), none)) "u256_add"
+      [.var .local "out", .var .local "acc"])
+    (.decCall "prod" (.comb [.one, .one, .one, .one, .one, .one, .one, .one]) "u256_mul_full"
+      [.var .local "acc", .var .local "num"]
+      (.seq
+        (.ite (.cmp .notEqual (.op .or [.rField 4 (.var .local "prod"),
+            .rField 5 (.var .local "prod"), .rField 6 (.var .local "prod"),
+            .rField 7 (.var .local "prod")]) (.const (BitVec.ofNat 64 0)))
+          (.call (some (none, none)) "trap_with" [.const (BitVec.ofNat 64 3)]) .skip)
+        (.dec "p" (.comb [.one, .one, .one, .one])
+          (.rStruct [.rField 0 (.var .local "prod"), .rField 1 (.var .local "prod"),
+            .rField 2 (.var .local "prod"), .rField 3 (.var .local "prod")])
+          (.decCall "di" (.comb [.one, .one, .one, .one]) "u256_from_word" [.var .local "i"]
+            tayTail))))
+
+/-- What one loop iteration guarantees. -/
+def TayBodyPost (iw : Word) (dv : Option (PanValue Word)) : Result σ → Prop
+  | .normal l _ _ _ =>
+      l "i" = some (.word (iw + 1)) ∧ l "den" = dv ∧ (iw = 0 → l "nz" = some (.word 1))
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+theorem TayBodyPost.of_error {iw : Word} {dv : Option (PanValue Word)} {r : Result σ}
+    (h : r.isError = true) : TayBodyPost iw dv r := by
+  cases r <;> first | trivial | cases h
+
+theorem restore_err (x : VarName) (old : Option (PanValue Word)) (r : Result σ) :
+    (restorePanValueFfiLocal x old r).isError = r.isError := by
+  cases r <;> rfl
+
+set_option maxHeartbeats 2000000 in
+/-- One loop iteration increments `i`, keeps `den`, and from `i = 0` sets `nz`. -/
+theorem tayBody_runs (hE : GuestEnv E) {iw dw : Word} {s : St σ} {r : Result σ}
+    (hi : s.locals "i" = some (.word iw))
+    (hden : s.locals "den" = some (.rStruct [.word dw, .word 0, .word 0, .word 0])) :
+    Runs E s tayBody r → TayBodyPost iw (s.locals "den") r := by
+  intro h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp h
+  have f1 := call_local_frame h₁
+  cases r₁ with
+  | normal l1 g1 m1 ff1 =>
+    simp only at f1 hrest
+    have hi1 : l1 "i" = some (.word iw) := by rw [f1 "i" (by decide)]; exact hi
+    have hden1 : l1 "den" = s.locals "den" := f1 "den" (by decide)
+    rcases runs_decCall_inv hrest with herr | ⟨parameters, cbody, values, cl, rb, -, -, -, -,
+      hout⟩
+    · exact TayBodyPost.of_error herr
+    cases rb with
+    | returned lr g m ffi vs =>
+      cases vs with
+      | nil => exact hout.elim
+      | cons v rest =>
+        cases rest with
+        | cons v' rest' => exact hout.elim
+        | nil =>
+          obtain ⟨r', -, hrun', rfl⟩ := hout
+          obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hrun'
+          have ft := trapIte_runs hE h₂
+          cases r₂ with
+          | normal l2 g2 m2 ff2 =>
+            obtain ⟨rfl, rfl, rfl, rfl⟩ := ft
+            simp only at hrest₂
+            rw [runs_dec] at hrest₂
+            split at hrest₂
+            · split at hrest₂
+              · rename_i pv _ _
+                obtain ⟨rb3, hrun3, rfl⟩ := hrest₂
+                rcases runs_decCall_inv hrun3 with herr | ⟨params4, body4, values4, cl4, rb4,
+                  hlookup4, hvalues4, hbind4, hcallee4, hout4⟩
+                · exact TayBodyPost.of_error (by rw [restore_err, restore_err]; exact herr)
+                have hparams4 := (fun_of_index 39 hE.functions (by guest_decl_at 39)
+                  (by decide +kernel) hlookup4).2
+                simp (config := { decide := true }) only [evalArgs_cons, evalArgs_nil,
+                  evalF_local, update_lookup, if_false, hi1, Option.map_some,
+                  Option.some.injEq] at hvalues4
+                subst hvalues4
+                rw [hparams4] at hbind4
+                simp [bindPanValueParameters] at hbind4
+                have hspec := u256_from_word_spec hE params4 body4 hlookup4 _ rb4 iw
+                  (by rw [← hbind4]; simp [updatePanValueMap]) hcallee4
+                subst hspec
+                obtain ⟨r5, -, hrun5, rfl⟩ := hout4
+                have ht := tayTail_runs hE (iw := iw) (dw := dw)
+                  (by simp (config := { decide := true }) only [update_lookup, if_false]
+                      exact hi1)
+                  (by simp (config := { decide := true }) only [update_lookup, if_false]
+                      rw [hden1]; exact hden)
+                  (by simp (config := { decide := true }) only [update_lookup, if_true]) hrun5
+                cases r5 with
+                | normal l5 g5 m5 ff5 =>
+                  obtain ⟨hi5, hnz5, hfr5⟩ := ht
+                  simp only [restorePanValueFfiLocal]
+                  refine ⟨?_, ?_, fun h0 => ?_⟩
+                  · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+                    exact hi5
+                  · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+                    rw [hfr5 "den" (by decide) (by decide) (by decide) (by decide)]
+                    simp (config := { decide := true }) only [update_lookup, if_false]
+                    exact hden1
+                  · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+                    exact hnz5 h0
+                | continued l5 g5 m5 ff5 => exact ht.elim
+                | broke l5 g5 m5 ff5 => exact ht.elim
+                | _ => simp only [restorePanValueFfiLocal, TayBodyPost]
+              · subst hrest₂
+                simp only [St.err, restorePanValueFfiLocal, TayBodyPost]
+            · subst hrest₂
+              simp only [St.err, restorePanValueFfiLocal, TayBodyPost]
+          | continued l2 g2 m2 ff2 => exact ft.elim
+          | broke l2 g2 m2 ff2 => exact ft.elim
+          | _ =>
+            simp only at hrest₂
+            subst hrest₂
+            simp only [restorePanValueFfiLocal, TayBodyPost]
+    | raised lr g m ffi ex v =>
+      simp only at hout
+      subst hout
+      trivial
+    | finalFfi lr g m ffi ev =>
+      simp only at hout
+      subst hout
+      trivial
+    | _ => exact hout.elim
+  | continued l1 g1 m1 ff1 => exact f1.elim
+  | broke l1 g1 m1 ff1 => exact f1.elim
+  | _ =>
+    simp only at hrest
+    subst hrest
+    trivial
+
 end InitECandidate.Solver.GuestBound
