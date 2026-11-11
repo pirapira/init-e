@@ -162,6 +162,12 @@ theorem assignResult_frame {structs : StructContext} {M : List VarName}
   · simp [destIn] at hd
   · simp at h
 
+/-- No registered body of `f` returns to its caller. -/
+def FunStops (E : Env σ) (f : FunName) : Prop :=
+  ∀ parameters body, lookupPanFunction f E.functions = some (parameters, body) →
+    ∀ fuel s r n, E.run fuel s body = some (r, n) → ∀ l g m ffi values,
+      r ≠ .returned l g m ffi values
+
 /-- Statements that change nothing but the locals in `M` (and locals they declare). -/
 def shapeOk (callee : FunName → Bool) : List VarName → Prog Word → Bool
   | _, .skip | _, .tick | _, .annot _ _ | _, .break | _, .continue | _, .return _
@@ -185,7 +191,7 @@ local macro "shape_same" : tactic => `(tactic| (
 
 /-- `shapeOk` statements change only `M` and keep every local's shape. -/
 theorem shape_sound (callee : FunName → Bool)
-    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f) :
+    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f ∨ FunStops E f) :
     ∀ (fuel : Nat) (M : List VarName) (p : Prog Word) (s : St σ) (r : Result σ) (n : Nat),
       shapeOk callee M p = true → E.run fuel s p = some (r, n) → ShapePost E M s r := by
   intro fuel
@@ -195,6 +201,7 @@ theorem shape_sound (callee : FunName → Bool)
     simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel ih =>
     intro M p s r n hs hrun
+    have hrun0 := hrun
     simp only [Env.run] at hrun
     cases p with
     | skip =>
@@ -442,40 +449,74 @@ theorem shape_sound (callee : FunName → Bool)
           ⟨fuel', parameters, calleeBody, values, calleeLocals, rb, nb, hlookup, -, -, hcalleeRun,
             hout⟩
         · exact ShapePost.of_error herr
-        have hq := hcallee f hf parameters calleeBody hlookup fuel'
-          ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb hcalleeRun
-        cases rb with
-        | returned l g m ffi values' =>
-          obtain ⟨hg, hm, hffi⟩ := hq
-          simp only [PanValueFfiControlResult.st] at hg hm hffi
-          subst hg hm hffi
-          simp only [CallOutcome] at hout
-          cases destination with
-          | none =>
-            simp only at hout
-            rcases hout with herr | ⟨l', rfl⟩
-            · exact ShapePost.of_error herr
-            · simp only [ShapePost]
-          | some d =>
-            simp only at hout
-            rcases hout with herr | ⟨l', g', hassign, rfl⟩
-            · exact ShapePost.of_error herr
-            · obtain ⟨rfl, h1, h2⟩ := assignResult_frame (hdest d rfl) hassign
-              exact ⟨rfl, rfl, rfl, h1, h2⟩
-        | raised l g m ffi exception value =>
-          simp only [CallOutcome] at hout
-          subst hout
-          simp only [ShapePost]
-        | finalFfi l g m ffi event =>
-          simp only [CallOutcome] at hout
-          subst hout
-          simp only [ShapePost]
-        | _ =>
-          simp only [CallOutcome] at hout
-          exact ShapePost.of_error hout
+        rcases hcallee f hf with hquiet | hstop
+        · have hq := hquiet parameters calleeBody hlookup fuel'
+            ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb hcalleeRun
+          cases rb with
+          | returned l g m ffi values' =>
+            obtain ⟨hg, hm, hffi⟩ := hq
+            simp only [PanValueFfiControlResult.st] at hg hm hffi
+            subst hg hm hffi
+            simp only [CallOutcome] at hout
+            cases destination with
+            | none =>
+              simp only at hout
+              rcases hout with herr | ⟨l', rfl⟩
+              · exact ShapePost.of_error herr
+              · simp only [ShapePost]
+            | some d =>
+              simp only at hout
+              rcases hout with herr | ⟨l', g', hassign, rfl⟩
+              · exact ShapePost.of_error herr
+              · obtain ⟨rfl, h1, h2⟩ := assignResult_frame (hdest d rfl) hassign
+                exact ⟨rfl, rfl, rfl, h1, h2⟩
+          | raised l g m ffi exception value =>
+            simp only [CallOutcome] at hout
+            subst hout
+            simp only [ShapePost]
+          | finalFfi l g m ffi event =>
+            simp only [CallOutcome] at hout
+            subst hout
+            simp only [ShapePost]
+          | _ =>
+            simp only [CallOutcome] at hout
+            exact ShapePost.of_error hout
+        · have hnr := hstop parameters calleeBody hlookup fuel'
+            ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb hcalleeRun
+          cases rb with
+          | returned l g m ffi values' => exact absurd rfl (hnr l g m ffi values')
+          | raised l g m ffi exception value =>
+            simp only [CallOutcome] at hout
+            subst hout
+            simp only [ShapePost]
+          | finalFfi l g m ffi event =>
+            simp only [CallOutcome] at hout
+            subst hout
+            simp only [ShapePost]
+          | _ =>
+            simp only [CallOutcome] at hout
+            exact ShapePost.of_error hout
     | decCall name shape f arguments body =>
       simp only [shapeOk, Bool.and_eq_true] at hs
       obtain ⟨hf, hbodyOk⟩ := hs
+      rcases hcallee f hf with hquiet | hstop
+      rotate_left
+      · rcases decCall_run_inv hrun0 with herr | ⟨fuel₁, parameters, calleeBody, values,
+          calleeLocals, rb, nb, hlookup, -, -, hcalleeRun, hout⟩
+        · exact ShapePost.of_error herr
+        have hnr := hstop parameters calleeBody hlookup fuel₁
+          ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb hcalleeRun
+        cases rb with
+        | returned l g m ffi values' => exact absurd rfl (hnr l g m ffi values')
+        | raised l g m ffi exception value =>
+          simp only at hout
+          subst hout
+          simp only [ShapePost]
+        | finalFfi l g m ffi event =>
+          simp only at hout
+          subst hout
+          simp only [ShapePost]
+        | _ => exact hout.elim
       rw [evalPanValueFfiProgSteps] at hrun
       cases hcall : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs
           E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory
@@ -486,7 +527,7 @@ theorem shape_sound (callee : FunName → Bool)
       | some pair =>
         obtain ⟨rc, nc⟩ := pair
         rw [hcall] at hrun
-        have hq := callSteps_keeps (quietKeeper E) (info := none) (hcallee f hf)
+        have hq := callSteps_keeps (quietKeeper E) (info := none) hquiet
           (fun _ _ h => (by cases h)) fuel (fun _ _ _ _ h => (by cases h)) s arguments true
           rc nc hcall
         simp only [Option.bind_eq_bind, Option.bind_some] at hrun

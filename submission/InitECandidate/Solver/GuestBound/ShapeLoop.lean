@@ -276,7 +276,7 @@ theorem CostsIn.to_costs {p : Prog Word} {B : Nat} (h : CostsIn E [] p B) : Cost
     (fun _ h => h)
 
 theorem CostsIn.seq (callee : FunName → Bool)
-    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f)
+    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f ∨ FunStops E f)
     {D : List (VarName × Shape)} (M : List VarName) {first second : Prog Word} {B₁ B₂ : Nat}
     (hok : shapeOk callee M first = true)
     (h₁ : CostsIn E D first B₁) (h₂ : CostsIn E D second B₂) :
@@ -479,7 +479,7 @@ theorem shape_card (K n : Nat) : Fintype.card (Fin n → Fin K → Word) ≤ sha
 /-- A loop that changes only locals of known flat shapes visits each of their
 joint values at most once. -/
 theorem shapeLoop_costs (callee : FunName → Bool)
-    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f)
+    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f ∨ FunStops E f)
     (D : List (VarName × Shape)) (c : Exp Word) (body : Prog Word) (b : Nat)
     (hcheck : shapeLoop callee D body = true) (hbody : CostsIn E D body b) :
     CostsIn E D (.while c body)

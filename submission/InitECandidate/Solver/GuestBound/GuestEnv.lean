@@ -172,13 +172,6 @@ theorem inOf (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (p : Prog Wo
 theorem inTo (σ : Type) (E : Env σ) (p : Prog Word) (B : Nat) (h : CostsIn E [] p B) :
     Costs E p B := CostsIn.to_costs h
 
-theorem inSeq (σ : Type) (E : Env σ) (hE : GuestEnv E) (D : List (VarName × Shape))
-    (first second : Prog Word) (B₁ B₂ : Nat)
-    (hcheck : shapeOk (quietFn Guest.Software.guestAst) (loopVars first) first = true)
-    (h₁ : CostsIn E D first B₁) (h₂ : CostsIn E D second B₂) :
-    CostsIn E D (.seq first second) (B₁ + B₂ + 1) :=
-  CostsIn.seq _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) _ hcheck h₁ h₂
-
 theorem inSeqTail (σ : Type) (E : Env σ) (D : List (VarName × Shape))
     (first second : Prog Word) (B₁ B₂ : Nat)
     (h₁ : CostsIn E D first B₁) (h₂ : Costs E second B₂) :
@@ -203,14 +196,6 @@ theorem inDecCall (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (name :
     (hf : FunCost E f B) (hbody : CostsIn E ((name, shape) :: D) body C) :
     CostsIn E D (.decCall name shape f arguments body) (expsCost arguments + B + C + 1) := by
   rw [← stepsCost_eq]; exact CostsIn.decCall name shape arguments hf hbody
-
-theorem whileShape (σ : Type) (E : Env σ) (hE : GuestEnv E) (D : List (VarName × Shape))
-    (c : Exp Word) (body : Prog Word) (b : Nat)
-    (hcheck : shapeLoop (quietFn Guest.Software.guestAst) D body = true)
-    (hbody : CostsIn E D body b) :
-    CostsIn E D (.while c body)
-      (shapeIters (flatMax D (loopVars body)) (loopVars body).length * (expCost c + b + 1)) :=
-  shapeLoop_costs _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) D c body b hcheck hbody
 
 end X
 
