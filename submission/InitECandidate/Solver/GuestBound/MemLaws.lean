@@ -26,6 +26,11 @@ structure MemEnv (E : Env σ) : Prop where
     (∀ memory b address v,
       access.readWord access.domain memory b address = some v →
         memory address = some (.word v))
+  /-- A byte load reads the aligned word cell and extracts one byte of it. -/
+  byte : ∃ access, E.memoryAccess = some access ∧
+    ∀ memory b address v, access.readByte access.domain memory b address = some v →
+      ∃ cell, memory (RiscV.panRiscVByteAlign b address) = some (.word cell) ∧
+        v = RiscV.panRiscVGetByte b address cell
 
 /-- The add-with-carry primitive: sum modulo `2^64` and the carry out. -/
 def addCarryResult (l r c : Word) : PanValue Word :=
@@ -129,5 +134,29 @@ theorem store_word_inv (hM : MemEnv E) {fuel : Nat} {s : St σ} {a v : Exp Word}
           simp only [Option.some.injEq, Prod.mk.injEq] at h
           obtain ⟨rfl, -⟩ := h
           exact Or.inl rfl
+
+/-- A byte load reads one byte of the aligned word cell. -/
+theorem eval_loadByte (hM : MemEnv E) {s : St σ} {a : Exp Word} {x : PanValue Word}
+    (h : E.eval s (.loadByte a) = some x) :
+    ∃ addr cell, E.eval s a = some (.word addr) ∧
+      s.memory (RiscV.panRiscVByteAlign E.bytesInWord addr) = some (.word cell) ∧
+      x = .word (RiscV.panRiscVGetByte E.bytesInWord addr cell) := by
+  obtain ⟨access, hacc, hbyte⟩ := hM.byte
+  simp only [Env.eval] at h ⊢
+  rw [evalPanValueExp] at h
+  cases ha : evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+      E.bytesInWord a E.memoryAccess with
+  | none => rw [ha] at h; simp at h
+  | some av =>
+    rw [ha] at h
+    cases av with
+    | word addr =>
+      simp only [Option.bind_eq_bind, Option.bind_some] at h
+      rw [hacc] at h
+      simp only [Option.map_eq_some_iff] at h
+      obtain ⟨v, hv, rfl⟩ := h
+      obtain ⟨cell, hc, rfl⟩ := hbyte _ _ _ _ hv
+      exact ⟨addr, cell, rfl, hc, rfl⟩
+    | _ => simp at h
 
 end InitECandidate.Solver.GuestBound
