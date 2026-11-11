@@ -376,4 +376,102 @@ theorem subBranch_runs (hE : GuestEnv E) {a b d xa xb : VarName} (hab : (b == a)
     subst hrest
     simp only [restorePanValueFfiLocal]
 
+/-- The end of the outer loop body: compare `u` and `v`, subtract the smaller. -/
+def cmpTail : Prog Word :=
+  .decCall "ult" .one "bls_fp_lt_raw" [.var .local "u", .var .local "v"]
+    (.ite (.cmp .equal (.var .local "ult") (.const (BitVec.ofNat 64 0)))
+      (subBranch "u" "v" "d" "x1" "x2") (subBranch "v" "u" "e" "x2" "x1"))
+
+set_option maxHeartbeats 1000000 in
+/-- With `u` and `v` positive, the tail decreases `u + v`. -/
+theorem cmpTail_runs (hE : GuestEnv E) {U V : Nat} {s : St σ} {r : Result σ}
+    (hu : SixVal "u" U s.locals) (hv : SixVal "v" V s.locals) (hU : 1 ≤ U) (hV : 1 ≤ V)
+    (h : Runs E s cmpTail r) :
+    match r with
+    | .normal l _ _ _ => ∃ U' V', SixVal "u" U' l ∧ SixVal "v" V' l ∧ U' + V' < U + V
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  obtain ⟨u0, u1, u2, u3, u4, u5, hlu, hUv⟩ := id hu
+  obtain ⟨v0, v1, v2, v3, v4, v5, hlv, hVv⟩ := id hv
+  rcases runs_decCall_inv h with herr | ⟨parameters, body, values, calleeLocals, rb, hlookup,
+    hvalues, hbind, hcallee, hout⟩
+  · cases r <;> trivial
+  have hparams := (fun_of_index 699 hE.functions (by guest_decl_at 699) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hlu, hlv, Option.map_some,
+    Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hca : calleeLocals "a" =
+      some (.rStruct [.word u0, .word u1, .word u2, .word u3, .word u4, .word u5]) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  have hcb : calleeLocals "b" =
+      some (.rStruct [.word v0, .word v1, .word v2, .word v3, .word v4, .word v5]) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  have hspec := bls_fp_lt_raw_spec hE parameters body hlookup
+    ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb u0 u1 u2 u3 u4 u5 v0 v1 v2 v3 v4 v5 hca hcb
+    hcallee
+  subst hspec
+  obtain ⟨r', -, hrun', rfl⟩ := hout
+  rw [hUv, hVv] at hrun'
+  have hu' : ∀ c : Word, SixVal "u" U (updatePanValueMap s.locals "ult" (PanValue.word c)) :=
+    fun c => hu.update_other (by decide)
+  have hv' : ∀ c : Word, SixVal "v" V (updatePanValueMap s.locals "ult" (PanValue.word c)) :=
+    fun c => hv.update_other (by decide)
+  rw [runs_ite] at hrun'
+  simp only [evalF_cmp hE.word, evalF_local, eval_const, update_lookup, beq_self_eq_true,
+    if_true] at hrun'
+  by_cases hlt : U < V
+  · simp only [hlt, if_true, evalPanCmp] at hrun'
+    have hbr := subBranch_runs hE (a := "v") (b := "u") (d := "e") (xa := "x2") (xb := "x1")
+      (by decide) (by decide) (by decide) (by decide)
+      (s := ⟨updatePanValueMap s.locals "ult" (PanValue.word 1#64), s.globals, s.memory, s.ffi⟩)
+      (hv' _) (hu' _) (Nat.le_of_lt hlt) hrun'
+    cases r' with
+    | normal l g m f =>
+      obtain ⟨hsix, hframe⟩ := hbr
+      simp only [restorePanValueFfiLocal]
+      refine ⟨U, V - U, ?_, ?_, by omega⟩
+      · obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := hu' 1
+        refine ⟨w0, w1, w2, w3, w4, w5, ?_, hn⟩
+        simp only [restorePanValueLocal, show (("u" : String) == "ult") = false from by decide,
+          Bool.false_eq_true, if_false]
+        rw [hframe "u" (by decide) (by decide)]
+        exact hl
+      · obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := hsix
+        exact ⟨w0, w1, w2, w3, w4, w5, by
+          simp only [restorePanValueLocal, show (("v" : String) == "ult") = false from by decide,
+            Bool.false_eq_true, if_false]
+          exact hl, hn⟩
+    | continued l g m f => exact hbr.elim
+    | broke l g m f => exact hbr.elim
+    | _ => simp only [restorePanValueFfiLocal]
+  · simp only [hlt, if_false, evalPanCmp] at hrun'
+    have hbr := subBranch_runs hE (a := "u") (b := "v") (d := "d") (xa := "x1") (xb := "x2")
+      (by decide) (by decide) (by decide) (by decide)
+      (s := ⟨updatePanValueMap s.locals "ult" (PanValue.word 0#64), s.globals, s.memory, s.ffi⟩)
+      (hu' _) (hv' _) (Nat.le_of_not_lt hlt) hrun'
+    cases r' with
+    | normal l g m f =>
+      obtain ⟨hsix, hframe⟩ := hbr
+      simp only [restorePanValueFfiLocal]
+      refine ⟨U - V, V, ?_, ?_, by omega⟩
+      · obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := hsix
+        exact ⟨w0, w1, w2, w3, w4, w5, by
+          simp only [restorePanValueLocal, show (("u" : String) == "ult") = false from by decide,
+            Bool.false_eq_true, if_false]
+          exact hl, hn⟩
+      · obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := hv' 0
+        refine ⟨w0, w1, w2, w3, w4, w5, ?_, hn⟩
+        simp only [restorePanValueLocal, show (("v" : String) == "ult") = false from by decide,
+          Bool.false_eq_true, if_false]
+        rw [hframe "v" (by decide) (by decide)]
+        exact hl
+    | continued l g m f => exact hbr.elim
+    | broke l g m f => exact hbr.elim
+    | _ => simp only [restorePanValueFfiLocal]
+
 end InitECandidate.Solver.GuestBound
