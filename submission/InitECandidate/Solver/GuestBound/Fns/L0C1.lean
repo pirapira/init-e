@@ -82,6 +82,9 @@ theorem «mpt_fail» (hE : GuestEnv E) : FunCost E "mpt_fail" 5 := by
 theorem «key_to_nibbles» (hE : GuestEnv E) : FunCost E "key_to_nibbles" 2840798587351270948870 := by
   guest_cost 248
 
+theorem «nibble_list_to_compact» (hE : GuestEnv E) : FunCost E "nibble_list_to_compact" 553402322211286548511 := by
+  guest_cost 250
+
 theorem «node_invalidate» (hE : GuestEnv E) : FunCost E "node_invalidate" 20 := by
   guest_cost 259
 
@@ -123,8 +126,5 @@ theorem «count_tokens_in_data» (hE : GuestEnv E) : FunCost E "count_tokens_in_
 
 theorem «state_snapshot» (hE : GuestEnv E) : FunCost E "state_snapshot" 2 := by
   guest_cost 358
-
-theorem «track_ancestor_access» (hE : GuestEnv E) : FunCost E "track_ancestor_access" 22 := by
-  guest_cost 402
 
 end InitECandidate.Solver.GuestBound.Fn

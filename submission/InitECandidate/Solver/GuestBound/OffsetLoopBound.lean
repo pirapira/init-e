@@ -91,6 +91,10 @@ theorem offset_guard_val (hE : WordEnv E) {s : St σ} {n i : VarName} {k v : Wor
 
 section loop
 variable (hE : WordEnv E) {n i : VarName} {k : Word} {body : Prog Word} {b : Nat}
+  {c : Exp Word} (G : Word → Word → Prop)
+  (hguard : ∀ (s : St σ) (v : Word) (m : Nat), E.cond s c = some (v, m) →
+    ∃ w N, s.locals i = some (.word w) ∧ s.locals n = some (.word N) ∧
+      ((v == 0) = true ↔ ¬ G w N))
   {callee : FunName → Bool} (hcallee : ∀ f, callee f = true → FunCalm E f)
   (hstraight : straight callee body = true)
   (hstep : (effect (.upBy k) i body).normal = .step)
@@ -110,15 +114,15 @@ theorem offset_body {fuel : Nat} {s : St σ} {l g : VarName → Option (PanValue
   rw [hkeep] at p₂
   exact ⟨p₁ w hw, p₂ N hN⟩
 
-include hE hcallee hstraight hstep hkeep in
+include hE hguard hcallee hstraight hstep hkeep in
 /-- If the guard becomes false after `t` more steps, the loop takes at most
 `t + 1` iterations. -/
 theorem offset_bounded (hbody : Costs E body b) :
     ∀ (fuel t : Nat) (s : St σ) (w N : Word) (r : Result σ) (steps : Nat),
       s.locals i = some (.word w) → s.locals n = some (.word N) →
-      N < stepN k t w + k →
-      E.run fuel s (.while (offsetExp n i k) body) = some (r, steps) → r.isError = false →
-      steps ≤ (t + 1) * (panValueExpStepCost (offsetExp n i k) + b + 1) := by
+      ¬ G (stepN k t w) N →
+      E.run fuel s (.while c body) = some (r, steps) → r.isError = false →
+      steps ≤ (t + 1) * (panValueExpStepCost c + b + 1) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -126,13 +130,13 @@ theorem offset_bounded (hbody : Costs E body b) :
     simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel ih =>
     intro t s w N r steps hw hN hlt hrun hne
-    have hpos : panValueExpStepCost (offsetExp n i k) + b + 1 ≤
-        (t + 1) * (panValueExpStepCost (offsetExp n i k) + b + 1) :=
+    have hpos : panValueExpStepCost c + b + 1 ≤
+        (t + 1) * (panValueExpStepCost c + b + 1) :=
       Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
     simp only [Env.run] at hrun
     rw [evalPanValueFfiProgSteps] at hrun
     cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
-        s.locals s.globals s.memory (offsetExp n i k) E.memoryAccess with
+        s.locals s.globals s.memory c E.memoryAccess with
     | none =>
       rw [hcond] at hrun
       simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
@@ -141,9 +145,9 @@ theorem offset_bounded (hbody : Costs E body b) :
     | some pair =>
       obtain ⟨v, kc⟩ := pair
       rw [hcond] at hrun
-      have hkc : kc ≤ panValueExpStepCost (offsetExp n i k) :=
+      have hkc : kc ≤ panValueExpStepCost c :=
         condCost (E := E) (fun _ => True) _ s v kc trivial hcond
-      obtain ⟨w', N', hw', hN', hiff⟩ := offset_guard_val hE hcond
+      obtain ⟨w', N', hw', hN', hiff⟩ := hguard _ _ _ hcond
       rw [hw] at hw'
       rw [hN] at hN'
       simp only [Option.some.injEq, PanValue.word.injEq] at hw' hN'
@@ -154,9 +158,9 @@ theorem offset_bounded (hbody : Costs E body b) :
         simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
         omega
       · rw [if_neg hv] at hrun
-        have hge : ¬ N < w + k := fun h => hv (hiff.mpr h)
+        have hge : G w N := Classical.not_not.mp (fun h => hv (hiff.mpr h))
         cases t with
-        | zero => exact absurd hlt hge
+        | zero => exact absurd hge hlt
         | succ t =>
           cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
               E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals
@@ -174,7 +178,7 @@ theorem offset_bounded (hbody : Costs E body b) :
               simp only [Option.bind_eq_bind, Option.bind_some] at hrun
               cases hloop : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
                   E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
-                  (.while (offsetExp n i k) body) (memoryAccess := E.memoryAccess)
+                  (.while c body) (memoryAccess := E.memoryAccess)
                   (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
               | none => rw [hloop] at hrun; simp at hrun
               | some pair =>
@@ -184,9 +188,9 @@ theorem offset_bounded (hbody : Costs E body b) :
                   Prod.mk.injEq] at hrun
                 obtain ⟨rfl, rfl⟩ := hrun
                 have hnl := ih t ⟨l, g, m, f⟩ (w + k) N rl nl hl hln hlt hloop hne
-                have hsucc : (t + 1 + 1) * (panValueExpStepCost (offsetExp n i k) + b + 1) =
-                    (t + 1) * (panValueExpStepCost (offsetExp n i k) + b + 1) +
-                      (panValueExpStepCost (offsetExp n i k) + b + 1) := Nat.succ_mul _ _
+                have hsucc : (t + 1 + 1) * (panValueExpStepCost c + b + 1) =
+                    (t + 1) * (panValueExpStepCost c + b + 1) +
+                      (panValueExpStepCost c + b + 1) := Nat.succ_mul _ _
                 omega
             | error l g m f =>
               simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
@@ -195,13 +199,13 @@ theorem offset_bounded (hbody : Costs E body b) :
               exact Bool.noConfusion hne
             | _ => exact absurd pb (by simp [PanValueFfiControlResult.plain])
 
-include hE hcallee hstraight hstep hkeep in
+include hE hguard hcallee hstraight hstep hkeep in
 /-- If the guard never becomes false, the loop returns only `.error`. -/
 theorem offset_never :
     ∀ (fuel : Nat) (s : St σ) (w N : Word) (r : Result σ) (steps : Nat),
       s.locals i = some (.word w) → s.locals n = some (.word N) →
-      (∀ t, ¬ N < stepN k t w + k) →
-      E.run fuel s (.while (offsetExp n i k) body) = some (r, steps) → r.isError = true := by
+      (∀ t, G (stepN k t w) N) →
+      E.run fuel s (.while c body) = some (r, steps) → r.isError = true := by
   intro fuel
   induction fuel with
   | zero =>
@@ -212,7 +216,7 @@ theorem offset_never :
     simp only [Env.run] at hrun
     rw [evalPanValueFfiProgSteps] at hrun
     cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
-        s.locals s.globals s.memory (offsetExp n i k) E.memoryAccess with
+        s.locals s.globals s.memory c E.memoryAccess with
     | none =>
       rw [hcond] at hrun
       simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
@@ -221,13 +225,13 @@ theorem offset_never :
     | some pair =>
       obtain ⟨v, kc⟩ := pair
       rw [hcond] at hrun
-      obtain ⟨w', N', hw', hN', hiff⟩ := offset_guard_val hE hcond
+      obtain ⟨w', N', hw', hN', hiff⟩ := hguard _ _ _ hcond
       rw [hw] at hw'
       rw [hN] at hN'
       simp only [Option.some.injEq, PanValue.word.injEq] at hw' hN'
       subst hw' hN'
       simp only [Option.elim_some] at hrun
-      have hv : ¬ (v == 0) = true := fun h => hall 0 (hiff.mp h)
+      have hv : ¬ (v == 0) = true := fun h => (hiff.mp h) (hall 0)
       rw [if_neg hv] at hrun
       cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
           E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals
@@ -244,7 +248,7 @@ theorem offset_never :
           simp only [Option.bind_eq_bind, Option.bind_some] at hrun
           cases hloop : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
               E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
-              (.while (offsetExp n i k) body) (memoryAccess := E.memoryAccess)
+              (.while c body) (memoryAccess := E.memoryAccess)
               (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
           | none => rw [hloop] at hrun; simp at hrun
           | some pair =>
@@ -263,6 +267,52 @@ theorem offset_never :
 
 end loop
 
+/-- A loop whose guard is a relation `G` between a stepped counter and a kept
+limit, with a straight-line body, takes at most `2^64` iterations. -/
+theorem stepLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunCalm E f) (c : Exp Word) (body : Prog Word) (b : Nat)
+    (i n : VarName) (k : Word) (G : Word → Word → Prop)
+    (hguard : ∀ (s : St σ) (v : Word) (m : Nat), E.cond s c = some (v, m) →
+      ∃ w N, s.locals i = some (.word w) ∧ s.locals n = some (.word N) ∧
+        ((v == 0) = true ↔ ¬ G w N))
+    (hstraight : straight callee body = true)
+    (hstep : (effect (.upBy k) i body).normal = .step)
+    (hkeep : (effect .up n body).normal = .keep) (hbody : Costs E body b) :
+    Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) := by
+  unfold Costs Triple
+  intro fuel s r steps _ hrun hne
+  refine ⟨?_, trivial⟩
+  rw [← stepCost_eq]
+  by_cases hwords : ∃ w N, s.locals i = some (.word w) ∧ s.locals n = some (.word N)
+  · obtain ⟨w, N, hw, hN⟩ := hwords
+    by_cases ht : ∃ t, ¬ G (stepN k t w) N
+    · obtain ⟨t, ht⟩ := ht
+      have hmod : ¬ G (stepN k (t % 2 ^ 64) w) N := by rw [stepN_mod]; exact ht
+      have hle := offset_bounded hE G hguard hcallee hstraight hstep hkeep hbody fuel
+        (t % 2 ^ 64) s w N r steps hw hN hmod hrun hne
+      have hlt : t % 2 ^ 64 + 1 ≤ 2 ^ 64 := Nat.mod_lt _ (by decide)
+      exact Nat.le_trans hle (Nat.mul_le_mul_right _ hlt)
+    · have herr := offset_never hE G hguard hcallee hstraight hstep hkeep fuel s w N r steps
+        hw hN (fun t => Classical.not_not.mp (fun h => ht ⟨t, h⟩)) hrun
+      rw [herr] at hne
+      cases hne
+  · cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
+    | succ fuel =>
+      simp only [Env.run] at hrun
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
+          s.locals s.globals s.memory c E.memoryAccess with
+      | none =>
+        rw [hcond] at hrun
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        exact Bool.noConfusion hne
+      | some pair =>
+        obtain ⟨v, kc⟩ := pair
+        obtain ⟨w, N, hw, hN, -⟩ := hguard _ _ _ hcond
+        exact absurd ⟨w, N, hw, hN⟩ hwords
+
 /-- An offset-guard loop costs at most `2^64` iterations of its guard and body. -/
 theorem offsetLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
     (hcallee : ∀ f, callee f = true → FunCalm E f) (c : Exp Word) (body : Prog Word) (b : Nat)
@@ -275,39 +325,63 @@ theorem offsetLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
     subst hc
     simp only [Bool.and_eq_true, beq_iff_eq] at hcheck
     obtain ⟨⟨hstraight, hstep⟩, hkeep⟩ := hcheck
-    unfold Costs Triple
-    intro fuel s r steps _ hrun hne
-    refine ⟨?_, trivial⟩
-    rw [← stepCost_eq]
-    by_cases hwords : ∃ w N, s.locals i = some (.word w) ∧ s.locals n = some (.word N)
-    · obtain ⟨w, N, hw, hN⟩ := hwords
-      by_cases ht : ∃ t, N < stepN k t w + k
-      · obtain ⟨t, ht⟩ := ht
-        have hmod : N < stepN k (t % 2 ^ 64) w + k := by rw [stepN_mod]; exact ht
-        have hle := offset_bounded hE hcallee hstraight hstep hkeep hbody fuel (t % 2 ^ 64) s w N r steps
-          hw hN hmod hrun hne
-        have hlt : t % 2 ^ 64 + 1 ≤ 2 ^ 64 := Nat.mod_lt _ (by decide)
-        exact Nat.le_trans hle (Nat.mul_le_mul_right _ hlt)
-      · have herr := offset_never hE hcallee hstraight hstep hkeep fuel s w N r steps hw hN
-          (fun t h => ht ⟨t, h⟩) hrun
-        rw [herr] at hne
-        cases hne
-    · cases fuel with
-      | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
-      | succ fuel =>
-        simp only [Env.run] at hrun
-        rw [evalPanValueFfiProgSteps] at hrun
-        cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
-            s.locals s.globals s.memory (offsetExp n i k) E.memoryAccess with
-        | none =>
-          rw [hcond] at hrun
-          simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
-          obtain ⟨rfl, -⟩ := hrun
-          exact Bool.noConfusion hne
-        | some pair =>
-          obtain ⟨v, kc⟩ := pair
-          obtain ⟨w, N, hw, hN, -⟩ := offset_guard_val hE hcond
-          exact absurd ⟨w, N, hw, hN⟩ hwords
+    refine stepLoop_costs hE callee hcallee _ body b i n k (fun w N => ¬ N < w + k) ?_
+      hstraight hstep hkeep hbody
+    intro s v m h
+    obtain ⟨w, N, hw, hN, hiff⟩ := offset_guard_val hE h
+    exact ⟨w, N, hw, hN, by rw [hiff, Classical.not_not]⟩
+  · cases hcheck
+
+/-! ### `while i <+ n` with a constant step -/
+
+/-- The counter and the limit of a guard `i <+ n` between two locals. -/
+def lowerGuard : Exp Word → Option (VarName × VarName)
+  | .cmp .lower (.var .local i) (.var .local n) => some (i, n)
+  | _ => none
+
+/-- The loop is `while i <+ n { straight-line body that adds k to i and keeps n }`. -/
+def lowerLoop (callee : FunName → Bool) (step : Option (VarName × Word)) (c : Exp Word)
+    (body : Prog Word) : Bool :=
+  match step with
+  | some (j, k) =>
+      match lowerGuard c with
+      | some (i, n) =>
+          i == j && straight callee body && (effect (.upBy k) i body).normal == .step &&
+            (effect .up n body).normal == .keep
+      | none => false
+  | none => false
+
+/-- A `while i <+ n` loop with a constant step costs at most `2^64` iterations. -/
+theorem lowerLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunCalm E f) (step : Option (VarName × Word))
+    (c : Exp Word) (body : Prog Word) (b : Nat)
+    (hcheck : lowerLoop callee step c body = true) (hbody : Costs E body b) :
+    Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) := by
+  unfold lowerLoop at hcheck
+  split at hcheck
+  · rename_i j k
+    split at hcheck
+    case h_2 => cases hcheck
+    rename_i i n hg
+    simp only [Bool.and_eq_true, beq_iff_eq] at hcheck
+    obtain ⟨⟨⟨rfl, hstraight⟩, hstep⟩, hkeep⟩ := hcheck
+    unfold lowerGuard at hg
+    split at hg
+    · rename_i iv nv
+      simp only [Option.some.injEq, Prod.mk.injEq] at hg
+      obtain ⟨rfl, rfl⟩ := hg
+      refine stepLoop_costs hE callee hcallee _ body b iv nv k (fun w N => w < N) ?_
+        hstraight hstep hkeep hbody
+      intro s v m h
+      obtain ⟨a, b', hl, hr, hx⟩ := cmp_eval hE (cond_eval h)
+      simp only [evalPanValueExp] at hl hr
+      simp only [PanValue.word.injEq] at hx
+      subst hx
+      refine ⟨a, b', hl, hr, ?_⟩
+      by_cases hlt : a < b'
+      · simp [evalPanCmp, hlt]
+      · simp [evalPanCmp, hlt]
+    · cases hg
   · cases hcheck
 
 end InitECandidate.Solver.GuestBound
