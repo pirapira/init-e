@@ -1,0 +1,8 @@
+# Hand-proved loops used by Tools/GenGuestBound.lean.
+# One loop per line: <function> <pre-order loop index> <iteration bound> <module proving it>
+# The module must prove
+#   Manual.«<function>».loop<index> {σ} {E : Env σ} (hE : GuestEnv E) (b : Nat)
+#     (hbody : Costs E (loopBody i K) b) :
+#     Costs E (.while (loopGuard i K) (loopBody i K)) (N * (expCost (loopGuard i K) + b + 1))
+# with i the position of the function in Guest.Software.guestAst. See GuestEnv.lean.
+# Example (not registered): Manual/Example.lean proves rlp_be_len loop 0 in this form.

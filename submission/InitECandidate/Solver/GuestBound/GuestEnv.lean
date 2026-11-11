@@ -159,6 +159,49 @@ theorem whileWalk (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word) (bod
 
 end X
 
+/-! ### Hand-proved loops
+
+A loop that no syntactic check accepts can be bounded by hand. State the
+theorem as
+
+```
+theorem Manual.«f».loopK {σ : Type} {E : Env σ} (hE : GuestEnv E) (b : Nat)
+    (hbody : Costs E (loopBody i K) b) :
+    Costs E (.while (loopGuard i K) (loopBody i K)) (N * (expCost (loopGuard i K) + b + 1))
+```
+
+where `i` is the position of `f` in the AST and `K` the loop's pre-order index
+in `f`, register `f K N <module>` in `GuestBound/manual-loops.txt`, and
+regenerate. `cost_derive` uses the theorem when the loop's hint is `2`. -/
+
+/-- The loops of a program in pre-order, as (guard, body). -/
+def loopsOf : Prog Word → List (Exp Word × Prog Word)
+  | .dec _ _ _ body => loopsOf body
+  | .seq first second => loopsOf first ++ loopsOf second
+  | .ite _ thenBranch elseBranch => loopsOf thenBranch ++ loopsOf elseBranch
+  | .while c body => (c, body) :: loopsOf body
+  | .call (some (_, some (_, _, handlerProgram))) _ _ => loopsOf handlerProgram
+  | .decCall _ _ _ _ body => loopsOf body
+  | _ => []
+
+/-- The body of the function at position `i` of the guest AST. -/
+def guestBody (i : Nat) : Prog Word :=
+  match Guest.Software.guestAst[i]? with
+  | some (.function d) => d.body
+  | _ => .skip
+
+/-- The guard of the `k`-th loop of the function at position `i`. -/
+def loopGuard (i k : Nat) : Exp Word :=
+  match (loopsOf (guestBody i))[k]? with
+  | some (c, _) => c
+  | none => .const 0
+
+/-- The body of the `k`-th loop of the function at position `i`. -/
+def loopBody (i k : Nat) : Prog Word :=
+  match (loopsOf (guestBody i))[k]? with
+  | some (_, body) => body
+  | none => .skip
+
 /-- Namespace of the per-function cost theorems `Fn.<name>`. -/
 def fnNamespace : Lean.Name := `InitECandidate.Solver.GuestBound.Fn
 
@@ -206,11 +249,12 @@ def rule (name : Name) : Expr := mkConst (`InitECandidate.Solver.GuestBound.X ++
 
 /-- Build a proof of `Costs E p ?B` by recursion on the constructor form of `p`.
 No unification is performed; the kernel checks the assembled term. -/
-partial def derive (σ E hE : Expr) (p : Expr) : StateRefT (List Nat) MetaM Expr := do
+partial def derive (fnName : String) (σ E hE : Expr) (p : Expr) :
+    StateRefT (List Nat × Nat) MetaM Expr := do
   let fn := p.getAppFn
   let args := p.getAppArgs
   let some ctor := fn.constName? | throwError "cost_derive: not a constructor: {p}"
-  let callee (f : Expr) : StateRefT (List Nat) MetaM Expr := do
+  let callee (f : Expr) : StateRefT (List Nat × Nat) MetaM Expr := do
     let .lit (.strVal function) := f | throwError "cost_derive: callee is not a literal: {f}"
     return mkApp3 (mkConst (fnNamespace ++ Name.mkSimple function)) σ E hE
   match ctor with
@@ -234,20 +278,20 @@ partial def derive (σ E hE : Expr) (p : Expr) : StateRefT (List Nat) MetaM Expr
   | ``Flapjack.Prog.extCall =>
       return mkAppN (rule `extCall) #[σ, E, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!]
   | ``Flapjack.Prog.seq => do
-      let h₁ ← derive σ E hE args[1]!
-      let h₂ ← derive σ E hE args[2]!
+      let h₁ ← derive fnName σ E hE args[1]!
+      let h₂ ← derive fnName σ E hE args[2]!
       return mkAppN (rule `seq) #[σ, E, args[1]!, args[2]!, ← boundOf h₁, ← boundOf h₂, h₁, h₂]
   | ``Flapjack.Prog.ite => do
-      let h₁ ← derive σ E hE args[2]!
-      let h₂ ← derive σ E hE args[3]!
+      let h₁ ← derive fnName σ E hE args[2]!
+      let h₂ ← derive fnName σ E hE args[3]!
       return mkAppN (rule `ite)
         #[σ, E, args[1]!, args[2]!, args[3]!, ← boundOf h₁, ← boundOf h₂, h₁, h₂]
   | ``Flapjack.Prog.dec => do
-      let h ← derive σ E hE args[4]!
+      let h ← derive fnName σ E hE args[4]!
       return mkAppN (rule `dec) #[σ, E, args[1]!, args[2]!, args[3]!, args[4]!, ← boundOf h, h]
   | ``Flapjack.Prog.decCall => do
       let hf ← callee args[3]!
-      let h ← derive σ E hE args[5]!
+      let h ← derive fnName σ E hE args[5]!
       return mkAppN (rule `decCall)
         #[σ, E, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!, ← boundOf hf, ← boundOf h, hf, h]
   | ``Flapjack.Prog.call => do
@@ -265,14 +309,20 @@ partial def derive (σ E hE : Expr) (p : Expr) : StateRefT (List Nat) MetaM Expr
       let rest := triple.appArg!
       let handlerVar := rest.appFn!.appArg!
       let handlerProgram := rest.appArg!
-      let hh ← derive σ E hE handlerProgram
+      let hh ← derive fnName σ E hE handlerProgram
       return mkAppN (rule `callHandler)
         #[σ, E, destination, exception, handlerVar, handlerProgram, args[2]!, args[3]!,
           ← boundOf hf, ← boundOf hh, hf, hh]
   | ``Flapjack.Prog.while => do
-      -- hints are consumed in pre-order: 0 (default) uses `loopOk`, 1 uses `walkMLoop`
-      let hint ← modifyGet fun hints => (hints.headD 0, hints.tail)
-      let h ← derive σ E hE args[2]!
+      -- hints are consumed in pre-order: 0 (default) uses `loopOk`, 1 uses `walkMLoop`,
+      -- 2 uses the hand-proved theorem `Manual.<fn>.loop<index>`
+      let (hint, index) ← modifyGet fun (hints, index) =>
+        ((hints.headD 0, index), (hints.tail, index + 1))
+      let h ← derive fnName σ E hE args[2]!
+      if hint == 2 then
+        let manual := `InitECandidate.Solver.GuestBound.Manual ++ Name.mkSimple fnName ++
+          Name.mkSimple s!"loop{index}"
+        return mkAppN (mkConst manual) #[σ, E, hE, ← boundOf h, h]
       let check := mkApp2 (mkConst ``Eq.refl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true)
       let name := if hint == 1 then `whileWalk else `whileCounter
       return mkAppN (rule name) #[σ, E, hE, args[1]!, args[2]!, ← boundOf h, check, h]
@@ -295,7 +345,11 @@ elab "cost_derive" "[" hints:num,* "]" : tactic => do
       else return none
     | throwError "cost_derive: no GuestEnv hypothesis"
   let hintList := hints.getElems.toList.map (·.getNat)
-  let (proof, _) ← (Derive.derive σ E hE body).run hintList
+  let some declName ← Term.getDeclName? | throwError "cost_derive: not inside a declaration"
+  let fnName := match declName with
+    | .str _ last => last
+    | _ => ""
+  let (proof, _) ← (Derive.derive fnName σ E hE body).run (hintList, 0)
   let bound ← Derive.boundOf proof
   let hole := arguments[3]!
   if hole.isMVar then hole.mvarId!.assign bound

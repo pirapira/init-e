@@ -1,4 +1,5 @@
 import InitECandidate.Solver.GuestBound.GuestEnv
+import Tools.GenGuestBoundStamp
 import Std.Data.HashMap
 
 /-!
@@ -54,6 +55,67 @@ partial def loopCost (callee : String → Nat) (c : Exp (BitVec 64)) (body : Pro
     else 2 ^ 64
   iterations * (panValueExpStepCost c + staticCost callee (loopCost callee) body + 1)
 
+/-- A hand-proved loop, from `GuestBound/manual-loops.txt`: function, pre-order
+loop index, iteration bound, and the module that proves `Manual.<fn>.loop<index>`. -/
+structure ManualLoop where
+  fn : String
+  index : Nat
+  iters : Nat
+  module : String
+
+def manualPath : String := "submission/InitECandidate/Solver/GuestBound/manual-loops.txt"
+
+def readManual : IO (List ManualLoop) := do
+  if !(← System.FilePath.pathExists manualPath) then return []
+  let text ← IO.FS.readFile manualPath
+  let mut out := []
+  for line in text.splitOn "\n" do
+    let line := line.trimAscii.toString
+    if line.isEmpty || line.startsWith "#" then continue
+    match line.splitOn " " |>.filter (· ≠ "") with
+    | [fn, index, iters, module] =>
+        out := { fn, index := index.toNat!, iters := iters.toNat!, module } :: out
+    | _ => throw (IO.userError s!"bad line in {manualPath}: {line}")
+  return out.reverse
+
+/-- `staticCost` with the loop's pre-order index available, for hand-proved loops. -/
+partial def costWith (callee : String → Nat)
+    (iters : Nat → Exp (BitVec 64) → Prog (BitVec 64) → Nat) :
+    Prog (BitVec 64) → StateM Nat Nat
+  | .skip | .break | .continue | .tick | .annot _ _ => pure 1
+  | .dec _ _ value body => do
+      return panValueExpStepCost value + (← costWith callee iters body) + 1
+  | .assign _ _ value => pure (panValueExpStepCost value + 1)
+  | .primitive _ _ arguments => pure (panValueExpsStepCost arguments + 1)
+  | .store address value | .store32 address value | .storeByte address value =>
+      pure (panValueExpStepCost address + panValueExpStepCost value + 1)
+  | .seq first second => do
+      let a ← costWith callee iters first
+      let b ← costWith callee iters second
+      return a + b + 1
+  | .ite condition thenBranch elseBranch => do
+      let a ← costWith callee iters thenBranch
+      let b ← costWith callee iters elseBranch
+      return panValueExpStepCost condition + max a b + 1
+  | .while condition body => do
+      let index ← get
+      set (index + 1)
+      let b ← costWith callee iters body
+      return iters index condition body * (panValueExpStepCost condition + b + 1)
+  | .call (some (_, some (_, _, handlerProgram))) function arguments => do
+      let h ← costWith callee iters handlerProgram
+      return panValueExpsStepCost arguments + callee function + h + 1
+  | .call _ function arguments => pure (panValueExpsStepCost arguments + callee function + 0 + 1)
+  | .decCall _ _ function arguments body => do
+      let b ← costWith callee iters body
+      return panValueExpsStepCost arguments + callee function + b + 1
+  | .extCall _ configuration configurationLength array arrayLength =>
+      pure (panValueExpsStepCost [configuration, configurationLength, array, arrayLength] + 1)
+  | .raise _ value | .return value => pure (panValueExpStepCost value + 1)
+  | .shMemLoad _ _ _ address => pure (panValueExpStepCost address + 1)
+  | .shMemStore _ address value =>
+      pure (panValueExpStepCost address + panValueExpStepCost value + 1)
+
 structure Info where
   index : Nat
   name : String
@@ -73,6 +135,17 @@ def chunkSize : Nat := 40
 
 def run : IO Unit := do
   let fns := functions
+  let manual ← readManual
+  let manualFor (fn : String) (index : Nat) : Option ManualLoop :=
+    manual.find? fun m => m.fn == fn && m.index == index
+  let hintsOf (f : Info) : List (Option Nat) :=
+    (loops f.body).zipIdx.map fun ((c, body), index) =>
+      if (manualFor f.name index).isSome then some 2 else loopHint c body
+  let itersOf (f : Info) (index : Nat) (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Nat :=
+    match manualFor f.name index with
+    | some m => m.iters
+    | none =>
+        if loopHint c body == some 1 then walkIters (assignedLocals body).length else 2 ^ 64
   let byName : Std.HashMap String Info := fns.foldl (fun m f => m.insert f.name f) {}
   -- level and cost by iterating to a fixed point (the call graph is acyclic)
   let mut level : Std.HashMap String Nat := {}
@@ -85,14 +158,14 @@ def run : IO Unit := do
     let mut rest := []
     for f in pending do
       let cs := callees f.body
-      if (loops f.body).any (fun (c, body) => (loopHint c body).isNone) ||
+      if (hintsOf f).any (·.isNone) ||
           cs.any (fun c => skipped.contains c || !byName.contains c) then
         skipped := skipped.insert f.name ()
         progress := true
       else if cs.all (fun c => cost.contains c) then
         let lv := cs.foldl (fun acc c => max acc (level.getD c 0 + 1)) 0
         let callee := fun c => cost.getD c 0
-        let n := staticCost callee (loopCost callee) f.body
+        let n := (costWith callee (itersOf f) f.body).run' 0
         level := level.insert f.name lv
         cost := cost.insert f.name n
         progress := true
@@ -118,9 +191,11 @@ def run : IO Unit := do
     for chunk in chunks do
       let prev := if lv == 0 then "import InitECandidate.Solver.GuestBound.GuestEnv"
         else s!"import InitECandidate.Solver.GuestBound.Fns.L{lv - 1}"
-      let mut text := s!"{prev}\n\n/-! Generated by `Tools/GenGuestBound.lean`; do not edit. -/\n\nnamespace InitECandidate.Solver.GuestBound.Fn\nopen Flapjack\n\nvariable \{σ : Type} \{E : Env σ}\n"
+      let modules := (manual.filter fun m => chunk.any fun f => f.name == m.fn).map (·.module)
+      let extra := String.join (modules.eraseDups.map fun m => s!"\nimport {m}")
+      let mut text := s!"{prev}{extra}\n\n/-! Generated by `Tools/GenGuestBound.lean`; do not edit. -/\n\nnamespace InitECandidate.Solver.GuestBound.Fn\nopen Flapjack\n\nvariable \{σ : Type} \{E : Env σ}\n"
       for f in chunk do
-        let hints := (loops f.body).map fun (c, body) => (loopHint c body).getD 0
+        let hints := (hintsOf f).map (·.getD 0)
         let hintText := if hints.all (· == 0) then "" else s!" {hints}"
         text := text ++ s!"\ntheorem «{f.name}» (hE : GuestEnv E) : FunCost E \"{f.name}\" {cost.getD f.name 0} := by\n  guest_cost {f.index}{hintText}\n"
         total := total + 1
