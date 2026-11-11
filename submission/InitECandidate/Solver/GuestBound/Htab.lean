@@ -198,4 +198,19 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   · have h88 : (88#64).toNat = 88 := by decide
     exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4⟩
 
+/-- Reading a header field back from a freshly built header. -/
+theorem htabHeader_count (m : Word → Option (PanValue Word)) (t kl cp keys nodes order : Word) :
+    htabHeader m t kl cp keys nodes order (t + 24#64) = some (.word 0#64) := by
+  have h : ∀ a b : Word, (t + a == t + b) = (a == b) := by
+    intro a b
+    by_cases hab : a = b
+    · simp [hab]
+    · have : t + a ≠ t + b := by
+        intro h
+        apply hab
+        have := congrArg (fun z => z - t) h
+        simpa using this
+      simp [hab, this]
+  simp (config := { decide := true }) [htabHeader, setCell, h]
+
 end InitECandidate.Solver.GuestBound
