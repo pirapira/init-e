@@ -67,3 +67,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms keepFn_sound
 #print axioms globalCounterLoop_costs
 #print axioms Fn.state_restore
+#print axioms Fn.trie_walk
