@@ -73,3 +73,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms eval_op2_inv
 #print axioms dec_run_inv
 #print axioms Fn.fq12_mul
+#print axioms halvingLoop_costs
+#print axioms Fn.merkleize
