@@ -24,6 +24,7 @@ structure GuestEnv {σ : Type} (E : Env σ) : Prop where
   functions : FunctionsFrom E.functions Guest.Software.guestAst
   word : WordEnv E
   mem : MemEnv E
+  prim : PrimEnv E
 
 variable {σ : Type} {E : Env σ}
 

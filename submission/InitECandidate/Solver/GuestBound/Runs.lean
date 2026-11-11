@@ -314,4 +314,65 @@ theorem runs_dec {s : St σ} {x : VarName} {shape : Shape} {e : Exp Word} {body 
         rw [evalPanValueFfiProgSteps, hacc]
         simp [St.err]
 
+theorem runs_primitive {s : St σ} {x : VarName} {operator : PrimOp} {arguments : List (Exp Word)}
+    {r : Result σ} :
+    Runs E s (.primitive x operator arguments) r ↔
+      r = match evalPanValueExps E.structs s.locals s.globals s.memory E.baseAddress
+            E.topAddress E.bytesInWord arguments E.memoryAccess with
+        | some values =>
+            match E.primitive operator values with
+            | some value =>
+                match s.locals x with
+                | some old =>
+                    if panShapeMatches (panValueShape E.structs value)
+                        (panValueShape E.structs old) then
+                      .normal (updatePanValueMap s.locals x value) s.globals s.memory s.ffi
+                    else s.err
+                | none => s.err
+            | none => s.err
+        | none => s.err := by
+  have hrun : ∀ fuel, (E.run (fuel + 1) s (.primitive x operator arguments)).map Prod.fst = some
+      (match evalPanValueExps E.structs s.locals s.globals s.memory E.baseAddress
+            E.topAddress E.bytesInWord arguments E.memoryAccess with
+        | some values =>
+            match E.primitive operator values with
+            | some value =>
+                match s.locals x with
+                | some old =>
+                    if panShapeMatches (panValueShape E.structs value)
+                        (panValueShape E.structs old) then
+                      .normal (updatePanValueMap s.locals x value) s.globals s.memory s.ffi
+                    else s.err
+                | none => s.err
+            | none => s.err
+        | none => s.err) := by
+    intro fuel
+    simp only [Env.run]
+    rw [evalPanValueFfiProgSteps]
+    simp only [panValuePrimitiveResult, evalPanValueExpsCounted, St.err]
+    cases evalPanValueExps E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+        E.bytesInWord arguments E.memoryAccess with
+    | none => simp
+    | some values =>
+      simp only [Option.map_some]
+      cases E.primitive operator values with
+      | none => simp
+      | some value =>
+        cases s.locals x with
+        | none => simp
+        | some old =>
+          simp only
+          split <;> simp
+  constructor
+  · rintro ⟨fuel, n, h⟩
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at h
+    | succ fuel =>
+      have := hrun fuel
+      rw [h] at this
+      simp only [Option.map_some, Option.some.injEq] at this
+      exact this
+  · rintro rfl
+    exact runs_of_map (hrun 0)
+
 end InitECandidate.Solver.GuestBound

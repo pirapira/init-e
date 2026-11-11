@@ -108,4 +108,47 @@ theorem evalF_op (hE : WordEnv E) (s : St σ) (operator : BinOp) (es : List (Exp
     | none => rfl
     | some words => simp [hop]
 
+theorem shape_word (structs : StructContext) (w : Word) :
+    panValueShape structs (.word w) = .one := by
+  simp [panValueShape]
+
+theorem shape_rStruct (structs : StructContext) (fields : List (PanValue Word)) :
+    panValueShape structs (.rStruct fields) = .comb (fields.map (panValueShape structs)) := by
+  rw [panValueShape]
+
+theorem shape_matches_self (sh : Shape) : panShapeMatches sh sh = true :=
+  (panShapeMatches_eq_true _ _).mpr rfl
+
+theorem wordsProj_nil :
+    List.mapM panValueWordProjection ([] : List (PanValue Word)) = some [] := rfl
+
+theorem wordsProj_cons (w : Word) (vs : List (PanValue Word)) :
+    List.mapM panValueWordProjection (PanValue.word w :: vs) =
+      (List.mapM panValueWordProjection vs).map (w :: ·) := by
+  simp only [List.mapM_cons, panValueWordProjection, Option.pure_def, Option.bind_eq_bind,
+    Option.bind_some]
+  cases List.mapM panValueWordProjection vs <;> rfl
+
+theorem update_lookup (locals : VarName → Option (PanValue Word)) (x y : VarName)
+    (v : PanValue Word) :
+    updatePanValueMap locals x v y = if y == x then some v else locals y := rfl
+
+/-- `runs_primitive` with the arguments as `E.evalArgs`. -/
+theorem runs_primitive' {s : St σ} {x : VarName} {operator : PrimOp}
+    {arguments : List (Exp Word)} {r : Result σ} :
+    Runs E s (.primitive x operator arguments) r ↔
+      r = match E.evalArgs s arguments with
+        | some values =>
+            match E.primitive operator values with
+            | some value =>
+                match s.locals x with
+                | some old =>
+                    if panShapeMatches (panValueShape E.structs value)
+                        (panValueShape E.structs old) then
+                      .normal (updatePanValueMap s.locals x value) s.globals s.memory s.ffi
+                    else s.err
+                | none => s.err
+            | none => s.err
+        | none => s.err := runs_primitive
+
 end InitECandidate.Solver.GuestBound

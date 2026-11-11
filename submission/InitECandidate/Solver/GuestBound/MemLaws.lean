@@ -27,6 +27,16 @@ structure MemEnv (E : Env σ) : Prop where
       access.readWord access.domain memory b address = some v →
         memory address = some (.word v))
 
+/-- The add-with-carry primitive: sum modulo `2^64` and the carry out. -/
+def addCarryResult (l r c : Word) : PanValue Word :=
+  .rStruct [.word (BitVec.ofNat 64 (l.toNat + r.toNat + if c == 0 then 0 else 1)),
+    .word (BitVec.ofNat 64 (if 2 ^ 64 ≤ l.toNat + r.toNat + (if c == 0 then 0 else 1) then 1 else 0))]
+
+/-- The primitive operations of the guest. -/
+structure PrimEnv (E : Env σ) : Prop where
+  addCarry : ∀ l r c : Word,
+    E.primitive .addCarry [.word l, .word r, .word c] = some (addCarryResult l r c)
+
 /-- A one-word load reads a word cell. -/
 theorem eval_load_one (hM : MemEnv E) {s : St σ} {a : Exp Word} {x : PanValue Word}
     (h : E.eval s (.load .one a) = some x) :
