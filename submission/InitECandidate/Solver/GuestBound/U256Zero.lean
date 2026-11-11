@@ -123,4 +123,93 @@ theorem mul64x64_zero (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   simp at h
   exact ⟨_, h⟩
 
+set_option maxHeartbeats 2000000 in
+/-- `u256_div` by zero is zero. -/
+theorem u256_div_zero (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_div" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (hb : s.locals "b" = some zero4) (h : Runs E s body r) :
+    r.isError = true ∨ ∃ l, r = .returned l s.globals s.memory s.ffi [zero4] := by
+  have hbody := (fun_of_index 70 hE.functions (by guest_decl_at 70) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  rcases runs_decCall_inv h with herr | ⟨params', body', values, calleeLocals, rb, hlookup',
+    hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl herr
+  have hparams := (fun_of_index 69 hE.functions (by guest_decl_at 69) (by decide +kernel)
+    hlookup').2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hb, Option.map_some] at hvalues
+  cases ha : s.locals "a" with
+  | none => rw [ha] at hvalues; cases hvalues
+  | some va =>
+    rw [ha] at hvalues
+    simp only [Option.some.injEq] at hvalues
+    subst hvalues
+    rw [hparams] at hbind
+    simp [bindPanValueParameters] at hbind
+    have hcb : calleeLocals "b" = some zero4 := by
+      rw [← hbind]
+      simp [updatePanValueMap]
+    have hspec := u256_divmod_zero hE params' body' hlookup'
+      ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb hcb hcallee
+    subst hspec
+    obtain ⟨r', -, hrun', rfl⟩ := hout
+    simp (config := { decide := true }) only [runs_return, evalF_rStruct, evalF_rField,
+      evalF_local, evalArgs_cons, evalArgs_nil, update_lookup, beq_self_eq_true, if_true,
+      Option.map_some, List.getElem?_cons_zero, List.getElem?_cons_succ, payload_words4]
+      at hrun'
+    subst hrun'
+    exact Or.inr ⟨_, rfl⟩
+
+set_option maxHeartbeats 2000000 in
+/-- `u256_mul` of zero and a one-limb number is zero. -/
+theorem u256_mul_zero (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_mul" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (d : Word) (ha : s.locals "a" = some zero4)
+    (hb : s.locals "b" = some (.rStruct [.word d, .word 0, .word 0, .word 0]))
+    (h : Runs E s body r) :
+    r.isError = true ∨ ∃ l, r = .returned l s.globals s.memory s.ffi [zero4] := by
+  have hbody := (fun_of_index 60 hE.functions (by guest_decl_at 60) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp h
+  rw [runs_ite] at h₁
+  simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_op hE.word, evalF_rField,
+    evalF_local, eval_const, evalArgs_cons, evalArgs_nil, ha, hb, Option.map_some,
+    List.getElem?_cons_zero, List.getElem?_cons_succ, wordsProj_nil, wordsProj_cons, wordOp,
+    List.foldr, if_false] at h₁
+  rcases runs_decCall_inv h₁ with herr | ⟨params', body', values, calleeLocals, rb, hlookup',
+    hvalues, hbind, hcallee, hout⟩
+  · cases r₁ with
+    | error l g m f =>
+      simp only at hrest
+      subst hrest
+      exact Or.inl rfl
+    | _ => cases herr
+  have hparams := (fun_of_index 59 hE.functions (by guest_decl_at 59) (by decide +kernel)
+    hlookup').2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_rField, evalF_local, ha, hb, Option.map_some,
+    List.getElem?_cons_zero, Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hca : calleeLocals "a" = some (.word 0) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  have hcb : calleeLocals "b" = some (.word d) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  obtain ⟨cl, rfl⟩ := mul64x64_zero hE params' body' hlookup'
+    ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb d hca hcb hcallee
+  obtain ⟨r', -, hrun', rfl⟩ := hout
+  simp (config := { decide := true }) only [runs_return, evalF_rStruct, evalF_rField,
+    evalF_local, eval_const, evalArgs_cons, evalArgs_nil, update_lookup, beq_self_eq_true,
+    if_true, Option.map_some, List.getElem?_cons_zero, List.getElem?_cons_succ,
+    payload_words4] at hrun'
+  subst hrun'
+  simp only [restorePanValueFfiLocal] at hrest
+  subst hrest
+  exact Or.inr ⟨_, rfl⟩
+
 end InitECandidate.Solver.GuestBound
