@@ -1,6 +1,6 @@
 import InitECandidate.Solver.GuestBound.Fns.L10
 import InitECandidate.Solver.GuestBound.GuestInstance
-import InitECandidate.Solver.GuestBound.CallInv
+import InitECandidate.Solver.GuestBound.ScratchAlloc
 
 /-! Axiom audit for the guest-bound modules: each line must report only
 `propext`, `Classical.choice` and `Quot.sound` (or no axioms). -/
@@ -78,3 +78,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms callSteps_inv
 #print axioms call_run_inv
 #print axioms decCall_run_inv
+#print axioms trap_with_noReturn
+#print axioms scratch_alloc_spec
