@@ -372,4 +372,43 @@ theorem merge_loop (hE : GuestEnv E) {ea eb : Exp Word} {argsA argsB : List (Exp
       omega
     · omega
 
+/-- A loop whose guard evaluates to 0 ends normally in the same state. -/
+theorem runs_while_false {s : St σ} {c : Exp Word} {body : Prog Word} {r : Result σ}
+    (h : E.eval s c = some (.word 0)) :
+    Runs E s (.while c body) r ↔ r = .normal s.locals s.globals s.memory s.ffi := by
+  have hc := cond_eq (E := E) s c
+  rw [h] at hc
+  simp only [Env.cond] at hc
+  constructor
+  · rintro ⟨fuel, n, hrun⟩
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
+    | succ fuel =>
+      simp only [Env.run] at hrun
+      rw [evalPanValueFfiProgSteps, hc] at hrun
+      simp at hrun
+      exact hrun.1.symm
+  · rintro rfl
+    refine runs_of_map (fuel := 1) ?_
+    simp only [Env.run]
+    rw [evalPanValueFfiProgSteps, hc]
+    simp
+
+/-- A loop whose body assigns only locals in `M` leaves the other locals alone
+and never ends in `continued` or `broke`. -/
+theorem while_locals {c : Exp Word} {body : Prog Word} {M : List VarName} {s : St σ}
+    {r : Result σ} (hok : localsOk M body = true) (h : Runs E s (.while c body) r) :
+    match r with
+    | .normal l _ _ _ => ∀ x, x ∉ M → l x = s.locals x
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  obtain ⟨fuel, n, hrun⟩ := h
+  have hl := locals_sound fuel M (.while c body) s r n (by simpa only [localsOk] using hok) hrun
+  have hne := while_not_escape fuel s r n hrun
+  cases r with
+  | normal l g m f => exact hl
+  | continued l g m f => exact hne.elim
+  | broke l g m f => exact hne.elim
+  | _ => trivial
+
 end InitECandidate.Solver.GuestBound
