@@ -198,19 +198,61 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   · have h88 : (88#64).toNat = 88 := by decide
     exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4⟩
 
-/-- Reading a header field back from a freshly built header. -/
-theorem htabHeader_count (m : Word → Option (PanValue Word)) (t kl cp keys nodes order : Word) :
-    htabHeader m t kl cp keys nodes order (t + 24#64) = some (.word 0#64) := by
-  have h : ∀ a b : Word, (t + a == t + b) = (a == b) := by
-    intro a b
-    by_cases hab : a = b
-    · simp [hab]
-    · have : t + a ≠ t + b := by
-        intro h
-        apply hab
-        have := congrArg (fun z => z - t) h
-        simpa using this
-      simp [hab, this]
-  simp (config := { decide := true }) [htabHeader, setCell, h]
+theorem add_beq (t a b : Word) : (t + a == t + b) = (a == b) := by
+  by_cases hab : a = b
+  · simp [hab]
+  · have : t + a ≠ t + b := by
+      intro h
+      apply hab
+      have := congrArg (fun z => z - t) h
+      simpa using this
+    simp [hab, this]
+
+/-- The cell at `a` holds the word `w`. -/
+def Rd (m : Word → Option (PanValue Word)) (a w : Word) : Prop := m a = some (.word w)
+
+/-- The values of a table's header fields. -/
+structure HtabV where
+  kl : Word
+  st : Word
+  cp : Word
+  nc : Word
+  cnt : Word
+  keys : Word
+  nodes : Word
+  order : Word
+  root : Word
+  next : Word
+  free : Word
+
+/-- The header at `t` holds the fields `v`. -/
+def HtabHdr (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV) : Prop :=
+  Rd m (t + 0#64) v.kl ∧ Rd m (t + 8#64) v.st ∧ Rd m (t + 16#64) v.cp ∧
+    Rd m (t + 24#64) v.cnt ∧ Rd m (t + 32#64) v.keys ∧ Rd m (t + 40#64) v.nodes ∧
+    Rd m (t + 48#64) v.order ∧ Rd m (t + 56#64) v.root ∧ Rd m (t + 64#64) v.next ∧
+    Rd m (t + 72#64) v.free ∧ Rd m (t + 80#64) v.nc
+
+/-- A fresh header reads back as an empty table. -/
+theorem htabHeader_hdr (m : Word → Option (PanValue Word)) (t kl cp keys nodes order : Word) :
+    HtabHdr (htabHeader m t kl cp keys nodes order) t
+      ⟨kl, strideOf kl, cp, ncapOf cp, 0#64, keys, nodes, order, 0#64, 1#64, 0#64⟩ := by
+  simp (config := { decide := true }) [HtabHdr, Rd, htabHeader, setCell, add_beq]
+
+/-- A fresh header changes no cell outside the header. -/
+theorem htabHeader_frame (m : Word → Option (PanValue Word)) (t kl cp keys nodes order a : Word)
+    (ha : 88 ≤ (a - t).toNat) : htabHeader m t kl cp keys nodes order a = m a := by
+  have hne : ∀ k : Word, k.toNat < 88 → (a == t + k) = false := by
+    intro k hk
+    have : a ≠ t + k := by
+      intro h
+      rw [h] at ha
+      have : (t + k - t) = k := by simp
+      rw [this] at ha
+      omega
+    simpa using this
+  have h0 : (a == t) = false := by simpa using hne 0#64 (by decide)
+  simp [htabHeader, setCell, h0, hne 8#64 (by decide), hne 16#64 (by decide),
+    hne 24#64 (by decide), hne 32#64 (by decide), hne 40#64 (by decide), hne 48#64 (by decide),
+    hne 56#64 (by decide), hne 64#64 (by decide), hne 72#64 (by decide), hne 80#64 (by decide)]
 
 end InitECandidate.Solver.GuestBound
