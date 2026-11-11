@@ -209,4 +209,44 @@ theorem alloc_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     subst hrest
     simp only [restorePanValueFfiLocal, AllocPost]
 
+/-- The heap pointer is a word inside the heap. -/
+def HeapOk (g : VarName → Option (PanValue Word)) : Prop :=
+  ∃ p : Word, g "heap_ptr" = some (.word p) ∧ p.toNat ≤ 2952790016
+
+/-- A returning `alloc` keeps the heap pointer inside the heap. -/
+theorem AllocPost.heapOk {pv nv : Word} {s : St σ} {l g : VarName → Option (PanValue Word)}
+    {m : Word → Option (PanValue Word)} {f : FfiState σ} {vs : List (PanValue Word)}
+    (h : AllocPost pv nv s (.returned l g m f vs)) : HeapOk g := by
+  obtain ⟨-, -, -, qv, rfl, -, hq, -⟩ := h
+  exact ⟨qv, by simp [updatePanValueMap], hq⟩
+
+/-- `heap_mark` returns the heap pointer and changes nothing. -/
+theorem heap_mark_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "heap_mark" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (pv : Word) (hp : s.globals "heap_ptr" = some (.word pv))
+    (h : Runs E s body r) :
+    r = .returned (fun _ => none) s.globals s.memory s.ffi [.word pv] := by
+  have hbody := (fun_of_index 8 hE.functions (by guest_decl_at 8) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp only [runs_return, eval_global, hp, payload_word, if_true] at h
+  exact h
+
+/-- `heap_release(m)` sets the heap pointer to `m` and changes nothing else. -/
+theorem heap_release_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "heap_release" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (pv mv : Word) (hp : s.globals "heap_ptr" = some (.word pv))
+    (hm : s.locals "m" = some (.word mv)) (h : Runs E s body r) :
+    r = .returned (fun _ => none) (updatePanValueMap s.globals "heap_ptr" (.word mv)) s.memory
+      s.ffi [.word 0] := by
+  have hbody := (fun_of_index 9 hE.functions (by guest_decl_at 9) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp only [runs_seq, runs_assign_global, runs_return, evalF_local, eval_const, hm,
+    panValueAssignmentValid, hp, shape_word, shape_matches_self, payload_word, if_true,
+    exists_eq_left] at h
+  exact h
+
 end InitECandidate.Solver.GuestBound
