@@ -63,3 +63,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms wordExp_eval
 #print axioms Fn.divmnu
 #print axioms Fn.htab_set
+#print axioms keepWith_sound
+#print axioms keepFn_sound
+#print axioms globalCounterLoop_costs
+#print axioms Fn.state_restore
