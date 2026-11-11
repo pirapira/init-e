@@ -7,6 +7,15 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_fp_is_high» (hE : GuestEnv E) : FunCost E "bls_fp_is_high" 7279 := by
+  guest_cost 716
+
+theorem «bls_fp_decode64» (hE : GuestEnv E) : FunCost E "bls_fp_decode64" 332041393326771936744 := by
+  guest_cost 719
+
+theorem «bls_fp_encode64» (hE : GuestEnv E) : FunCost E "bls_fp_encode64" 2434970217729660821288 := by
+  guest_cost 720
+
 theorem «fp2_dbl» (hE : GuestEnv E) : FunCost E "fp2_dbl" 530 := by
   guest_cost 729
 

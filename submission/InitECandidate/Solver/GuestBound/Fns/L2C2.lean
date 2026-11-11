@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
+  guest_cost 696
+
 theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
   guest_cost 705
 

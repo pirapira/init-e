@@ -88,6 +88,9 @@ theorem «fp_sqr» (hE : GuestEnv E) : FunCost E "fp_sqr" 1906 := by
 theorem «ssz_init» (hE : GuestEnv E) : FunCost E "ssz_init" 1808 := by
   guest_cost 185
 
+theorem «merkleize» (hE : GuestEnv E) : FunCost E "merkleize" 4629881884326288734146721603387716806901999 := by
+  guest_cost 186
+
 theorem «mix_in_length» (hE : GuestEnv E) : FunCost E "mix_in_length" 2434970217729660826995 := by
   guest_cost 187
 
@@ -123,8 +126,5 @@ theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 
 
 theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := by
   guest_cost 256
-
-theorem «node_new_ext» (hE : GuestEnv E) : FunCost E "node_new_ext" 130 := by
-  guest_cost 257
 
 end InitECandidate.Solver.GuestBound.Fn

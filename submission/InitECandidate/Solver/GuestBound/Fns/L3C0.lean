@@ -28,6 +28,12 @@ theorem «ec_on_curve» (hE : GuestEnv E) : FunCost E "ec_on_curve" 6381 := by
 theorem «secp256k1_address_of_point» (hE : GuestEnv E) : FunCost E "secp256k1_address_of_point" 198044337547986185767191060403185013228059 := by
   guest_cost 179
 
+theorem «htr_bytes_vector» (hE : GuestEnv E) : FunCost E "htr_bytes_vector" 4629881884326288734158379945642301243523525 := by
+  guest_cost 193
+
+theorem «htr_bytes_list» (hE : GuestEnv E) : FunCost E "htr_bytes_list" 4629881884326288734154985744732738686039822 := by
+  guest_cost 194
+
 theorem «decode_payload» (hE : GuestEnv E) : FunCost E "decode_payload" 3412647653636267050039 := by
   guest_cost 204
 
@@ -36,6 +42,9 @@ theorem «decode_requests» (hE : GuestEnv E) : FunCost E "decode_requests" 5165
 
 theorem «decode_bytes_list» (hE : GuestEnv E) : FunCost E "decode_bytes_list" 2250502776992565297353 := by
   guest_cost 206
+
+theorem «htr_list_roots» (hE : GuestEnv E) : FunCost E "htr_list_roots" 4629881884326288734149156573605446467729007 := by
+  guest_cost 209
 
 theorem «check_gas_limit» (hE : GuestEnv E) : FunCost E "check_gas_limit" 645636042579834306649 := by
   guest_cost 235
@@ -117,14 +126,5 @@ theorem «memory_gas_cost» (hE : GuestEnv E) : FunCost E "memory_gas_cost" 140 
 
 theorem «access_gas_cost» (hE : GuestEnv E) : FunCost E "access_gas_cost" 5220428572859803107687 := by
   guest_cost 473
-
-theorem «op_add» (hE : GuestEnv E) : FunCost E "op_add" 3394200909562557497714 := by
-  guest_cost 475
-
-theorem «op_mul» (hE : GuestEnv E) : FunCost E "op_mul" 3394200909562557498364 := by
-  guest_cost 476
-
-theorem «op_sub» (hE : GuestEnv E) : FunCost E "op_sub" 3394200909562557497730 := by
-  guest_cost 477
 
 end InitECandidate.Solver.GuestBound.Fn

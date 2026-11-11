@@ -34,6 +34,24 @@ theorem «ec_add» (hE : GuestEnv E) : FunCost E "ec_add" 54203 := by
 theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_stateless_input" 19977823831827444403211 := by
   guest_cost 207
 
+theorem «htr_withdrawal» (hE : GuestEnv E) : FunCost E "htr_withdrawal" 9259763768652577468322589062411894705357751 := by
+  guest_cost 208
+
+theorem «htr_deposit» (hE : GuestEnv E) : FunCost E "htr_deposit" 13889645652978866202478534037836466288067949 := by
+  guest_cost 211
+
+theorem «htr_wdreq» (hE : GuestEnv E) : FunCost E "htr_wdreq" 13889645652978866202469310665799611512259875 := by
+  guest_cost 212
+
+theorem «htr_cons» (hE : GuestEnv E) : FunCost E "htr_cons" 18519527537305154936621861440314620537472704 := by
+  guest_cost 213
+
+theorem «htr_bdep» (hE : GuestEnv E) : FunCost E "htr_bdep" 13889645652978866202472704866709174069757244 := by
+  guest_cost 214
+
+theorem «htr_bexit» (hE : GuestEnv E) : FunCost E "htr_bexit" 13889645652978866202463481494672319293949170 := by
+  guest_cost 215
+
 theorem «rlp_put_u256» (hE : GuestEnv E) : FunCost E "rlp_put_u256" 4423670769972200030963721488347462369995 := by
   guest_cost 228
 
@@ -108,23 +126,5 @@ theorem «op_timestamp» (hE : GuestEnv E) : FunCost E "op_timestamp" 3394200909
 
 theorem «op_number» (hE : GuestEnv E) : FunCost E "op_number" 3394200909562557497607 := by
   guest_cost 557
-
-theorem «op_gaslimit» (hE : GuestEnv E) : FunCost E "op_gaslimit" 3394200909562557497607 := by
-  guest_cost 558
-
-theorem «op_chainid» (hE : GuestEnv E) : FunCost E "op_chainid" 3394200909562557497607 := by
-  guest_cost 559
-
-theorem «op_slotnum» (hE : GuestEnv E) : FunCost E "op_slotnum" 3394200909562557497607 := by
-  guest_cost 561
-
-theorem «emit_transfer_log» (hE : GuestEnv E) : FunCost E "emit_transfer_log" 18446744073709551617306 := by
-  guest_cost 567
-
-theorem «fq12_mul» (hE : GuestEnv E) : FunCost E "fq12_mul" 1464575307227719146763925610744501875245189 := by
-  guest_cost 659
-
-theorem «fq12_sqr» (hE : GuestEnv E) : FunCost E "fq12_sqr" 1465255871961561023756983937463614154211461 := by
-  guest_cost 660
 
 end InitECandidate.Solver.GuestBound.Fn

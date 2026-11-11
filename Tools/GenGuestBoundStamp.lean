@@ -1,2 +1,2 @@
 /-! Written by tools/gen-guest-bound.sh to force a rerun of the generator. -/
-def Tools.GenGuestBound.stamp : String := "20261111T181943007923204"
+def Tools.GenGuestBound.stamp : String := "20261111T183104221904932"
