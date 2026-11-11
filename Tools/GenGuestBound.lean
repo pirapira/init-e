@@ -43,17 +43,42 @@ partial def loops : Prog (BitVec 64) → List (Exp (BitVec 64) × Prog (BitVec 6
   | .decCall _ _ _ _ body => loops body
   | _ => []
 
-/-- The rule used for a loop: `some 0` for `loopOk`, `some 1` for `walkMLoop`. -/
-def loopHint (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Option Nat :=
-  if loopOk Guest.Software.guestAst c body then some 0
-  else if walkMLoop (quietFn Guest.Software.guestAst) body then some 1
-  else none
-
-/-- Cost of a loop, matching `X.whileCounter` and `X.whileWalk`. -/
-partial def loopCost (callee : String → Nat) (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Nat :=
-  let iterations := if loopHint c body == some 1 then walkIters (assignedLocals body).length
-    else 2 ^ 64
-  iterations * (panValueExpStepCost c + staticCost callee (loopCost callee) body + 1)
+/-- Hint and iteration bound of every loop in pre-order. Hints: `0` for
+`loopOk`, `1` for `walkMLoop`, `2` for a hand-proved loop, `3` for `shapeLoop`
+under the declarations in scope (`none` when they are not tracked). -/
+partial def loopInfos (manual : Nat → Option Nat) :
+    Prog (BitVec 64) → Option (List (String × Shape)) → StateM Nat (List (Option Nat × Nat))
+  | .dec x sh _ body, D => loopInfos manual body (D.map ((x, sh) :: ·))
+  | .decCall x sh _ _ body, D => loopInfos manual body (D.map ((x, sh) :: ·))
+  | .seq a b, D => do
+      let l₁ ← loopInfos manual a D
+      let keep := shapeOk (quietFn Guest.Software.guestAst) (loopVars a) a
+      let l₂ ← loopInfos manual b (if keep then D else none)
+      return l₁ ++ l₂
+  | .ite _ a b, D => do
+      let l₁ ← loopInfos manual a D
+      let l₂ ← loopInfos manual b D
+      return l₁ ++ l₂
+  | .while c body, D => do
+      let index ← get
+      set (index + 1)
+      let info : Option Nat × Nat :=
+        match manual index with
+        | some n => (some 2, n)
+        | none =>
+          if loopOk Guest.Software.guestAst c body then (some 0, 2 ^ 64)
+          else if walkMLoop (quietFn Guest.Software.guestAst) body then
+            (some 1, walkIters (assignedLocals body).length)
+          else match D with
+            | some d =>
+                if shapeLoop (quietFn Guest.Software.guestAst) d body then
+                  (some 3, shapeIters (flatMax d (loopVars body)) (loopVars body).length)
+                else (none, 0)
+            | none => (none, 0)
+      let inner ← loopInfos manual body (if info.1 == some 3 then D else none)
+      return info :: inner
+  | .call (some (_, some (_, _, h))) _ _, _ => loopInfos manual h none
+  | _, _ => pure []
 
 /-- A hand-proved loop, from `GuestBound/manual-loops.txt`: function, pre-order
 loop index, iteration bound, and the module that proves `Manual.<fn>.loop<index>`. -/
@@ -138,14 +163,11 @@ def run : IO Unit := do
   let manual ← readManual
   let manualFor (fn : String) (index : Nat) : Option ManualLoop :=
     manual.find? fun m => m.fn == fn && m.index == index
-  let hintsOf (f : Info) : List (Option Nat) :=
-    (loops f.body).zipIdx.map fun ((c, body), index) =>
-      if (manualFor f.name index).isSome then some 2 else loopHint c body
-  let itersOf (f : Info) (index : Nat) (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Nat :=
-    match manualFor f.name index with
-    | some m => m.iters
-    | none =>
-        if loopHint c body == some 1 then walkIters (assignedLocals body).length else 2 ^ 64
+  let infosOf (f : Info) : List (Option Nat × Nat) :=
+    (loopInfos (fun index => (manualFor f.name index).map (·.iters)) f.body (some [])).run' 0
+  let hintsOf (f : Info) : List (Option Nat) := (infosOf f).map (·.1)
+  let itersOf (f : Info) (index : Nat) (_ : Exp (BitVec 64)) (_ : Prog (BitVec 64)) : Nat :=
+    ((infosOf f)[index]?.map (·.2)).getD (2 ^ 64)
   let byName : Std.HashMap String Info := fns.foldl (fun m f => m.insert f.name f) {}
   -- level and cost by iterating to a fixed point (the call graph is acyclic)
   let mut level : Std.HashMap String Nat := {}
@@ -206,22 +228,30 @@ def run : IO Unit := do
     IO.FS.writeFile s!"{dir}/L{lv}.lean" imports
   IO.println s!"functions {fns.length}, generated {total}, skipped {skipped.size}, pending {pending.length}, levels {maxLevel + 1}"
 
+/-- Hints of the loops of `f`, with hand-proved loops taken into account. -/
+def hintsFor (manual : List ManualLoop) (f : Info) : List (Option Nat) :=
+  ((loopInfos (fun index => (manual.find? fun m => m.fn == f.name && m.index == index).map
+    (·.iters)) f.body (some [])).run' 0).map (·.1)
+
 def loopReport : IO Unit := do
-  let mut accepted := 0
+  let manual ← readManual
+  let mut counts : Std.HashMap Nat Nat := {}
   let mut rejected : List String := []
   for f in functions do
-    for (c, body) in loops f.body do
-      if (loopHint c body).isSome then accepted := accepted + 1
-      else rejected := s!"{f.name}: {repr (guardKind c)}" :: rejected
-  IO.println s!"loops accepted {accepted}, rejected {rejected.length}"
+    for (hint, index) in (hintsFor manual f).zipIdx do
+      match hint with
+      | some h => counts := counts.insert h (counts.getD h 0 + 1)
+      | none => rejected := s!"{f.name} loop {index}" :: rejected
+  IO.println s!"loops by rule: counter {counts.getD 0 0}, walk {counts.getD 1 0}, manual {counts.getD 2 0}, shape {counts.getD 3 0}; rejected {rejected.length}"
   for r in rejected.reverse do IO.println r
 
 /-- For each function with a rejected loop, how many functions call it transitively. -/
 def blockerReport : IO Unit := do
+  let manual ← readManual
   let fns := functions
   let direct : Std.HashMap String (List String) :=
     fns.foldl (fun m f => m.insert f.name (callees f.body)) {}
-  let roots := fns.filter (fun f => (loops f.body).any (fun (c, body) => (loopHint c body).isNone))
+  let roots := fns.filter (fun f => (hintsFor manual f).any (·.isNone))
   let mut lines : List (Nat × String) := []
   for root in roots do
     let mut reach : Std.HashMap String Unit := ({} : Std.HashMap String Unit).insert root.name ()

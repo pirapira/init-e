@@ -85,6 +85,9 @@ theorem «fp_mul» (hE : GuestEnv E) : FunCost E "fp_mul" 2204 := by
 theorem «fp_sqr» (hE : GuestEnv E) : FunCost E "fp_sqr" 1906 := by
   guest_cost 154
 
+theorem «modinv_bin» (hE : GuestEnv E) : FunCost E "modinv_bin" 891815597960782057774643144230476221777474501739904912003079764454145234888967184247561458919718038375476043523928561771509094282154134580238756805519586693665231584008764005429119076706141393046702800230019031887063805691425727092889818849401656199693744319822658718765821635605265049536679327778442750384582767188640932664586117470374939529951838706550346010016840755499234919892164689068699807311640201304993666595385698213321921175833843358621048929512098627637 := by
+  guest_cost 157 [3, 3, 3]
+
 theorem «ssz_init» (hE : GuestEnv E) : FunCost E "ssz_init" 1808 := by
   guest_cost 185
 
@@ -123,8 +126,5 @@ theorem «nodedb_lookup» (hE : GuestEnv E) : FunCost E "nodedb_lookup" 52204285
 
 theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
   guest_cost 255
-
-theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := by
-  guest_cost 256
 
 end InitECandidate.Solver.GuestBound.Fn

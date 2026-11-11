@@ -2,6 +2,7 @@ import InitECandidate.Solver.GuestBound.Decls
 import InitECandidate.Solver.GuestBound.ExpCostEval
 import InitECandidate.Solver.GuestBound.Loops
 import InitECandidate.Solver.GuestBound.WalkMBound
+import InitECandidate.Solver.GuestBound.ShapeLoop
 import Guest.SoftwareAst
 import Lean.Elab.Tactic
 
@@ -161,6 +162,55 @@ theorem whileWalk (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word) (bod
     Costs E (.while c body) (walkIters (assignedLocals body).length * (expCost c + b + 1)) :=
   walkMLoop_costs hE.word _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) c body b
     hcheck hbody
+
+/-! Rules for bodies with loops over struct-valued locals: `CostsIn E D p B`
+bounds `p` from states in which the declarations `D` hold. -/
+
+theorem inOf (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (p : Prog Word) (B : Nat)
+    (h : Costs E p B) : CostsIn E D p B := CostsIn.of_costs h
+
+theorem inTo (σ : Type) (E : Env σ) (p : Prog Word) (B : Nat) (h : CostsIn E [] p B) :
+    Costs E p B := CostsIn.to_costs h
+
+theorem inSeq (σ : Type) (E : Env σ) (hE : GuestEnv E) (D : List (VarName × Shape))
+    (first second : Prog Word) (B₁ B₂ : Nat)
+    (hcheck : shapeOk (quietFn Guest.Software.guestAst) (loopVars first) first = true)
+    (h₁ : CostsIn E D first B₁) (h₂ : CostsIn E D second B₂) :
+    CostsIn E D (.seq first second) (B₁ + B₂ + 1) :=
+  CostsIn.seq _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) _ hcheck h₁ h₂
+
+theorem inSeqTail (σ : Type) (E : Env σ) (D : List (VarName × Shape))
+    (first second : Prog Word) (B₁ B₂ : Nat)
+    (h₁ : CostsIn E D first B₁) (h₂ : Costs E second B₂) :
+    CostsIn E D (.seq first second) (B₁ + B₂ + 1) :=
+  Triple.seq (Mid := fun _ => True) (Q := fun _ => True)
+    (h₁.consequence (fun _ h => h) (Nat.le_refl _) (fun r _ => by cases r <;> trivial)) h₂
+
+theorem inIte (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (c : Exp Word)
+    (thenBranch elseBranch : Prog Word) (B₁ B₂ : Nat) (h₁ : CostsIn E D thenBranch B₁)
+    (h₂ : CostsIn E D elseBranch B₂) :
+    CostsIn E D (.ite c thenBranch elseBranch) (expCost c + max B₁ B₂ + 1) := by
+  rw [← stepCost_eq]; exact CostsIn.ite c h₁ h₂
+
+theorem inDec (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (name : VarName)
+    (shape : Shape) (value : Exp Word) (body : Prog Word) (B : Nat)
+    (h : CostsIn E ((name, shape) :: D) body B) :
+    CostsIn E D (.dec name shape value body) (expCost value + B + 1) := by
+  rw [← stepCost_eq]; exact CostsIn.dec name shape value h
+
+theorem inDecCall (σ : Type) (E : Env σ) (D : List (VarName × Shape)) (name : VarName)
+    (shape : Shape) (f : FunName) (arguments : List (Exp Word)) (body : Prog Word) (B C : Nat)
+    (hf : FunCost E f B) (hbody : CostsIn E ((name, shape) :: D) body C) :
+    CostsIn E D (.decCall name shape f arguments body) (expsCost arguments + B + C + 1) := by
+  rw [← stepsCost_eq]; exact CostsIn.decCall name shape arguments hf hbody
+
+theorem whileShape (σ : Type) (E : Env σ) (hE : GuestEnv E) (D : List (VarName × Shape))
+    (c : Exp Word) (body : Prog Word) (b : Nat)
+    (hcheck : shapeLoop (quietFn Guest.Software.guestAst) D body = true)
+    (hbody : CostsIn E D body b) :
+    CostsIn E D (.while c body)
+      (shapeIters (flatMax D (loopVars body)) (loopVars body).length * (expCost c + b + 1)) :=
+  shapeLoop_costs _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) D c body b hcheck hbody
 
 end X
 
@@ -369,6 +419,7 @@ partial def derive (fnName : String) (σ E hE : Expr) (p : Expr) :
       -- 2 uses the hand-proved theorem `Manual.<fn>.loop<index>`
       let (hint, index) ← modifyGet fun (hints, index) =>
         ((hints.headD 0, index), (hints.tail, index + 1))
+      if hint == 3 then throwError "cost_derive: shape loop {index} outside a shaped derivation"
       let h ← derive fnName σ E hE args[2]!
       if hint == 2 then
         let manual := `InitECandidate.Solver.GuestBound.Manual ++ Name.mkSimple fnName ++
@@ -378,6 +429,67 @@ partial def derive (fnName : String) (σ E hE : Expr) (p : Expr) :
       let name := if hint == 1 then `whileWalk else `whileCounter
       return mkAppN (rule name) #[σ, E, hE, args[1]!, args[2]!, ← boundOf h, check, h]
   | _ => throwError "cost_derive: unsupported statement {ctor}"
+
+def pairTy : Expr :=
+  mkApp2 (mkConst ``Prod [Level.zero, Level.zero]) (mkConst ``Flapjack.VarName)
+    (mkConst ``Flapjack.Shape)
+
+def nilD : Expr := mkApp (mkConst ``List.nil [Level.zero]) pairTy
+
+def consD (x shape D : Expr) : Expr :=
+  mkApp3 (mkConst ``List.cons [Level.zero]) pairTy
+    (mkApp4 (mkConst ``Prod.mk [Level.zero, Level.zero]) (mkConst ``Flapjack.VarName)
+      (mkConst ``Flapjack.Shape) x shape) D
+
+/-- Build a proof of `CostsIn E D p ?B`. Parts without a shape loop (hint `3`)
+are derived by `derive`; declarations on the way to a shape loop extend `D`. -/
+partial def deriveIn (fnName : String) (σ E hE D : Expr) (p : Expr) :
+    StateRefT (List Nat × Nat) MetaM Expr := do
+  let (hints, _) ← get
+  let shaped (q : Expr) (skip : Nat) : Bool :=
+    ((hints.drop skip).take (loopsExpr q).size).any (· == 3)
+  if !shaped p 0 then
+    let h ← derive fnName σ E hE p
+    return mkAppN (rule `inOf) #[σ, E, D, p, ← boundOf h, h]
+  let args := p.getAppArgs
+  let check := mkApp2 (mkConst ``Eq.refl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true)
+  match p.getAppFn.constName? with
+  | some ``Flapjack.Prog.seq => do
+      let tailShaped := shaped args[2]! (loopsExpr args[1]!).size
+      let h₁ ← deriveIn fnName σ E hE D args[1]!
+      if tailShaped then
+        let h₂ ← deriveIn fnName σ E hE D args[2]!
+        return mkAppN (rule `inSeq)
+          #[σ, E, hE, D, args[1]!, args[2]!, ← boundOf h₁, ← boundOf h₂, check, h₁, h₂]
+      else
+        let h₂ ← derive fnName σ E hE args[2]!
+        return mkAppN (rule `inSeqTail)
+          #[σ, E, D, args[1]!, args[2]!, ← boundOf h₁, ← boundOf h₂, h₁, h₂]
+  | some ``Flapjack.Prog.ite => do
+      let h₁ ← deriveIn fnName σ E hE D args[2]!
+      let h₂ ← deriveIn fnName σ E hE D args[3]!
+      return mkAppN (rule `inIte)
+        #[σ, E, D, args[1]!, args[2]!, args[3]!, ← boundOf h₁, ← boundOf h₂, h₁, h₂]
+  | some ``Flapjack.Prog.dec => do
+      let h ← deriveIn fnName σ E hE (consD args[1]! args[2]! D) args[4]!
+      return mkAppN (rule `inDec)
+        #[σ, E, D, args[1]!, args[2]!, args[3]!, args[4]!, ← boundOf h, h]
+  | some ``Flapjack.Prog.decCall => do
+      let .lit (.strVal function) := args[3]!
+        | throwError "cost_derive: callee is not a literal: {args[3]!}"
+      let hf := mkApp3 (mkConst (fnNamespace ++ Name.mkSimple function)) σ E hE
+      let h ← deriveIn fnName σ E hE (consD args[1]! args[2]! D) args[5]!
+      return mkAppN (rule `inDecCall)
+        #[σ, E, D, args[1]!, args[2]!, args[3]!, args[4]!, args[5]!, ← boundOf hf, ← boundOf h,
+          hf, h]
+  | some ``Flapjack.Prog.while => do
+      let (hint, index) ← modifyGet fun (hints, index) =>
+        ((hints.headD 0, index), (hints.tail, index + 1))
+      if hint != 3 then
+        throwError "cost_derive: loop {index} contains a shape loop but is not one"
+      let h ← deriveIn fnName σ E hE D args[2]!
+      return mkAppN (rule `whileShape) #[σ, E, hE, D, args[1]!, args[2]!, ← boundOf h, check, h]
+  | _ => throwError "cost_derive: shape loop under an unsupported statement"
 
 end Derive
 
@@ -400,7 +512,11 @@ elab "cost_derive" "[" hints:num,* "]" : tactic => do
   let fnName := match declName with
     | .str _ last => last
     | _ => ""
-  let (proof, _) ← (Derive.derive fnName σ E hE body).run (hintList, 0)
+  let (proof, _) ← (do
+      if hintList.any (· == 3) then
+        let h ← Derive.deriveIn fnName σ E hE Derive.nilD body
+        return mkAppN (Derive.rule `inTo) #[σ, E, body, ← Derive.boundOf h, h]
+      else Derive.derive fnName σ E hE body).run (hintList, 0)
   let bound ← Derive.boundOf proof
   let hole := arguments[3]!
   if hole.isMVar then hole.mvarId!.assign bound
@@ -419,7 +535,8 @@ elab "reduce_body" : tactic => do
 
 /-- Prove `FunCost E "f" N` for the guest function at position `i` of the AST.
 `guest_cost i [h₀, h₁, …]` gives one hint per loop of the function, in
-pre-order: `0` for a loop accepted by `loopOk`, `1` for one accepted by `walkMLoop`. -/
+pre-order: `0` for a loop accepted by `loopOk`, `1` for one accepted by `walkMLoop`,
+`2` for a hand-proved loop, `3` for one accepted by `shapeLoop`. -/
 macro "guest_cost" i:num "[" hints:num,* "]" : tactic => `(tactic| (
   apply FunCost.mono
   · apply funCost_of_index $i (GuestEnv.functions ‹GuestEnv _›)

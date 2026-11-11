@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := by
+  guest_cost 256
+
 theorem «node_new_ext» (hE : GuestEnv E) : FunCost E "node_new_ext" 130 := by
   guest_cost 257
 
@@ -94,6 +97,12 @@ theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
 theorem «bn_mod» (hE : GuestEnv E) : FunCost E "bn_mod" 3821138944831434450842141720696545146376477132127326556329825582218789859098899 := by
   guest_cost 628
 
+theorem «p256_fp_mul» (hE : GuestEnv E) : FunCost E "p256_fp_mul" 3311728558695821483594784174556843993487403357686321164297719676599275715428166103270062951647225146639437868972062054560877209054550802776769111304502773793 := by
+  guest_cost 634 [3, 3]
+
+theorem «p256_fp_sqr» (hE : GuestEnv E) : FunCost E "p256_fp_sqr" 3311728558695821483594784174556843993487403357686321164297719676599275715428166103270062951647225146639437868972062054560877209054550802776769111304502773495 := by
+  guest_cost 635 [3, 3]
+
 theorem «bn254_init» (hE : GuestEnv E) : FunCost E "bn254_init" 567 := by
   guest_cost 648
 
@@ -117,14 +126,5 @@ theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773
 
 theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
   guest_cost 665
-
-theorem «ecp_set_inf» (hE : GuestEnv E) : FunCost E "ecp_set_inf" 7304910653188982440042 := by
-  guest_cost 671
-
-theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
-  guest_cost 672
-
-theorem «fq_poly_submul» (hE : GuestEnv E) : FunCost E "fq_poly_submul" 62460675433580541771781 := by
-  guest_cost 681
 
 end InitECandidate.Solver.GuestBound.Fn
