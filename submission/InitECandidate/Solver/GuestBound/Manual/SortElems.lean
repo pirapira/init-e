@@ -411,4 +411,140 @@ theorem while_locals {c : Exp Word} {body : Prog Word} {M : List VarName} {s : S
   | broke l g m f => exact hne.elim
   | _ => trivial
 
+/-- The block of a run-loop iteration after `mid` and `right` are computed:
+three loops over `i`, `j`, `k`, then `left = right`. -/
+def innerBlock (c2 c3 c4 : Exp Word) (b2 b3 b4 : Prog Word) : Prog Word :=
+  .dec "i" .one (.var .local "left")
+    (.dec "j" .one (.var .local "mid")
+      (.dec "k" .one (.var .local "left")
+        (.seq (.while c2 b2)
+          (.seq (.while c3 b3)
+            (.seq (.while c4 b4) (.assign .local "left" (.var .local "right")))))))
+
+/-- The block moves `right` into `left` and changes no other local. -/
+def InnerPost (s : St σ) : Result σ → Prop
+  | .normal l _ _ _ => l "left" = s.locals "right" ∧ ∀ y, y ≠ "left" → l y = s.locals y
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+set_option maxHeartbeats 2000000 in
+theorem innerBlock_runs {c2 c3 c4 : Exp Word} {b2 b3 b4 : Prog Word}
+    (h2 : localsOk ["i", "j", "k"] b2 = true) (h3 : localsOk ["i", "j", "k"] b3 = true)
+    (h4 : localsOk ["i", "j", "k"] b4 = true) {s : St σ} {r : Result σ} :
+    Runs E s (innerBlock c2 c3 c4 b2 b3 b4) r → InnerPost s r := by
+  intro h
+  unfold innerBlock at h
+  rw [runs_dec] at h
+  split at h
+  swap
+  · subst h
+    simp only [St.err, InnerPost]
+  split at h
+  swap
+  · subst h
+    simp only [St.err, InnerPost]
+  rename_i vi _ _
+  obtain ⟨rb, hb, rfl⟩ := h
+  rw [runs_dec] at hb
+  split at hb
+  swap
+  · subst hb
+    simp only [St.err, restorePanValueFfiLocal, InnerPost]
+  split at hb
+  swap
+  · subst hb
+    simp only [St.err, restorePanValueFfiLocal, InnerPost]
+  rename_i vj _ _
+  obtain ⟨rb2, hb2, rfl⟩ := hb
+  rw [runs_dec] at hb2
+  split at hb2
+  swap
+  · subst hb2
+    simp only [St.err, restorePanValueFfiLocal, InnerPost]
+  split at hb2
+  swap
+  · subst hb2
+    simp only [St.err, restorePanValueFfiLocal, InnerPost]
+  rename_i vk _ _
+  obtain ⟨rb3, hb3, rfl⟩ := hb2
+  dsimp only at hb3 ⊢
+  have hs3 : ∀ y, y ≠ "i" → y ≠ "j" → y ≠ "k" →
+      updatePanValueMap (updatePanValueMap (updatePanValueMap s.locals "i" vi) "j" vj) "k" vk y =
+        s.locals y := by
+    intro y h1 h2 h3
+    simp [update_lookup, h1, h2, h3]
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb3
+  have f1 := while_locals h2 h₁
+  cases r₁ with
+  | normal l1 g1 m1 ff1 =>
+    simp only at f1 hrest
+    obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hrest
+    have f2 := while_locals h3 h₂
+    cases r₂ with
+    | normal l2 g2 m2 ff2 =>
+      simp only at f2 hrest₂
+      obtain ⟨r₃, h₃', hrest₃⟩ := runs_seq.mp hrest₂
+      have f3 := while_locals h4 h₃'
+      cases r₃ with
+      | normal l3 g3 m3 ff3 =>
+        simp only at f3 hrest₃
+        have hfr : ∀ y, y ≠ "i" → y ≠ "j" → y ≠ "k" → l3 y = s.locals y := by
+          intro y h1 h2 h3
+          have hm : y ∉ ["i", "j", "k"] := by simp [h1, h2, h3]
+          rw [f3 y hm, f2 y hm, f1 y hm]
+          exact hs3 y h1 h2 h3
+        rw [runs_assign_local] at hrest₃
+        simp only [evalF_local] at hrest₃
+        split at hrest₃
+        swap
+        · subst hrest₃
+          simp only [St.err, restorePanValueFfiLocal, InnerPost]
+        rename_i v hv
+        split at hrest₃
+        swap
+        · subst hrest₃
+          simp only [St.err, restorePanValueFfiLocal, InnerPost]
+        subst hrest₃
+        simp only [restorePanValueFfiLocal, InnerPost]
+        refine ⟨?_, ?_⟩
+        · simp (config := { decide := true }) only [restorePanValueLocal, update_lookup,
+            if_false, if_true]
+          rw [← hv]
+          exact hfr "right" (by decide) (by decide) (by decide)
+        · intro y hy
+          have hyl : (y == "left") = false := by simpa using hy
+          by_cases hyi : y = "i"
+          · subst hyi
+            simp [restorePanValueLocal]
+          · have hyi' : (y == "i") = false := by simpa using hyi
+            by_cases hyj : y = "j"
+            · subst hyj
+              simp (config := { decide := true }) [restorePanValueLocal, update_lookup]
+            · have hyj' : (y == "j") = false := by simpa using hyj
+              by_cases hyk : y = "k"
+              · subst hyk
+                simp (config := { decide := true }) [restorePanValueLocal, update_lookup]
+              · have hyk' : (y == "k") = false := by simpa using hyk
+                simp only [restorePanValueLocal, update_lookup, hyi', hyj', hyk', hyl,
+                  Bool.false_eq_true, if_false]
+                exact hfr y hyi hyj hyk
+      | continued l3 g3 m3 ff3 => exact f3.elim
+      | broke l3 g3 m3 ff3 => exact f3.elim
+      | _ =>
+        simp only at hrest₃
+        subst hrest₃
+        simp only [restorePanValueFfiLocal, InnerPost]
+    | continued l2 g2 m2 ff2 => exact f2.elim
+    | broke l2 g2 m2 ff2 => exact f2.elim
+    | _ =>
+      simp only at hrest₂
+      subst hrest₂
+      simp only [restorePanValueFfiLocal, InnerPost]
+  | continued l1 g1 m1 ff1 => exact f1.elim
+  | broke l1 g1 m1 ff1 => exact f1.elim
+  | _ =>
+    simp only at hrest
+    subst hrest
+    simp only [restorePanValueFfiLocal, InnerPost]
+
 end InitECandidate.Solver.GuestBound
