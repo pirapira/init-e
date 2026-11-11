@@ -852,4 +852,109 @@ theorem innerBlock_zero (hE : GuestEnv E) {b2 b3 b4 : Prog Word} {s : St σ} {r 
   subst hrest₃
   exact ⟨_, _, _, _, rfl⟩
 
+theorem clamp_zero (nw : Word) : clampU (0 + (0 + 0)) nw = 0 := by
+  simp [clampU]
+
+set_option maxHeartbeats 2000000 in
+/-- With `left = width = 0` a run-loop iteration ends normally. -/
+theorem runBody_zero_normal (hE : GuestEnv E) {blk : Prog Word}
+    (hz : ∀ (s : St σ) (r : Result σ), s.locals "left" = some (.word 0) →
+      s.locals "mid" = some (.word 0) → s.locals "right" = some (.word 0) →
+      Runs E s blk r → ∃ l g m f, r = .normal l g m f)
+    {nw : Word} {s : St σ} {r : Result σ} (hl : s.locals "left" = some (.word 0))
+    (hw : s.locals "width" = some (.word 0)) (hn : s.locals "n" = some (.word nw)) :
+    Runs E s (runBody blk) r → ∃ l g m f, r = .normal l g m f := by
+  intro h
+  unfold runBody at h
+  rw [runs_dec] at h
+  simp only [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_local, hl, hw, wordsProj_cons,
+    wordsProj_nil, wordOp, List.foldr, Option.map_some, shape_word, shape_matches_self,
+    if_true] at h
+  obtain ⟨rb, hb, rfl⟩ := h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb
+  obtain ⟨l1, rfl, hmid1, hfr1⟩ := clampIte_runs hE (x := "mid") (xv := 0 + (0 + 0))
+    (s := ⟨updatePanValueMap s.locals "mid" (PanValue.word (0 + (0 + 0))), s.globals, s.memory,
+      s.ffi⟩) (by simp [update_lookup])
+    (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hn) h₁
+  simp only at hrest
+  dsimp only at hmid1 hfr1
+  rw [clamp_zero] at hmid1
+  have hw1 : l1 "width" = some (.word 0) := by
+    rw [hfr1 "width" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hw
+  have hn1 : l1 "n" = some (.word nw) := by
+    rw [hfr1 "n" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hn
+  have hl1 : l1 "left" = some (.word 0) := by
+    rw [hfr1 "left" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hl
+  rw [runs_dec] at hrest
+  simp only [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_local, hmid1, hw1,
+    wordsProj_cons, wordsProj_nil, wordOp, List.foldr, Option.map_some, shape_word,
+    shape_matches_self, if_true] at hrest
+  obtain ⟨rb2, hb2, rfl⟩ := hrest
+  obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hb2
+  obtain ⟨l2, rfl, hright2, hfr2⟩ := clampIte_runs hE (x := "right") (xv := 0 + (0 + 0))
+    (s := ⟨updatePanValueMap l1 "right" (PanValue.word (0 + (0 + 0))), s.globals, s.memory,
+      s.ffi⟩) (by simp [update_lookup])
+    (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hn1) h₂
+  simp only at hrest₂
+  dsimp only at hright2 hfr2
+  rw [clamp_zero] at hright2
+  have hl2 : l2 "left" = some (.word 0) := by
+    rw [hfr2 "left" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hl1
+  have hm2 : l2 "mid" = some (.word 0) := by
+    rw [hfr2 "mid" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hmid1
+  obtain ⟨l, g, m, f, rfl⟩ := hz _ _ hl2 hm2 hright2 hrest₂
+  exact ⟨_, _, _, _, rfl⟩
+
+/-- With `width = 0` and `0 <s n`, the run loop entered at `left = 0` never returns. -/
+theorem run_loop_zero (hE : GuestEnv E) {blk : Prog Word}
+    (hblk : ∀ (s : St σ) (r : Result σ), Runs E s blk r → InnerPost s r)
+    (hz : ∀ (s : St σ) (r : Result σ), s.locals "left" = some (.word 0) →
+      s.locals "mid" = some (.word 0) → s.locals "right" = some (.word 0) →
+      Runs E s blk r → ∃ l g m f, r = .normal l g m f)
+    {nw : Word} (hpos : bias 0 < bias nw) (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat)
+    (hl : s.locals "left" = some (.word 0)) (hw : s.locals "width" = some (.word 0))
+    (hn : s.locals "n" = some (.word nw))
+    (hrun : E.run fuel s (.while runGuard (runBody blk)) = some (r, n)) :
+    r.isError = true := by
+  refine while_never (E := E)
+    (Z := fun s => s.locals "left" = some (.word 0) ∧ s.locals "width" = some (.word 0) ∧
+      s.locals "n" = some (.word nw)) (c := runGuard) (body := runBody blk) ?_ ?_ fuel s r n
+    ⟨hl, hw, hn⟩ hrun
+  · intro s hZ v k hcond
+    obtain ⟨hl, -, hn⟩ := hZ
+    have heval := cond_of_eval hcond
+    simp only [runGuard, evalF_cmp hE.word, evalF_local, hl, hn, Option.some.injEq,
+      PanValue.word.injEq] at heval
+    subst heval
+    have hsl := (signedLess_iff 0 nw).mpr hpos
+    have hv : evalPanCmp Cmp.less (0 : Word) nw = 1 := by
+      simp [evalPanCmp]
+      exact hsl
+    rw [hv]
+    rfl
+  · intro fuel s r n hZ hrun
+    obtain ⟨hl, hw, hn⟩ := hZ
+    obtain ⟨l, g, m, f, rfl⟩ := runBody_zero_normal hE hz hl hw hn (Runs.of_run hrun)
+    obtain ⟨hleft, hfr⟩ := runBody_runs hE hblk hl hw hn (Runs.of_run hrun)
+    refine Or.inr ⟨l, g, m, f, rfl, ?_, ?_, ?_⟩
+    · show l "left" = _
+      rw [hleft]
+      simp [clampU]
+    · show l "width" = _
+      rw [hfr "width" (by decide)]
+      exact hw
+    · show l "n" = _
+      rw [hfr "n" (by decide)]
+      exact hn
+
 end InitECandidate.Solver.GuestBound
