@@ -25,6 +25,9 @@ theorem «st_le64» (hE : GuestEnv E) : FunCost E "st_le64" 74 := by
 theorem «st_be64» (hE : GuestEnv E) : FunCost E "st_be64" 123 := by
   guest_cost 28
 
+theorem «udivmod» (hE : GuestEnv E) : FunCost E "udivmod" 645636042579834306613 := by
+  guest_cost 33
+
 theorem «u256_bit» (hE : GuestEnv E) : FunCost E "u256_bit" 54 := by
   guest_cost 44
 
@@ -55,6 +58,18 @@ theorem «u256_sar» (hE : GuestEnv E) : FunCost E "u256_sar" 345 := by
 theorem «u256_byte» (hE : GuestEnv E) : FunCost E "u256_byte" 60 := by
   guest_cost 85
 
+theorem «u256_from_be» (hE : GuestEnv E) : FunCost E "u256_from_be" 1199038364791120855243 := by
+  guest_cost 86
+
+theorem «sha256_finish» (hE : GuestEnv E) : FunCost E "sha256_finish" 940783947759187132421 := by
+  guest_cost 94
+
+theorem «rlp_read_length» (hE : GuestEnv E) : FunCost E "rlp_read_length" 332041393326771929116 := by
+  guest_cost 106
+
+theorem «rlp_bytes_to_word» (hE : GuestEnv E) : FunCost E "rlp_bytes_to_word" 332041393326771929128 := by
+  guest_cost 116
+
 theorem «rlp_check_uint_bytes» (hE : GuestEnv E) : FunCost E "rlp_check_uint_bytes" 43 := by
   guest_cost 117
 
@@ -82,6 +97,12 @@ theorem «ec_is_infinity» (hE : GuestEnv E) : FunCost E "ec_is_infinity" 24 := 
 theorem «host_input_le32» (hE : GuestEnv E) : FunCost E "host_input_le32" 110 := by
   guest_cost 198
 
+theorem «ssz_check_offsets» (hE : GuestEnv E) : FunCost E "ssz_check_offsets" 1033017668127734890521 := by
+  guest_cost 201
+
+theorem «common_prefix_length» (hE : GuestEnv E) : FunCost E "common_prefix_length" 387381625547900583953 := by
+  guest_cost 251
+
 theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
   guest_cost 287
 
@@ -105,26 +126,5 @@ theorem «op_jump» (hE : GuestEnv E) : FunCost E "op_jump" 134 := by
 
 theorem «op_jumpi» (hE : GuestEnv E) : FunCost E "op_jumpi" 210 := by
   guest_cost 504
-
-theorem «op_jumpdest» (hE : GuestEnv E) : FunCost E "op_jumpdest" 54 := by
-  guest_cost 507
-
-theorem «op_pop» (hE : GuestEnv E) : FunCost E "op_pop" 88 := by
-  guest_cost 513
-
-theorem «op_swap» (hE : GuestEnv E) : FunCost E "op_swap" 114 := by
-  guest_cost 517
-
-theorem «op_swapn» (hE : GuestEnv E) : FunCost E "op_swapn" 167 := by
-  guest_cost 521
-
-theorem «op_exchange» (hE : GuestEnv E) : FunCost E "op_exchange" 200 := by
-  guest_cost 522
-
-theorem «get_delegated_code_address» (hE : GuestEnv E) : FunCost E "get_delegated_code_address" 50 := by
-  guest_cost 571
-
-theorem «frame_exception» (hE : GuestEnv E) : FunCost E "frame_exception" 93 := by
-  guest_cost 579
 
 end InitECandidate.Solver.GuestBound.Fn

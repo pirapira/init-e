@@ -7,8 +7,35 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_jumpdest» (hE : GuestEnv E) : FunCost E "op_jumpdest" 54 := by
+  guest_cost 507
+
+theorem «op_pop» (hE : GuestEnv E) : FunCost E "op_pop" 88 := by
+  guest_cost 513
+
+theorem «op_swap» (hE : GuestEnv E) : FunCost E "op_swap" 114 := by
+  guest_cost 517
+
+theorem «op_swapn» (hE : GuestEnv E) : FunCost E "op_swapn" 167 := by
+  guest_cost 521
+
+theorem «op_exchange» (hE : GuestEnv E) : FunCost E "op_exchange" 200 := by
+  guest_cost 522
+
+theorem «get_delegated_code_address» (hE : GuestEnv E) : FunCost E "get_delegated_code_address" 50 := by
+  guest_cost 571
+
+theorem «frame_exception» (hE : GuestEnv E) : FunCost E "frame_exception" 93 := by
+  guest_cost 579
+
 theorem «calculate_message_call_gas» (hE : GuestEnv E) : FunCost E "calculate_message_call_gas" 114 := by
   guest_cost 602
+
+theorem «ripemd160_block» (hE : GuestEnv E) : FunCost E "ripemd160_block" 8208801112800750469237 := by
+  guest_cost 616
+
+theorem «be_top_bit» (hE : GuestEnv E) : FunCost E "be_top_bit" 2471863705877079916551 := by
+  guest_cost 629
 
 theorem «p256_fp_add» (hE : GuestEnv E) : FunCost E "p256_fp_add" 317 := by
   guest_cost 631
@@ -30,6 +57,12 @@ theorem «fq_neg» (hE : GuestEnv E) : FunCost E "fq_neg" 110 := by
 
 theorem «fq_mul» (hE : GuestEnv E) : FunCost E "fq_mul" 3130 := by
   guest_cost 652
+
+theorem «fe_is_zero» (hE : GuestEnv E) : FunCost E "fe_is_zero" 332041393326771929098 := by
+  guest_cost 667
+
+theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
+  guest_cost 680
 
 theorem «bls_fp_add» (hE : GuestEnv E) : FunCost E "bls_fp_add" 246 := by
   guest_cost 702
@@ -54,5 +87,8 @@ theorem «g1_is_inf» (hE : GuestEnv E) : FunCost E "g1_is_inf" 28 := by
 
 theorem «g2_is_inf» (hE : GuestEnv E) : FunCost E "g2_is_inf" 45 := by
   guest_cost 771
+
+theorem «precompile_index» (hE : GuestEnv E) : FunCost E "precompile_index" 332041393326771929151 := by
+  guest_cost 822
 
 end InitECandidate.Solver.GuestBound.Fn

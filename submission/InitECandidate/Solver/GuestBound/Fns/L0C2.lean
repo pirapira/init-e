@@ -7,6 +7,33 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «frame_state_gas_used» (hE : GuestEnv E) : FunCost E "frame_state_gas_used" 20 := by
+  guest_cost 451
+
+theorem «refill_frame_state_gas» (hE : GuestEnv E) : FunCost E "refill_frame_state_gas" 36 := by
+  guest_cost 452
+
+theorem «stack_pop» (hE : GuestEnv E) : FunCost E "stack_pop" 33 := by
+  guest_cost 453
+
+theorem «is_valid_jumpdest» (hE : GuestEnv E) : FunCost E "is_valid_jumpdest" 46 := by
+  guest_cost 464
+
+theorem «pc_add» (hE : GuestEnv E) : FunCost E "pc_add" 13 := by
+  guest_cost 468
+
+theorem «cur_msg» (hE : GuestEnv E) : FunCost E "cur_msg" 5 := by
+  guest_cost 469
+
+theorem «require_not_static» (hE : GuestEnv E) : FunCost E "require_not_static" 15 := by
+  guest_cost 470
+
+theorem «stack_swap_positions» (hE : GuestEnv E) : FunCost E "stack_swap_positions" 46 := by
+  guest_cost 516
+
+theorem «code_imm» (hE : GuestEnv E) : FunCost E "code_imm" 26 := by
+  guest_cost 518
+
 theorem «decode_single» (hE : GuestEnv E) : FunCost E "decode_single" 22 := by
   guest_cost 519
 
@@ -30,6 +57,15 @@ theorem «rmd_kp» (hE : GuestEnv E) : FunCost E "rmd_kp" 30 := by
 
 theorem «blake2_g» (hE : GuestEnv E) : FunCost E "blake2_g" 104 := by
   guest_cost 622
+
+theorem «bn_from_be» (hE : GuestEnv E) : FunCost E "bn_from_be" 996124179980315787279 := by
+  guest_cost 624
+
+theorem «bn_to_be» (hE : GuestEnv E) : FunCost E "bn_to_be" 848550227390639374341 := by
+  guest_cost 625
+
+theorem «bn_mul» (hE : GuestEnv E) : FunCost E "bn_mul" 13611294676837538539494214989103625142281 := by
+  guest_cost 626
 
 theorem «p256_set_infinity» (hE : GuestEnv E) : FunCost E "p256_set_infinity" 30 := by
   guest_cost 637
@@ -72,6 +108,9 @@ theorem «bls_g1_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g1_msm_discou
 
 theorem «bls_g2_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g2_msm_discount" 18 := by
   guest_cost 813
+
+theorem «logs_encoded_bound» (hE : GuestEnv E) : FunCost E "logs_encoded_bound" 553402322211286548497 := by
+  guest_cost 834
 
 theorem «tx_is_blob» (hE : GuestEnv E) : FunCost E "tx_is_blob" 12 := by
   guest_cost 865

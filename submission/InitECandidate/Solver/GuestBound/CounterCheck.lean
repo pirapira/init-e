@@ -115,10 +115,24 @@ def effect (mode : Mode) (i : VarName) : Prog Word → Effs
       if destination == some (.local, i) then Effs.bad else Effs.keep
   | .call none _ _ => Effs.keep
 
-/-- The counter a guard tests, with its direction. -/
-def guardCounter : Exp Word → Option (Mode × VarName)
-  | .cmp .lower (.var .local i) _ => some (.up, i)
-  | .cmp .less (.var .local i) _ => some (.up, i)
+/-- How a guard bounds its counter. -/
+inductive Kind where
+  /-- `i <+ e`: unsigned, counting up. -/
+  | upU
+  /-- `i < e`: signed, counting up. -/
+  | upS
+  /-- `i >+ 0`, `i > 0` or `i != 0`: counting down to zero. -/
+  | down
+  deriving DecidableEq, Repr
+
+def Kind.mode : Kind → Mode
+  | .upU | .upS => .up
+  | .down => .down
+
+/-- The counter a guard tests, with the way the guard bounds it. -/
+def guardKind : Exp Word → Option (Kind × VarName)
+  | .cmp .lower (.var .local i) _ => some (.upU, i)
+  | .cmp .less (.var .local i) _ => some (.upS, i)
   | .cmp .lower (.const k) (.var .local i) => if k == 0 then some (.down, i) else none
   | .cmp .less (.const k) (.var .local i) => if k == 0 then some (.down, i) else none
   | .cmp .notEqual (.var .local i) (.const k) => if k == 0 then some (.down, i) else none
@@ -130,8 +144,8 @@ def stepsBack (e : Effs) : Bool :=
 
 /-- The loop is a recognised counter loop. -/
 def counterLoop (c : Exp Word) (body : Prog Word) : Bool :=
-  match guardCounter c with
-  | some (mode, i) => stepsBack (effect mode i body)
+  match guardKind c with
+  | some (kind, i) => stepsBack (effect kind.mode i body)
   | none => false
 
 end InitECandidate.Solver.GuestBound

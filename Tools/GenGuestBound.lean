@@ -43,6 +43,10 @@ partial def loops : Prog (BitVec 64) → List (Exp (BitVec 64) × Prog (BitVec 6
   | .decCall _ _ _ _ body => loops body
   | _ => []
 
+/-- Cost of a counter loop, matching `X.whileCounter`. -/
+partial def loopCost (callee : String → Nat) (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Nat :=
+  2 ^ 64 * (panValueExpStepCost c + staticCost callee (loopCost callee) body + 1)
+
 structure Info where
   index : Nat
   name : String
@@ -74,12 +78,14 @@ def run : IO Unit := do
     let mut rest := []
     for f in pending do
       let cs := callees f.body
-      if loopCount f.body > 0 || cs.any (fun c => skipped.contains c || !byName.contains c) then
+      if (loops f.body).any (fun (c, body) => !counterLoop c body) ||
+          cs.any (fun c => skipped.contains c || !byName.contains c) then
         skipped := skipped.insert f.name ()
         progress := true
       else if cs.all (fun c => cost.contains c) then
         let lv := cs.foldl (fun acc c => max acc (level.getD c 0 + 1)) 0
-        let n := staticCost (fun c => cost.getD c 0) (fun _ _ => 0) f.body
+        let callee := fun c => cost.getD c 0
+        let n := staticCost callee (loopCost callee) f.body
         level := level.insert f.name lv
         cost := cost.insert f.name n
         progress := true
@@ -122,7 +128,7 @@ def loopReport : IO Unit := do
   for f in functions do
     for (c, body) in loops f.body do
       if counterLoop c body then accepted := accepted + 1
-      else rejected := s!"{f.name}: {repr (guardCounter c)}" :: rejected
+      else rejected := s!"{f.name}: {repr (guardKind c)}" :: rejected
   IO.println s!"counter loops accepted {accepted}, rejected {rejected.length}"
   for r in rejected.reverse do IO.println r
 

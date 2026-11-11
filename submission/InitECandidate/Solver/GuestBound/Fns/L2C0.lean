@@ -7,11 +7,20 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «udiv» (hE : GuestEnv E) : FunCost E "udiv" 645636042579834306619 := by
+  guest_cost 34
+
+theorem «umod» (hE : GuestEnv E) : FunCost E "umod" 645636042579834306619 := by
+  guest_cost 35
+
 theorem «u256_ws_init» (hE : GuestEnv E) : FunCost E "u256_ws_init" 93 := by
   guest_cost 38
 
 theorem «u256_byte_length» (hE : GuestEnv E) : FunCost E "u256_byte_length" 458 := by
   guest_cost 79
+
+theorem «u256_exp» (hE : GuestEnv E) : FunCost E "u256_exp" 27577882390195779666385 := by
+  guest_cost 80
 
 theorem «u256_signextend» (hE : GuestEnv E) : FunCost E "u256_signextend" 297 := by
   guest_cost 84
@@ -24,6 +33,12 @@ theorem «sha256_init» (hE : GuestEnv E) : FunCost E "sha256_init" 176 := by
 
 theorem «keccak_init» (hE : GuestEnv E) : FunCost E "keccak_init" 407 := by
   guest_cost 100
+
+theorem «rlp_item_header» (hE : GuestEnv E) : FunCost E "rlp_item_header" 664082786653543858453 := by
+  guest_cost 109
+
+theorem «rlp_item_total_unchecked» (hE : GuestEnv E) : FunCost E "rlp_item_total_unchecked" 664082786653543858297 := by
+  guest_cost 114
 
 theorem «htab_new» (hE : GuestEnv E) : FunCost E "htab_new" 441 := by
   guest_cost 128
@@ -39,6 +54,15 @@ theorem «fp_sqr» (hE : GuestEnv E) : FunCost E "fp_sqr" 1906 := by
 
 theorem «ssz_init» (hE : GuestEnv E) : FunCost E "ssz_init" 1808 := by
   guest_cost 185
+
+theorem «precheck_host_ssz_header» (hE : GuestEnv E) : FunCost E "precheck_host_ssz_header" 3099053004383204672795 := by
+  guest_cost 199
+
+theorem «ssz_split_var_list» (hE : GuestEnv E) : FunCost E "ssz_split_var_list" 1733993942928697852096 := by
+  guest_cost 202
+
+theorem «ssz_fixed_list_count» (hE : GuestEnv E) : FunCost E "ssz_fixed_list_count" 645636042579834306645 := by
+  guest_cost 203
 
 theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
   guest_cost 255
@@ -67,6 +91,9 @@ theorem «words_of» (hE : GuestEnv E) : FunCost E "words_of" 37 := by
 theorem «to_address_masked» (hE : GuestEnv E) : FunCost E "to_address_masked" 301 := by
   guest_cost 444
 
+theorem «address_to_u256» (hE : GuestEnv E) : FunCost E "address_to_u256" 1199038364791120855248 := by
+  guest_cost 445
+
 theorem «ripemd160_init» (hE : GuestEnv E) : FunCost E "ripemd160_init" 477 := by
   guest_cost 612
 
@@ -82,49 +109,22 @@ theorem «fq_to_mont» (hE : GuestEnv E) : FunCost E "fq_to_mont" 3137 := by
 theorem «fq_from_mont» (hE : GuestEnv E) : FunCost E "fq_from_mont" 3137 := by
   guest_cost 654
 
+theorem «fq_mul_small» (hE : GuestEnv E) : FunCost E "fq_mul_small" 8522395762053812846705 := by
+  guest_cost 656
+
 theorem «fq2_mul» (hE : GuestEnv E) : FunCost E "fq2_mul" 13000 := by
   guest_cost 657
 
-theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
-  guest_cost 696
+theorem «fe_add» (hE : GuestEnv E) : FunCost E "fe_add" 4648579506574807007237 := by
+  guest_cost 663
 
-theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
-  guest_cost 705
+theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773 := by
+  guest_cost 664
 
-theorem «bls_fp_sqr» (hE : GuestEnv E) : FunCost E "bls_fp_sqr" 7159 := by
-  guest_cost 707
+theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
+  guest_cost 665
 
-theorem «bls_fp_to_mont» (hE : GuestEnv E) : FunCost E "bls_fp_to_mont" 7165 := by
-  guest_cost 708
-
-theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
-  guest_cost 709
-
-theorem «bls_fp_to_be48» (hE : GuestEnv E) : FunCost E "bls_fp_to_be48" 780 := by
-  guest_cost 718
-
-theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
-  guest_cost 726
-
-theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
-  guest_cost 727
-
-theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
-  guest_cost 728
-
-theorem «fp2_conj» (hE : GuestEnv E) : FunCost E "fp2_conj" 192 := by
-  guest_cost 730
-
-theorem «fp2_mul» (hE : GuestEnv E) : FunCost E "fp2_mul" 22752 := by
-  guest_cost 731
-
-theorem «fp2_sqr» (hE : GuestEnv E) : FunCost E "fp2_sqr" 15086 := by
-  guest_cost 732
-
-theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
-  guest_cost 733
-
-theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
-  guest_cost 734
+theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
+  guest_cost 672
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,8 +7,59 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
+  guest_cost 696
+
+theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
+  guest_cost 705
+
+theorem «bls_fp_sqr» (hE : GuestEnv E) : FunCost E "bls_fp_sqr" 7159 := by
+  guest_cost 707
+
+theorem «bls_fp_to_mont» (hE : GuestEnv E) : FunCost E "bls_fp_to_mont" 7165 := by
+  guest_cost 708
+
+theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
+  guest_cost 709
+
+theorem «bls_fp_pow» (hE : GuestEnv E) : FunCost E "bls_fp_pow" 264784564434026903896081 := by
+  guest_cost 714
+
+theorem «bls_fp_to_be48» (hE : GuestEnv E) : FunCost E "bls_fp_to_be48" 780 := by
+  guest_cost 718
+
+theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
+  guest_cost 726
+
+theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
+  guest_cost 727
+
+theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
+  guest_cost 728
+
+theorem «fp2_conj» (hE : GuestEnv E) : FunCost E "fp2_conj" 192 := by
+  guest_cost 730
+
+theorem «fp2_mul» (hE : GuestEnv E) : FunCost E "fp2_mul" 22752 := by
+  guest_cost 731
+
+theorem «fp2_sqr» (hE : GuestEnv E) : FunCost E "fp2_sqr" 15086 := by
+  guest_cost 732
+
+theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
+  guest_cost 733
+
+theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
+  guest_cost 734
+
 theorem «g1_neg» (hE : GuestEnv E) : FunCost E "g1_neg" 207 := by
   guest_cost 761
+
+theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 269285569988012034490382 := by
+  guest_cost 789
+
+theorem «kzg_neg_scalar» (hE : GuestEnv E) : FunCost E "kzg_neg_scalar" 1199038364791120855367 := by
+  guest_cost 799
 
 theorem «modexp_gas» (hE : GuestEnv E) : FunCost E "modexp_gas" 527 := by
   guest_cost 828

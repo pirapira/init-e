@@ -31,6 +31,9 @@ theorem «scratch_mark» (hE : GuestEnv E) : FunCost E "scratch_mark" 2 := by
 theorem «scratch_release» (hE : GuestEnv E) : FunCost E "scratch_release" 5 := by
   guest_cost 15
 
+theorem «is_zero_bytes» (hE : GuestEnv E) : FunCost E "is_zero_bytes" 332041393326771929093 := by
+  guest_cost 19
+
 theorem «ld_le32» (hE : GuestEnv E) : FunCost E "ld_le32" 22 := by
   guest_cost 20
 
@@ -48,6 +51,9 @@ theorem «st_le32» (hE : GuestEnv E) : FunCost E "st_le32" 30 := by
 
 theorem «st_be32» (hE : GuestEnv E) : FunCost E "st_be32" 30 := by
   guest_cost 27
+
+theorem «output_write» (hE : GuestEnv E) : FunCost E "output_write" 313594649253062377477 := by
+  guest_cost 30
 
 theorem «min» (hE : GuestEnv E) : FunCost E "min" 9 := by
   guest_cost 31
@@ -109,22 +115,16 @@ theorem «mul64x64» (hE : GuestEnv E) : FunCost E "mul64x64" 67 := by
 theorem «nlz32» (hE : GuestEnv E) : FunCost E "nlz32" 79 := by
   guest_cost 62
 
+theorem «div64by32» (hE : GuestEnv E) : FunCost E "div64by32" 645636042579834306571 := by
+  guest_cost 63
+
 theorem «u256_to_digits» (hE : GuestEnv E) : FunCost E "u256_to_digits" 72 := by
   guest_cost 64
 
 theorem «digits_to_u256» (hE : GuestEnv E) : FunCost E "digits_to_u256" 44 := by
   guest_cost 65
 
-theorem «bit_length64» (hE : GuestEnv E) : FunCost E "bit_length64" 102 := by
-  guest_cost 77
-
-theorem «u256_shl» (hE : GuestEnv E) : FunCost E "u256_shl" 127 := by
-  guest_cost 81
-
-theorem «u256_shr» (hE : GuestEnv E) : FunCost E "u256_shr" 127 := by
-  guest_cost 82
-
-theorem «sha256_state_init» (hE : GuestEnv E) : FunCost E "sha256_state_init" 50 := by
-  guest_cost 92
+theorem «digits_len» (hE : GuestEnv E) : FunCost E "digits_len" 405828369621610135555 := by
+  guest_cost 66
 
 end InitECandidate.Solver.GuestBound.Fn

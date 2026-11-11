@@ -7,17 +7,32 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp_inv_fermat» (hE : GuestEnv E) : FunCost E "fp_inv_fermat" 77347197901064149925908 := by
+  guest_cost 156
+
+theorem «fp_sqrt» (hE : GuestEnv E) : FunCost E "fp_sqrt" 77347197901064149925908 := by
+  guest_cost 161
+
 theorem «ec_add_affine» (hE : GuestEnv E) : FunCost E "ec_add_affine" 43430 := by
   guest_cost 171
 
 theorem «ec_add» (hE : GuestEnv E) : FunCost E "ec_add" 54203 := by
   guest_cost 172
 
+theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_stateless_input" 19977823831827444403211 := by
+  guest_cost 207
+
 theorem «extend_memory_cost1» (hE : GuestEnv E) : FunCost E "extend_memory_cost1" 470 := by
   guest_cost 458
 
 theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
   guest_cost 737
+
+theorem «g1_decode» (hE : GuestEnv E) : FunCost E "g1_decode" 664082786653543895387 := by
+  guest_cost 767
+
+theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 264784564434026904084006 := by
+  guest_cost 788
 
 theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
   guest_cost 811

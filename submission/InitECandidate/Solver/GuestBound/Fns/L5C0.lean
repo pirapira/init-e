@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «ec_mul» (hE : GuestEnv E) : FunCost E "ec_mul" 1132980574263166950703594 := by
+  guest_cost 173
+
+theorem «secp256k1_decompress_r» (hE : GuestEnv E) : FunCost E "secp256k1_decompress_r" 77347197901064149932625 := by
+  guest_cost 177
+
 theorem «extend_memory_cost2» (hE : GuestEnv E) : FunCost E "extend_memory_cost2" 994 := by
   guest_cost 459
 

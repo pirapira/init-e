@@ -7,11 +7,29 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «u256_to_be_min» (hE : GuestEnv E) : FunCost E "u256_to_be_min" 1235931852938539958737 := by
+  guest_cost 88
+
+theorem «fp_pow» (hE : GuestEnv E) : FunCost E "fp_pow" 77347197901064149925901 := by
+  guest_cost 155
+
 theorem «ec_double» (hE : GuestEnv E) : FunCost E "ec_double" 17912 := by
   guest_cost 170
 
 theorem «ec_on_curve» (hE : GuestEnv E) : FunCost E "ec_on_curve" 6381 := by
   guest_cost 176
+
+theorem «decode_payload» (hE : GuestEnv E) : FunCost E "decode_payload" 3412647653636267050039 := by
+  guest_cost 204
+
+theorem «decode_requests» (hE : GuestEnv E) : FunCost E "decode_requests" 5165088340638674453162 := by
+  guest_cost 205
+
+theorem «decode_bytes_list» (hE : GuestEnv E) : FunCost E "decode_bytes_list" 2250502776992565297353 := by
+  guest_cost 206
+
+theorem «check_gas_limit» (hE : GuestEnv E) : FunCost E "check_gas_limit" 645636042579834306649 := by
+  guest_cost 235
 
 theorem «tx_u256_encoded_len» (hE : GuestEnv E) : FunCost E "tx_u256_encoded_len" 483 := by
   guest_cost 319
@@ -28,11 +46,23 @@ theorem «bal_init» (hE : GuestEnv E) : FunCost E "bal_init" 1427 := by
 theorem «memory_gas_cost» (hE : GuestEnv E) : FunCost E "memory_gas_cost" 140 := by
   guest_cost 457
 
+theorem «fq12_reduce» (hE : GuestEnv E) : FunCost E "fq12_reduce" 314420907034947140253532026720393252306949 := by
+  guest_cost 658
+
+theorem «fe_mul_small» (hE : GuestEnv E) : FunCost E "fe_mul_small" 157210453517473570122643166059722541367301 := by
+  guest_cost 666
+
+theorem «fq12_frob» (hE : GuestEnv E) : FunCost E "fq12_frob" 314420907034947140494963013157103863857157 := by
+  guest_cost 679
+
 theorem «bls_fp_sgn0» (hE : GuestEnv E) : FunCost E "bls_fp_sgn0" 7172 := by
   guest_cost 715
 
 theorem «bls_fp_is_high» (hE : GuestEnv E) : FunCost E "bls_fp_is_high" 7279 := by
   guest_cost 716
+
+theorem «bls_fp_decode64» (hE : GuestEnv E) : FunCost E "bls_fp_decode64" 332041393326771936744 := by
+  guest_cost 719
 
 theorem «fp2_dbl» (hE : GuestEnv E) : FunCost E "fp2_dbl" 530 := by
   guest_cost 729
@@ -61,10 +91,19 @@ theorem «g1_on_curve» (hE : GuestEnv E) : FunCost E "g1_on_curve" 21779 := by
 theorem «g2_on_curve» (hE : GuestEnv E) : FunCost E "g2_on_curve" 53765 := by
   guest_cost 778
 
+theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
+  guest_cost 787
+
+theorem «iso_map_g1» (hE : GuestEnv E) : FunCost E "iso_map_g1" 1209516115424987880401068 := by
+  guest_cost 790
+
 theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
   guest_cost 801
 
 theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
   guest_cost 823
+
+theorem «udiv_small5» (hE : GuestEnv E) : FunCost E "udiv_small5" 645636042579834306624 := by
+  guest_cost 874
 
 end InitECandidate.Solver.GuestBound.Fn

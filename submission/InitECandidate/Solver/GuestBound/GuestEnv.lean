@@ -1,5 +1,6 @@
 import InitECandidate.Solver.GuestBound.Decls
 import InitECandidate.Solver.GuestBound.ExpCostEval
+import InitECandidate.Solver.GuestBound.CounterLoop
 import Guest.SoftwareAst
 import Lean.Elab.Tactic
 
@@ -18,6 +19,7 @@ open Flapjack
 /-- An evaluator environment whose function table comes from the guest AST. -/
 structure GuestEnv {σ : Type} (E : Env σ) : Prop where
   functions : FunctionsFrom E.functions Guest.Software.guestAst
+  word : WordEnv E
 
 variable {σ : Type} {E : Env σ}
 
@@ -143,6 +145,11 @@ theorem callHandler (σ : Type) (E : Env σ) (destination : Option (VarKind × V
   rw [← stepsCost_eq]
   exact Costs.callHandler destination exception handlerVar arguments hf hh
 
+theorem whileCounter (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word)
+    (body : Prog Word) (b : Nat) (hcheck : counterLoop c body = true) (hbody : Costs E body b) :
+    Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) :=
+  counterLoop_costs hE.word c body b hcheck hbody
+
 end X
 
 /-- Namespace of the per-function cost theorems `Fn.<name>`. -/
@@ -255,6 +262,11 @@ partial def derive (σ E hE : Expr) (p : Expr) : MetaM Expr := do
       return mkAppN (rule `callHandler)
         #[σ, E, destination, exception, handlerVar, handlerProgram, args[2]!, args[3]!,
           ← boundOf hf, ← boundOf hh, hf, hh]
+  | ``Flapjack.Prog.while => do
+      let h ← derive σ E hE args[2]!
+      let check := mkApp2 (mkConst ``Eq.refl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true)
+      return mkAppN (rule `whileCounter)
+        #[σ, E, hE, args[1]!, args[2]!, ← boundOf h, check, h]
   | _ => throwError "cost_derive: unsupported statement {ctor}"
 
 end Derive
