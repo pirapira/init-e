@@ -1,5 +1,6 @@
 import InitECandidate.Solver.GuestBound.U256Zero
 import InitECandidate.Solver.GuestBound.Manual.BlsInv
+import InitECandidate.Solver.GuestBound.TripleCall
 
 /-!
 # `taylor_exponential`
@@ -387,5 +388,154 @@ theorem tayBody_runs (hE : GuestEnv E) {iw dw : Word} {s : St σ} {r : Result σ
     simp only at hrest
     subst hrest
     trivial
+
+/-- `u256_from_word` on any value. -/
+theorem u256_from_word_any (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_from_word" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (wv : PanValue Word) (hw : s.locals "w" = some wv)
+    (h : Runs E s body r) :
+    r.isError = true ∨ r = .returned (fun _ => none) s.globals s.memory s.ffi
+      [.rStruct [wv, .word 0, .word 0, .word 0]] := by
+  have hbody := (fun_of_index 39 hE.functions (by guest_decl_at 39) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp only [runs_return, evalF_rStruct, evalF_local, eval_const, evalArgs_cons, evalArgs_nil,
+    hw, Option.map_some] at h
+  split at h
+  · exact Or.inr h
+  · subst h
+    exact Or.inl rfl
+
+/-- `den` is a one-limb number. -/
+def DenOk (s : St σ) : Prop :=
+  ∃ dw : Word, s.locals "den" = some (.rStruct [.word dw, .word 0, .word 0, .word 0])
+
+theorem DenOk.update_other {s : St σ} {x : VarName} {v : PanValue Word}
+    {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} (h : DenOk s) (hx : (("den" : VarName) == x) = false) :
+    DenOk ⟨updatePanValueMap s.locals x v, g, m, f⟩ := by
+  obtain ⟨dw, hd⟩ := h
+  exact ⟨dw, by simp [updatePanValueMap, hx, hd]⟩
+
+/-- Loop-head states: `i` is a word and `den` a one-limb number. -/
+def TayInv (s : St σ) : Prop :=
+  ∃ iw dw : Word, s.locals "i" = some (.word iw) ∧
+    s.locals "den" = some (.rStruct [.word dw, .word 0, .word 0, .word 0])
+
+theorem TayInv.update_other {s : St σ} {x : VarName} {v : PanValue Word}
+    {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} (h : TayInv s) (hi : (("i" : VarName) == x) = false)
+    (hd : (("den" : VarName) == x) = false) :
+    TayInv ⟨updatePanValueMap s.locals x v, g, m, f⟩ := by
+  obtain ⟨iw, dw, h1, h2⟩ := h
+  exact ⟨iw, dw, by simp [updatePanValueMap, hi, h1], by simp [updatePanValueMap, hd, h2]⟩
+
+/-- Iterations left before `i` wraps to 0. -/
+def tayDist (i : Word) : Nat := if i = 0 then 0 else 2 ^ 64 - i.toNat
+
+theorem tayDist_succ {i : Word} (hi : i ≠ 0) : tayDist (i + 1) < tayDist i := by
+  have hlt := i.isLt
+  have hne : i.toNat ≠ 0 := fun h => hi (BitVec.eq_of_toNat_eq h)
+  unfold tayDist
+  rw [if_neg hi]
+  split
+  · omega
+  · rename_i h1
+    have hsum : (i + 1).toNat = (i.toNat + 1) % 2 ^ 64 := by simp [BitVec.toNat_add]
+    have hne1 : (i + 1).toNat ≠ 0 := fun h => h1 (BitVec.eq_of_toNat_eq h)
+    omega
+
+theorem tayDist_le (i : Word) : tayDist i + 1 ≤ 18446744073709551616 := by
+  have hlt := i.isLt
+  unfold tayDist
+  split
+  · omega
+  · rename_i h
+    have hne : i.toNat ≠ 0 := fun h0 => h (BitVec.eq_of_toNat_eq h0)
+    omega
+
+/-- The loop variant: iterations until the wrap while `nz` is clear. -/
+def tayMu (s : St σ) : Nat :=
+  match s.locals "nz", s.locals "i" with
+  | some (.word z), some (.word i) => if z = 0 then tayDist i + 1 else 0
+  | _, _ => 0
+
+/-- The guard `nz == 0`. -/
+def tayGuard : Exp Word := .cmp .equal (.var .local "nz") (.const (BitVec.ofNat 64 0))
+
+/-- The loop runs at most `2^64 + 1` times. -/
+theorem tayLoop (hE : GuestEnv E) {b : Nat} (hb : Costs E tayBody b) :
+    Triple E TayInv (.while tayGuard tayBody)
+      ((18446744073709551616 + 1) * (panValueExpStepCost tayGuard + b + 1))
+      (fun r => match r with
+        | .normal _ _ _ _ => True
+        | _ => True) := by
+  refine (Triple.while (I := TayInv) (μ := tayMu) (Q := fun _ => True)
+    (e := panValueExpStepCost tayGuard) (b := b) 18446744073709551616 (condCost _ _)
+    (fun _ _ => trivial) ?_).consequence ?_ (Nat.le_refl _) (fun r _ => by cases r <;> trivial)
+  · intro k
+    refine Triple.of_costs hb ?_
+    intro fuel s r n hP hrun hne
+    obtain ⟨⟨iw, dw, hi, hden⟩, hμ, v, kc, hcond, hv⟩ := hP
+    have heval := cond_of_eval hcond
+    simp only [tayGuard, evalF_cmp hE.word, evalF_local, eval_const] at heval
+    have hnz : s.locals "nz" = some (.word 0) := by
+      cases hz : s.locals "nz" with
+      | none => rw [hz] at heval; cases heval
+      | some z =>
+        rw [hz] at heval
+        cases z with
+        | word zw =>
+          simp only [Option.some.injEq, PanValue.word.injEq] at heval
+          by_cases hzw : zw = 0
+          · rw [hzw]
+          · subst heval
+            simp [evalPanCmp] at hv
+            exact absurd hv hzw
+        | _ => cases heval
+    have hμs : tayMu s = tayDist iw + 1 := by simp [tayMu, hnz, hi]
+    have hp := tayBody_runs hE hi hden (Runs.of_run hrun)
+    cases r with
+    | normal l g m f =>
+      obtain ⟨hi', hden', hnz'⟩ := hp
+      refine ⟨⟨iw + 1, dw, hi', hden'.trans hden⟩, ?_⟩
+      show tayMu ⟨l, g, m, f⟩ < k
+      rw [← hμ, hμs]
+      unfold tayMu
+      simp only [hi']
+      cases hl : l "nz" with
+      | none => simp
+      | some z' =>
+        cases z' with
+        | word zw' =>
+          simp only
+          by_cases hz' : zw' = 0
+          · rw [if_pos hz']
+            have hiw : iw ≠ 0 := by
+              intro h0
+              have h1 := hnz' h0
+              rw [hl] at h1
+              simp only [Option.some.injEq, PanValue.word.injEq] at h1
+              rw [h1] at hz'
+              simp at hz'
+            have := tayDist_succ hiw
+            omega
+          · rw [if_neg hz']
+            omega
+        | _ => simp
+    | continued l g m f => exact hp.elim
+    | broke l g m f => exact hp.elim
+    | _ => trivial
+  · intro s hI
+    refine ⟨hI, ?_⟩
+    unfold tayMu
+    split
+    · rename_i z i _ _
+      have := i.isLt
+      split
+      · exact tayDist_le i
+      · omega
+    · omega
 
 end InitECandidate.Solver.GuestBound
