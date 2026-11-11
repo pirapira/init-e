@@ -151,4 +151,56 @@ theorem runs_primitive' {s : St σ} {x : VarName} {operator : PrimOp}
             | none => s.err
         | none => s.err := runs_primitive
 
+/-- A declaring call, in terms of `Runs`. -/
+theorem runs_decCall_inv {f : FunName} {s : St σ} {x : VarName} {shape : Shape}
+    {arguments : List (Exp Word)} {body : Prog Word} {r : Result σ}
+    (h : Runs E s (.decCall x shape f arguments body) r) :
+    r.isError = true ∨ ∃ parameters calleeBody values calleeLocals rb,
+      lookupPanFunction f E.functions = some (parameters, calleeBody) ∧
+      E.evalArgs s arguments = some values ∧
+      bindPanValueParameters parameters values = some calleeLocals ∧
+      Runs E ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ calleeBody rb ∧
+      match rb with
+      | .returned _ g m ffi [value] =>
+          ∃ r', panShapeMatches (panValueShape E.structs value) shape = true ∧
+            Runs E ⟨updatePanValueMap s.locals x value, g, m, ffi⟩ body r' ∧
+            r = restorePanValueFfiLocal x (s.locals x) r'
+      | .raised _ g m ffi exception value => r = .raised (fun _ => none) g m ffi exception value
+      | .finalFfi _ g m ffi event => r = .finalFfi (fun _ => none) g m ffi event
+      | _ => False := by
+  obtain ⟨fuel, n, h⟩ := h
+  rcases decCall_run_inv h with herr | ⟨fuel₁, parameters, calleeBody, values, calleeLocals, rb,
+    nb, hlookup, hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl herr
+  refine Or.inr ⟨parameters, calleeBody, values, calleeLocals, rb, hlookup, hvalues, hbind,
+    ⟨fuel₁, nb, hcallee⟩, ?_⟩
+  cases rb with
+  | returned l g m ffi values' =>
+    cases values' with
+    | nil => exact hout
+    | cons value rest =>
+      cases rest with
+      | nil =>
+        obtain ⟨fuel₂, r', n', hshape, hrun', hr⟩ := hout
+        exact ⟨r', hshape, ⟨fuel₂, n', hrun'⟩, hr⟩
+      | cons value' rest' => exact hout
+  | _ => exact hout
+
+/-- A call statement without a handler, in terms of `Runs`. -/
+theorem runs_call_inv {f : FunName} (destination : Option (Option (VarKind × VarName)))
+    {s : St σ} {arguments : List (Exp Word)} {r : Result σ}
+    (h : Runs E s (.call (destination.map fun dest => (dest, none)) f arguments) r) :
+    r.isError = true ∨ ∃ parameters body values calleeLocals rb,
+      lookupPanFunction f E.functions = some (parameters, body) ∧
+      E.evalArgs s arguments = some values ∧
+      bindPanValueParameters parameters values = some calleeLocals ∧
+      Runs E ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ body rb ∧
+      CallOutcome E s destination rb r := by
+  obtain ⟨fuel, n, h⟩ := h
+  rcases call_run_inv destination h with herr | ⟨fuel', parameters, body, values, calleeLocals,
+    rb, nb, hlookup, hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl herr
+  · exact Or.inr ⟨parameters, body, values, calleeLocals, rb, hlookup, hvalues, hbind,
+      ⟨fuel', nb, hcallee⟩, hout⟩
+
 end InitECandidate.Solver.GuestBound
