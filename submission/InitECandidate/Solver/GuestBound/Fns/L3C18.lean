@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step" 3394200909562557790663 := by
+  guest_cost 783
+
 theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
   guest_cost 787
 
@@ -21,8 +24,5 @@ theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
 
 theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
   guest_cost 823
-
-theorem «pre_sha256» (hE : GuestEnv E) : FunCost E "pre_sha256" 155893434166919420723423 := by
-  guest_cost 824
 
 end InitECandidate.Solver.GuestBound.Fn

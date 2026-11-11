@@ -16,13 +16,13 @@ theorem «_node_rlp_finish» (hE : GuestEnv E) : FunCost E "_node_rlp_finish" 36
 theorem «auth_list_payload_len» (hE : GuestEnv E) : FunCost E "auth_list_payload_len" 244806967680080549842679836744765390559932913923938777563143 := by
   guest_cost 325
 
+theorem «bal_encode_account» (hE : GuestEnv E) : FunCost E "bal_encode_account" 6119843500370635562910453734133914606493682274511604084849982326183376965018481236 := by
+  guest_cost 432
+
 theorem «extend_memory_cost2» (hE : GuestEnv E) : FunCost E "extend_memory_cost2" 994 := by
   guest_cost 459
 
 theorem «charge_with_memory» (hE : GuestEnv E) : FunCost E "charge_with_memory" 4869940435459321627345 := by
   guest_cost 461
-
-theorem «op_div» (hE : GuestEnv E) : FunCost E "op_div" 3821138944831434450842141720696545146376477132127326556329032372223620348380230 := by
-  guest_cost 478
 
 end InitECandidate.Solver.GuestBound.Fn

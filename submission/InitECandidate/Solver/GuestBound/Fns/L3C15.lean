@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_fp_is_high» (hE : GuestEnv E) : FunCost E "bls_fp_is_high" 7279 := by
+  guest_cost 716
+
 theorem «bls_fp_decode64» (hE : GuestEnv E) : FunCost E "bls_fp_decode64" 332041393326771936744 := by
   guest_cost 719
 
@@ -21,8 +24,5 @@ theorem «fp2_pow» (hE : GuestEnv E) : FunCost E "fp2_pow" 70556951407531663976
 
 theorem «fp6_add» (hE : GuestEnv E) : FunCost E "fp6_add" 1607 := by
   guest_cost 741
-
-theorem «fp6_sub» (hE : GuestEnv E) : FunCost E "fp6_sub" 1607 := by
-  guest_cost 742
 
 end InitECandidate.Solver.GuestBound.Fn

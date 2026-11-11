@@ -13,6 +13,9 @@ theorem «bal_init» (hE : GuestEnv E) : FunCost E "bal_init" 1427 := by
 theorem «lst_upsert_idx» (hE : GuestEnv E) : FunCost E "lst_upsert_idx" 3836922767331586736311 := by
   guest_cost 413
 
+theorem «sorted_keys32» (hE : GuestEnv E) : FunCost E "sorted_keys32" 331430971628416744369670320518078812593268249007984515183836237 := by
+  guest_cost 431
+
 theorem «validate_block_access_list_gas_limit» (hE : GuestEnv E) : FunCost E "validate_block_access_list_gas_limit" 1776419791114430656309127565608405627340982538825405032300625 := by
   guest_cost 434
 
@@ -21,8 +24,5 @@ theorem «stack_push_word» (hE : GuestEnv E) : FunCost E "stack_push_word" 3394
 
 theorem «stack_push_bool» (hE : GuestEnv E) : FunCost E "stack_push_bool" 3394200909562557497542 := by
   guest_cost 456
-
-theorem «memory_gas_cost» (hE : GuestEnv E) : FunCost E "memory_gas_cost" 140 := by
-  guest_cost 457
 
 end InitECandidate.Solver.GuestBound.Fn

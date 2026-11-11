@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «pre_sha256» (hE : GuestEnv E) : FunCost E "pre_sha256" 155893434166919420723423 := by
+  guest_cost 824
+
 theorem «pre_ripemd160» (hE : GuestEnv E) : FunCost E "pre_ripemd160" 151425653279817616269277644787322791658118 := by
   guest_cost 826
 
@@ -21,8 +24,5 @@ theorem «withdrawal_rlp_len» (hE : GuestEnv E) : FunCost E "withdrawal_rlp_len
 
 theorem «compute_requests_hash» (hE : GuestEnv E) : FunCost E "compute_requests_hash" 2875726282848850955188099820656430185201803 := by
   guest_cost 840
-
-theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
-  guest_cost 861
 
 end InitECandidate.Solver.GuestBound.Fn

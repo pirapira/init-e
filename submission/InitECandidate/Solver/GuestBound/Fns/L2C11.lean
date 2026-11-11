@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «is_warm_address» (hE : GuestEnv E) : FunCost E "is_warm_address" 5220428572859803107676 := by
+  guest_cost 471
+
 theorem «is_warm_storage_key» (hE : GuestEnv E) : FunCost E "is_warm_storage_key" 12008830391984918102413 := by
   guest_cost 525
 
@@ -21,8 +24,5 @@ theorem «ripemd160» (hE : GuestEnv E) : FunCost E "ripemd160" 1514256532798176
 
 theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
   guest_cost 621
-
-theorem «bn_mod» (hE : GuestEnv E) : FunCost E "bn_mod" 3821138944831434450842141720696545146376477132127326556329825582218789859098899 := by
-  guest_cost 628
 
 end InitECandidate.Solver.GuestBound.Fn

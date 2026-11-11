@@ -1296,4 +1296,107 @@ theorem smallIte_runs (hE : GuestEnv E) {e : Exp Word} {s : St σ} {r : Result �
   · subst h
     simp [St.err]
 
+/-- `n` is a word. -/
+def NW (s : St σ) : Prop := ∃ nw : Word, s.locals "n" = some (.word nw)
+
+theorem NW.update_other {s : St σ} {x : VarName} {v : PanValue Word}
+    {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} (h : NW s) (hx : (("n" : VarName) == x) = false) :
+    NW ⟨updatePanValueMap s.locals x v, g, m, f⟩ := by
+  obtain ⟨nw, hn⟩ := h
+  exact ⟨nw, by simp [updatePanValueMap, hx, hn]⟩
+
+/-- Close a cost inequality between closed expression costs. -/
+macro "cost_leS" : tactic => `(tactic| (
+  simp only [stepCost_eq, stepsCost_eq, expCost, expsCost, runGuard, outerGuard, mergeGuard]
+  omega))
+
+namespace Manual
+
+set_option maxHeartbeats 4000000 in
+theorem «sort_elems».cost (hE : GuestEnv E) {MK AL G C RL : Nat}
+    (hmark : FunCost E "heap_mark" MK) (halloc : FunCost E "alloc" AL)
+    (hgt : FunCost E "bal_sort_gt" G) (hcpy : FunCost E "memcpy" C)
+    (hrel : FunCost E "heap_release" RL) :
+    FunCost E "sort_elems" (MK + AL + C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 300) := by
+  refine FunCost.mono (funCost_of_index 430 hE.functions (by guest_decl_at 430)
+    (by decide +kernel) (B := MK + AL + C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 300) ?_) (Nat.le_refl _)
+  reduce_body
+  refine (Triple.seq (B₁ := 40) (B₂ := MK + AL + C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 250) (Mid := NW)
+    (Q := fun _ => True) ?_ ?_).consequence (fun _ h => h) (by omega) (fun _ h => h)
+  · refine Triple.of_costs ((X.ite σ E _ _ _ _ _ (X.ret σ E _) (X.skip σ E)).consequence
+      (fun _ h => h) (by cost_leS) (fun _ h => h)) ?_
+    intro fuel s r n _ hrun hne
+    have hp := smallIte_runs hE (Runs.of_run hrun)
+    cases r with
+    | normal l g m f => exact hp.1 ▸ hp.2
+    | _ => trivial
+  refine (Triple.decCall (C := AL + C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 230) (P' := NW) _ _ _ hmark
+    (fun s v g m ffi (hP : NW s) _ => hP.update_other (by decide)) ?_).consequence
+    (fun _ h => h) (by cost_leS) (fun _ h => h)
+  refine (Triple.decCall (C := C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 200) (P' := NW) _ _ _ halloc
+    (fun s v g m ffi (hP : NW s) _ => hP.update_other (by decide)) ?_).consequence
+    (fun _ h => h) (by cost_leS) (fun _ h => h)
+  refine (Triple.dec (B := C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 180) (P' := NW) _ _ _
+    (fun s v (hP : NW s) _ _ => hP.update_other (by decide)) ?_).consequence (fun _ h => h)
+    (by cost_leS) (fun _ h => h)
+  refine (Triple.dec (B := C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 160) (P' := NW) _ _ _
+    (fun s v (hP : NW s) _ _ => hP.update_other (by decide)) ?_).consequence (fun _ h => h)
+    (by cost_leS) (fun _ h => h)
+  refine (Triple.dec (B := C + RL + (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60)) + 140) (P' := fun s => ∃ nw, OI nw s) _ _ _ ?_
+    ?_).consequence (fun _ h => h) (by cost_leS) (fun _ h => h)
+  · intro s v hP heval _
+    obtain ⟨nw, hn⟩ := hP
+    simp only [eval_const, Option.some.injEq] at heval
+    subst heval
+    exact ⟨nw, by simp [updatePanValueMap, hn], BitVec.ofNat 64 1, by simp [updatePanValueMap],
+      Or.inr ⟨0, by omega, rfl⟩⟩
+  refine (Triple.seq (B₁ := (66 * (18446744073709551617 * (((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80) + 8) + 60))) (B₂ := C + RL + 100) (Mid := fun _ => True)
+    (Q := fun _ => True) ?_ ((X.seq σ E _ _ _ _ (X.ite σ E _ _ _ _ _ (X.callDest σ E _ _ _ _ hcpy)
+      (X.skip σ E)) (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hrel) (X.ret σ E _))).consequence
+      (fun _ h => h) (by cost_leS) (fun _ h => h))).consequence (fun _ h => h) (by omega)
+    (fun _ h => h)
+  intro fuel s r n hP hrun hne
+  obtain ⟨nw, hI⟩ := hP
+  refine ((outer_loop hE (b := ((36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60) + 80)) (bs := 40) ?_ ?_ ?_ ?_ nw).consequence (fun _ h => h) ?_
+    (fun r h => h)) fuel s r n hI hrun hne
+  · exact fun s r h => innerBlock_runs (by decide +kernel) (by decide +kernel)
+      (by decide +kernel) h
+  · exact fun s r hl hm hr h => innerBlock_zero hE hl hm hr h
+  · exact (X.dec σ E _ _ _ _ _ (X.seq σ E _ _ _ _
+      (X.ite σ E _ _ _ _ _ (X.assign σ E _ _ _) (X.skip σ E))
+      (X.dec σ E _ _ _ _ _ (X.seq σ E _ _ _ _
+        (X.ite σ E _ _ _ _ _ (X.assign σ E _ _ _) (X.skip σ E))
+        ((X.dec σ E _ _ _ _ _ (X.dec σ E _ _ _ _ _ (X.dec σ E _ _ _ _ _
+          (X.seq σ E _ _ _ _
+            ((merge_loop hE (b := G + C + 200)
+              ((X.dec σ E _ _ _ _ _ (X.dec σ E _ _ _ _ _ (X.decCall σ E _ _ _ _ _ _ _ hgt
+                (X.seq σ E _ _ _ _
+                  (X.ite σ E _ _ _ _ _
+                    (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hcpy) (X.assign σ E _ _ _))
+                    (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hcpy) (X.assign σ E _ _ _)))
+                  (X.assign σ E _ _ _))))).consequence (fun _ h => h) (by cost_leS)
+                (fun _ h => h))).consequence (fun _ h => h)
+              (by cost_leS : _ ≤ 36893488147419103233 * (G + C + 220)) (fun _ h => h))
+            (X.seq σ E _ _ _ _
+              ((X.whileCounter σ E hE _ _ (C + 60) (by decide +kernel)
+                ((X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hcpy)
+                  (X.seq σ E _ _ _ _ (X.assign σ E _ _ _) (X.assign σ E _ _ _))).consequence
+                  (fun _ h => h) (by cost_leS) (fun _ h => h))).consequence (fun _ h => h)
+                (by cost_leS : _ ≤ 18446744073709551616 * (C + 80)) (fun _ h => h))
+              (X.seq σ E _ _ _ _
+                ((X.whileCounter σ E hE _ _ (C + 60) (by decide +kernel)
+                  ((X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hcpy)
+                    (X.seq σ E _ _ _ _ (X.assign σ E _ _ _) (X.assign σ E _ _ _))).consequence
+                    (fun _ h => h) (by cost_leS) (fun _ h => h))).consequence (fun _ h => h)
+                  (by cost_leS : _ ≤ 18446744073709551616 * (C + 80)) (fun _ h => h))
+                (X.assign σ E _ _ _))))))).consequence (fun _ h => h)
+          (by cost_leS : _ ≤ (36893488147419103233 * (G + C + 220) + 18446744073709551616 * (C + 80) + 18446744073709551616 * (C + 80) + 60)) (fun _ h => h)))))).consequence
+      (fun _ h => h) (by cost_leS) (fun _ h => h)
+  · exact (X.dec σ E _ _ _ _ _ (X.seq σ E _ _ _ _ (X.assign σ E _ _ _)
+      (X.seq σ E _ _ _ _ (X.assign σ E _ _ _) (X.assign σ E _ _ _)))).consequence
+      (fun _ h => h) (by cost_leS) (fun _ h => h)
+  · cost_leS
+
+end Manual
 end InitECandidate.Solver.GuestBound

@@ -8,6 +8,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «address_to_u256» (hE : GuestEnv E) : FunCost E "address_to_u256" 1199038364791120855248 := by
+  guest_cost 445
+
 theorem «stack_push» (hE : GuestEnv E) : FunCost E "stack_push" 3394200909562557497529 := by
   guest_cost 454
 
@@ -22,8 +25,5 @@ theorem «msg_new» (hE : GuestEnv E) : FunCost E "msg_new" 24349702177296608134
 
 theorem «msg_new_scratch» (hE : GuestEnv E) : FunCost E "msg_new_scratch" 2434970217729660813417 := by
   guest_cost 466
-
-theorem «is_warm_address» (hE : GuestEnv E) : FunCost E "is_warm_address" 5220428572859803107676 := by
-  guest_cost 471
 
 end InitECandidate.Solver.GuestBound.Fn

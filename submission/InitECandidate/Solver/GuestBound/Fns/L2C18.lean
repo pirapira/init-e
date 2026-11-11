@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «modexp_gas» (hE : GuestEnv E) : FunCost E "modexp_gas" 527 := by
+  guest_cost 828
+
 theorem «encode_execution_requests» (hE : GuestEnv E) : FunCost E "encode_execution_requests" 62611955513452677281005616814408389886049 := by
   guest_cost 839
 
@@ -21,8 +24,5 @@ theorem «fee_mul» (hE : GuestEnv E) : FunCost E "fee_mul" 1729 := by
 
 theorem «te_new» (hE : GuestEnv E) : FunCost E "te_new" 2434970217729660813418 := by
   guest_cost 869
-
-theorem «requests_append» (hE : GuestEnv E) : FunCost E "requests_append" 3394200909562557497499 := by
-  guest_cost 876
 
 end InitECandidate.Solver.GuestBound.Fn

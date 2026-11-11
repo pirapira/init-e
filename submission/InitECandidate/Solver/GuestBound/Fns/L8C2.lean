@@ -19,10 +19,10 @@ theorem «tx_signing_hash_mode» (hE : GuestEnv E) : FunCost E "tx_signing_hash_
 theorem «destroy_account» (hE : GuestEnv E) : FunCost E "destroy_account" 445674223212454335237875443299117475197129443347680538399006 := by
   guest_cost 390
 
+theorem «build_block_access_list_rlp» (hE : GuestEnv E) : FunCost E "build_block_access_list_rlp" 112891186822491939718716512112485689166306182273033742080974628729023795647343631600027066661135744486 := by
+  guest_cost 433
+
 theorem «op_tstore» (hE : GuestEnv E) : FunCost E "op_tstore" 24160048051386630981549694573938414195602 := by
   guest_cost 530
-
-theorem «recover_authority» (hE : GuestEnv E) : FunCost E "recover_authority" 92108901641429439341208350098183411749348697774865681156370267136014743151969783835 := by
-  guest_cost 572
 
 end InitECandidate.Solver.GuestBound.Fn

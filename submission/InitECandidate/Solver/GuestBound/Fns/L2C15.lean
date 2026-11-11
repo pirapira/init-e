@@ -8,6 +8,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
+  guest_cost 709
+
 theorem «bls_fp_inv_raw» (hE : GuestEnv E) : FunCost E "bls_fp_inv_raw" 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763119694021320456691476683 :=
   FunCost.mono (InitECandidate.Solver.GuestBound.Manual.«bls_fp_inv_raw».cost hE («bls_fp_is_zero» hE) («bls_fp_shr1» hE) («bls_fp_half_can» hE) («bls_fp_lt_raw» hE) («bls_fp_sub_raw» hE) («bls_fp_sub» hE)) (by decide +kernel)
 
@@ -22,8 +25,5 @@ theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
 
 theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
   guest_cost 727
-
-theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
-  guest_cost 728
 
 end InitECandidate.Solver.GuestBound.Fn

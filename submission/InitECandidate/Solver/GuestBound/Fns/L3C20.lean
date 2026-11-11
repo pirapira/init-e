@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
+  guest_cost 861
+
 theorem «udiv_small5» (hE : GuestEnv E) : FunCost E "udiv_small5" 645636042579834306624 := by
   guest_cost 874
 

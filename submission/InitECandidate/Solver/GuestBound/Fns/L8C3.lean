@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «recover_authority» (hE : GuestEnv E) : FunCost E "recover_authority" 92108901641429439341208350098183411749348697774865681156370267136014743151969783835 := by
+  guest_cost 572
+
 theorem «ecp_add» (hE : GuestEnv E) : FunCost E "ecp_add" 46506391087084659802583696226456532886636341 := by
   guest_cost 674
 
@@ -21,8 +24,5 @@ theorem «pre_bls_g1_msm» (hE : GuestEnv E) : FunCost E "pre_bls_g1_msm" 175901
 
 theorem «pre_bls_g2_add» (hE : GuestEnv E) : FunCost E "pre_bls_g2_add" 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763168983721485408614213799 := by
   guest_cost 816
-
-theorem «pre_bls_g2_msm» (hE : GuestEnv E) : FunCost E "pre_bls_g2_msm" 17590158822243994565779307313826913223774137843035348425078847794733292066373930839198857386454104856099801133629120522337 := by
-  guest_cost 817
 
 end InitECandidate.Solver.GuestBound.Fn
