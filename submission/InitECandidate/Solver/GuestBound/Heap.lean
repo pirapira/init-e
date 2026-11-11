@@ -249,4 +249,65 @@ theorem heap_release_runs (hE : GuestEnv E) (parameters : List VarName) (body : 
     exists_eq_left] at h
   exact h
 
+/-- The run ended without a value for the enclosing block: `.error`, an
+exception, or a final FFI event. -/
+def Stopped : Result σ → Prop
+  | .error _ _ _ _ | .raised _ _ _ _ _ _ | .finalFfi _ _ _ _ _ => True
+  | _ => False
+
+theorem Stopped.of_error {r : Result σ} (h : r.isError = true) : Stopped r := by
+  cases r <;> first | trivial | cases h
+
+/-- `var x = alloc(e); body`: the run stopped, or `body` ran with `x` bound to
+the old heap pointer and the heap pointer advanced past the block. -/
+theorem decCall_alloc (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body : Prog Word}
+    {s : St σ} {r : Result σ} {pv nv : Word} (he : E.eval s e = some (.word nv))
+    (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : pv.toNat ≤ 2952790016)
+    (h : Runs E s (.decCall x .one "alloc" [e] body) r) :
+    Stopped r ∨ ∃ (qv : Word) (r' : Result σ),
+      pv.toNat + nv.toNat ≤ qv.toNat ∧ qv.toNat ≤ 2952790016 ∧ qv.toNat % 8 = 0 ∧
+      Runs E ⟨updatePanValueMap s.locals x (.word pv),
+        updatePanValueMap s.globals "heap_ptr" (.word qv), s.memory, s.ffi⟩ body r' ∧
+      r = restorePanValueFfiLocal x (s.locals x) r' := by
+  rcases runs_decCall_inv h with herr | ⟨parameters, cbody, values, cl, rb, hlookup, hvalues,
+    hbind, hcallee, hout⟩
+  · exact Or.inl (Stopped.of_error herr)
+  have hparams := (fun_of_index 7 hE.functions (by guest_decl_at 7) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil, he, Option.map_some, Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hpost := alloc_runs hE parameters cbody hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ rb pv nv
+    (by rw [← hbind]; simp [updatePanValueMap]) hp hpH hcallee
+  cases rb with
+  | returned lr g m f vs =>
+    obtain ⟨rfl, rfl, rfl, qv, rfl, h1, h2, h3⟩ := hpost
+    obtain ⟨r', -, hrun', rfl⟩ := hout
+    exact Or.inr ⟨qv, r', h1, h2, h3, hrun', rfl⟩
+  | raised lr g m f ex v =>
+    simp only at hout
+    subst hout
+    exact Or.inl trivial
+  | finalFfi lr g m f ev =>
+    simp only at hout
+    subst hout
+    exact Or.inl trivial
+  | _ => exact hout.elim
+
+/-- A store of a word at a word address: `.error`, or exactly that cell is rewritten. -/
+theorem runs_store_word (hE : GuestEnv E) {a v : Exp Word} {s : St σ} {r : Result σ}
+    {addr w : Word} (ha : E.eval s a = some (.word addr)) (hv : E.eval s v = some (.word w))
+    (h : Runs E s (.store a v) r) :
+    r.isError = true ∨ r = .normal s.locals s.globals (setCell s.memory addr w) s.ffi := by
+  obtain ⟨fuel, n, hrun⟩ := h
+  rcases store_word_inv hE.mem hrun with herr | ⟨addr', val, m, ha', hv', rfl, hm⟩
+  · exact Or.inl herr
+  rw [ha] at ha'
+  rw [hv] at hv'
+  simp only [Option.some.injEq, PanValue.word.injEq] at ha' hv'
+  subst ha' hv'
+  rw [hm w rfl]
+  exact Or.inr rfl
+
 end InitECandidate.Solver.GuestBound
