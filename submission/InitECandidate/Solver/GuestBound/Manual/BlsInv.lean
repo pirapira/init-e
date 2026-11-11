@@ -295,4 +295,85 @@ theorem halve_loop (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") {x y 
       have := (Nat.log2_lt hn (k := 384)).mpr hsix.lt
       omega
 
+/-- One subtraction branch of the outer loop: `var d = sub_raw(a, b); a = <d.0 … d.5>;
+xa = fp_sub(xa, xb)`. -/
+def subBranch (a b d xa xb : VarName) : Prog Word :=
+  .decCall d (.comb [.one, .one, .one, .one, .one, .one, .one]) "bls_fp_sub_raw"
+    [.var .local a, .var .local b]
+    (.seq
+      (.assign .local a (.rStruct [.rField 0 (.var .local d), .rField 1 (.var .local d),
+        .rField 2 (.var .local d), .rField 3 (.var .local d), .rField 4 (.var .local d),
+        .rField 5 (.var .local d)]))
+      (.call (some (some (.local, xa), none)) "bls_fp_sub" [.var .local xa, .var .local xb]))
+
+set_option maxHeartbeats 1000000 in
+/-- The subtraction branch replaces `a` by `a - b` and otherwise changes only `xa`. -/
+theorem subBranch_runs (hE : GuestEnv E) {a b d xa xb : VarName} (hab : (b == a) = false)
+    (had : (a == d) = false) (hbd : (b == d) = false) (haxa : (a == xa) = false)
+    {A B : Nat} {s : St σ} {r : Result σ} (ha : SixVal a A s.locals) (hb : SixVal b B s.locals)
+    (hle : B ≤ A) (h : Runs E s (subBranch a b d xa xb) r) :
+    match r with
+    | .normal l _ _ _ => SixVal a (A - B) l ∧ ∀ z, z ≠ a → z ≠ xa → l z = s.locals z
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  obtain ⟨a0, a1, a2, a3, a4, a5, hla, hA⟩ := ha
+  obtain ⟨b0, b1, b2, b3, b4, b5, hlb, hB⟩ := hb
+  rcases runs_decCall_inv h with herr | ⟨parameters, body, values, calleeLocals, rb, hlookup,
+    hvalues, hbind, hcallee, hout⟩
+  · cases r <;> trivial
+  have hparams := (fun_of_index 701 hE.functions (by guest_decl_at 701) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hla, hlb, Option.map_some,
+    Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hca : calleeLocals "a" =
+      some (.rStruct [.word a0, .word a1, .word a2, .word a3, .word a4, .word a5]) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  have hcb : calleeLocals "b" =
+      some (.rStruct [.word b0, .word b1, .word b2, .word b3, .word b4, .word b5]) := by
+    rw [← hbind]
+    simp [updatePanValueMap]
+  obtain ⟨cl, d0, d1, d2, d3, d4, d5, d6, rfl, hd⟩ := bls_fp_sub_raw_spec hE parameters body
+    hlookup ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb a0 a1 a2 a3 a4 a5 b0 b1 b2 b3 b4 b5
+    hca hcb (by rw [hA, hB]; exact hle) hcallee
+  obtain ⟨r', -, hrun', rfl⟩ := hout
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hrun'
+  rw [runs_assign_local] at h₁
+  simp (config := { decide := true }) only [evalF_rStruct, evalF_rField, evalF_local,
+    evalArgs_cons, evalArgs_nil, update_lookup, beq_self_eq_true, if_true, Option.map_some,
+    List.getElem?_cons_zero, List.getElem?_cons_succ] at h₁
+  split at h₁
+  · subst h₁
+    simp only at hrest
+    have hframe := call_local_frame hrest
+    cases r' with
+    | normal l g m f =>
+      simp only at hframe
+      simp only [restorePanValueFfiLocal]
+      have hxa : a ≠ xa := by simpa using haxa
+      refine ⟨⟨d0, d1, d2, d3, d4, d5, ?_, ?_⟩, ?_⟩
+      · simp only [restorePanValueLocal, had, Bool.false_eq_true, if_false]
+        rw [hframe a hxa]
+        simp [updatePanValueMap]
+      · rw [hd, hA, hB]
+      · intro z hza hzxa
+        by_cases hzd : z = d
+        · subst hzd
+          simp [restorePanValueLocal]
+        · have hzd' : (z == d) = false := by simpa using hzd
+          have hza' : (z == a) = false := by simpa using hza
+          simp only [restorePanValueLocal, hzd', Bool.false_eq_true, if_false]
+          rw [hframe z hzxa]
+          simp [updatePanValueMap, hzd', hza']
+    | continued l g m f => exact hframe.elim
+    | broke l g m f => exact hframe.elim
+    | _ => simp only [restorePanValueFfiLocal]
+  · subst h₁
+    simp only [St.err] at hrest
+    subst hrest
+    simp only [restorePanValueFfiLocal]
+
 end InitECandidate.Solver.GuestBound
