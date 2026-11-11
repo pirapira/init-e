@@ -1197,4 +1197,103 @@ theorem outerS_triple (hE : GuestEnv E) {blk : Prog Word}
       subst hrest
       simp only [restorePanValueFfiLocal, OuterSPost]
 
+/-- The guard `width < n` of the outer loop. -/
+def outerGuard : Exp Word := .cmp .less (.var .local "width") (.var .local "n")
+
+/-- Outer loop-head states: `n` is the word `nw`, `width` is 0 or a power of two. -/
+def OI (nw : Word) (s : St σ) : Prop :=
+  s.locals "n" = some (.word nw) ∧ ∃ ww, s.locals "width" = some (.word ww) ∧ WOk ww
+
+def outerMuS (s : St σ) : Nat :=
+  match s.locals "width" with
+  | some (.word ww) => wMu ww
+  | _ => 0
+
+theorem wMu_le (ww : Word) : wMu ww ≤ 65 := by
+  unfold wMu
+  split <;> omega
+
+/-- The outer loop doubles `width` at most 65 times. -/
+theorem outer_loop (hE : GuestEnv E) {blk : Prog Word}
+    (hblk : ∀ (s : St σ) (r : Result σ), Runs E s blk r → InnerPost s r)
+    (hz : ∀ (s : St σ) (r : Result σ), s.locals "left" = some (.word 0) →
+      s.locals "mid" = some (.word 0) → s.locals "right" = some (.word 0) →
+      Runs E s blk r → ∃ l g m f, r = .normal l g m f)
+    {b bs : Nat} (hb : Costs E (runBody blk) b) (hs : Costs E swapTail bs) (nw : Word) :
+    Triple E (OI nw) (.while outerGuard (outerS blk))
+      ((65 + 1) * (panValueExpStepCost outerGuard +
+        (panValueExpStepCost (Exp.const (BitVec.ofNat 64 0) : Exp Word) +
+          ((18446744073709551616 + 1) * (panValueExpStepCost runGuard + b + 1) + bs + 1) + 1) +
+        1))
+      (fun r => match r with
+        | .normal _ _ _ _ => True
+        | r => (fun _ => True) r) := by
+  refine (Triple.while (I := OI nw) (μ := outerMuS) (Q := fun _ => True)
+    (e := panValueExpStepCost outerGuard) 65 (condCost _ _) (fun _ _ => trivial) ?_).consequence
+    ?_ (Nat.le_refl _) (fun r _ => by cases r <;> trivial)
+  · intro k fuel s r n hP hrun hne
+    obtain ⟨⟨hn, ww, hw, hok⟩, hμ, hct⟩ := hP
+    obtain ⟨ww', nw', hw', hn', hlt⟩ := less_true hE.word hct
+    rw [hw] at hw'
+    rw [hn] at hn'
+    simp only [Option.some.injEq, PanValue.word.injEq] at hw' hn'
+    subst hw' hn'
+    obtain ⟨hcost, hpost⟩ := outerS_triple hE hblk hz hb hs ww nw hok hlt fuel s r n ⟨hw, hn⟩
+      hrun hne
+    refine ⟨hcost, ?_⟩
+    cases r with
+    | normal l g m f =>
+      obtain ⟨hpow, hw2, hn2⟩ := hpost
+      refine ⟨⟨hn2, _, hw2, wOk_double hok⟩, ?_⟩
+      show outerMuS ⟨l, g, m, f⟩ < k
+      rw [← hμ]
+      simp only [outerMuS, hw2, hw]
+      exact wMu_double hpow
+    | continued l g m f => exact hpost.elim
+    | broke l g m f => exact hpost.elim
+    | _ => trivial
+  · intro s hI
+    refine ⟨hI, ?_⟩
+    obtain ⟨-, ww, hw, -⟩ := hI
+    show outerMuS s ≤ 65
+    simp only [outerMuS, hw]
+    exact wMu_le ww
+
+/-- `if n <+ 2 { return …; }` ends normally only if `n` is a word. -/
+theorem smallIte_runs (hE : GuestEnv E) {e : Exp Word} {s : St σ} {r : Result σ} :
+    Runs E s (.ite (.cmp .lower (.var .local "n") (.const (BitVec.ofNat 64 2))) (.return e)
+      .skip) r →
+    match r with
+    | .normal l _ _ _ => l = s.locals ∧ ∃ nw : Word, s.locals "n" = some (.word nw)
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  intro h
+  rw [runs_ite] at h
+  split at h
+  · rename_i v heq
+    simp only [evalF_cmp hE.word, evalF_local, eval_const] at heq
+    have hn : ∃ nw : Word, s.locals "n" = some (.word nw) := by
+      cases hx : s.locals "n" with
+      | none => rw [hx] at heq; cases heq
+      | some x =>
+        cases x with
+        | word nw => exact ⟨nw, rfl⟩
+        | _ => rw [hx] at heq; cases heq
+    split at h
+    · rw [runs_skip] at h
+      subst h
+      exact ⟨rfl, hn⟩
+    · rw [runs_return] at h
+      cases he : E.eval s e with
+      | none =>
+        rw [he] at h
+        subst h
+        simp [St.err]
+      | some v' =>
+        rw [he] at h
+        simp only at h
+        split at h <;> (subst h; simp [St.err])
+  · subst h
+    simp [St.err]
+
 end InitECandidate.Solver.GuestBound
