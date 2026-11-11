@@ -64,6 +64,9 @@ theorem «u256_from_be» (hE : GuestEnv E) : FunCost E "u256_from_be" 1199038364
 theorem «sha256_finish» (hE : GuestEnv E) : FunCost E "sha256_finish" 940783947759187132421 := by
   guest_cost 94
 
+theorem «keccak_absorb_block» (hE : GuestEnv E) : FunCost E "keccak_absorb_block" 10736005050898959040806 := by
+  guest_cost 102
+
 theorem «rlp_read_length» (hE : GuestEnv E) : FunCost E "rlp_read_length" 332041393326771929116 := by
   guest_cost 106
 
@@ -123,8 +126,5 @@ theorem «acct_is_empty» (hE : GuestEnv E) : FunCost E "acct_is_empty" 44272185
 
 theorem «bal_list_remove_idx» (hE : GuestEnv E) : FunCost E "bal_list_remove_idx" 62611955513452677278459966132236471762959 := by
   guest_cost 424
-
-theorem «ceil32» (hE : GuestEnv E) : FunCost E "ceil32" 31 := by
-  guest_cost 442
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp6_set_zero» (hE : GuestEnv E) : FunCost E "fp6_set_zero" 2434970217729660813332 := by
+  guest_cost 739
+
 theorem «fp12_copy» (hE : GuestEnv E) : FunCost E "fp12_copy" 3394200909562557497367 := by
   guest_cost 747
 
