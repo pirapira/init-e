@@ -7,103 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
-  guest_cost 665
+theorem «keccak256» (hE : GuestEnv E) : FunCost E "keccak256" 198044337547986185763796859493622455730588 := by
+  guest_cost 103
 
-theorem «ecp_set_inf» (hE : GuestEnv E) : FunCost E "ecp_set_inf" 7304910653188982440042 := by
-  guest_cost 671
+theorem «rlp_item_header» (hE : GuestEnv E) : FunCost E "rlp_item_header" 664082786653543858453 := by
+  guest_cost 109
 
-theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
-  guest_cost 672
+theorem «rlp_item_total_unchecked» (hE : GuestEnv E) : FunCost E "rlp_item_total_unchecked" 664082786653543858297 := by
+  guest_cost 114
 
-theorem «fq_poly_submul» (hE : GuestEnv E) : FunCost E "fq_poly_submul" 62460675433580541771781 := by
-  guest_cost 681
+theorem «rlp_encode_bytes» (hE : GuestEnv E) : FunCost E "rlp_encode_bytes" 4423670769972200029727789635408922411152 := by
+  guest_cost 122
 
-theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
-  guest_cost 696
+theorem «rlp_encode_list_header» (hE : GuestEnv E) : FunCost E "rlp_encode_list_header" 4423670769972200026333588725846364913763 := by
+  guest_cost 124
 
-theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
-  guest_cost 705
-
-theorem «bls_fp_sqr» (hE : GuestEnv E) : FunCost E "bls_fp_sqr" 7159 := by
-  guest_cost 707
-
-theorem «bls_fp_to_mont» (hE : GuestEnv E) : FunCost E "bls_fp_to_mont" 7165 := by
-  guest_cost 708
-
-theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
-  guest_cost 709
-
-theorem «bls_fp_inv_raw» (hE : GuestEnv E) : FunCost E "bls_fp_inv_raw" 2065613615292457654667135874993153997492712710587221879879686660930556492472485371338294296479448815935939133080175884430506375715847707636443780056128868021252037036318120487056936666026823234185153920820524197886654285177641386988089600214259092919343750285177944144293680720746524323987510285659833379991914448113332797199725892335782600933184642509757895140981427094230115697898056887753376224979563384522703902363611097411979569155433623145674918142287671372211710794072151471109558266845246374201458600768774803923526087148404040620641256705364036493909233474404196236947000100512052999433227541587770602069792875310644719282650528324730616501605711587086005534564312282034735449780158201927 := by
-  guest_cost 712 [3, 3, 3]
-
-theorem «bls_fp_pow» (hE : GuestEnv E) : FunCost E "bls_fp_pow" 264784564434026903896081 := by
-  guest_cost 714
-
-theorem «bls_fp_to_be48» (hE : GuestEnv E) : FunCost E "bls_fp_to_be48" 780 := by
-  guest_cost 718
-
-theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
-  guest_cost 726
-
-theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
-  guest_cost 727
-
-theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
-  guest_cost 728
-
-theorem «fp2_conj» (hE : GuestEnv E) : FunCost E "fp2_conj" 192 := by
-  guest_cost 730
-
-theorem «fp2_mul» (hE : GuestEnv E) : FunCost E "fp2_mul" 22752 := by
-  guest_cost 731
-
-theorem «fp2_sqr» (hE : GuestEnv E) : FunCost E "fp2_sqr" 15086 := by
-  guest_cost 732
-
-theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
-  guest_cost 733
-
-theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
-  guest_cost 734
-
-theorem «fp6_set_one» (hE : GuestEnv E) : FunCost E "fp6_set_one" 4869940435459321626703 := by
-  guest_cost 740
-
-theorem «g1_neg» (hE : GuestEnv E) : FunCost E "g1_neg" 207 := by
-  guest_cost 761
-
-theorem «g2_set_inf» (hE : GuestEnv E) : FunCost E "g2_set_inf" 2434970217729660813395 := by
-  guest_cost 770
-
-theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 269285569988012034490382 := by
-  guest_cost 789
-
-theorem «kzg_neg_scalar» (hE : GuestEnv E) : FunCost E "kzg_neg_scalar" 1199038364791120855367 := by
-  guest_cost 799
-
-theorem «pre_blake2f» (hE : GuestEnv E) : FunCost E "pre_blake2f" 34403177697468313764447 := by
-  guest_cost 827
-
-theorem «modexp_gas» (hE : GuestEnv E) : FunCost E "modexp_gas" 527 := by
-  guest_cost 828
-
-theorem «encode_execution_requests» (hE : GuestEnv E) : FunCost E "encode_execution_requests" 62611955513452677281005616814408389886049 := by
-  guest_cost 839
-
-theorem «extract_deposit_data» (hE : GuestEnv E) : FunCost E "extract_deposit_data" 20623459874407278708087 := by
-  guest_cost 841
-
-theorem «addr_from_words» (hE : GuestEnv E) : FunCost E "addr_from_words" 294 := by
-  guest_cost 860
-
-theorem «fee_mul» (hE : GuestEnv E) : FunCost E "fee_mul" 1729 := by
-  guest_cost 867
-
-theorem «te_new» (hE : GuestEnv E) : FunCost E "te_new" 2434970217729660813418 := by
-  guest_cost 869
-
-theorem «requests_append» (hE : GuestEnv E) : FunCost E "requests_append" 3394200909562557497499 := by
-  guest_cost 876
+theorem «rlp_bytes_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_bytes_encoded_len" 4423670769972200025983100588445883433051 := by
+  guest_cost 125
 
 end InitECandidate.Solver.GuestBound.Fn

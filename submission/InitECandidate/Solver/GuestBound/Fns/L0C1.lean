@@ -7,124 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «div64by32» (hE : GuestEnv E) : FunCost E "div64by32" 645636042579834306571 := by
-  guest_cost 63
+theorem «scratch_mark» (hE : GuestEnv E) : FunCost E "scratch_mark" 2 := by
+  guest_cost 14
 
-theorem «u256_to_digits» (hE : GuestEnv E) : FunCost E "u256_to_digits" 72 := by
-  guest_cost 64
+theorem «scratch_release» (hE : GuestEnv E) : FunCost E "scratch_release" 5 := by
+  guest_cost 15
 
-theorem «digits_to_u256» (hE : GuestEnv E) : FunCost E "digits_to_u256" 44 := by
-  guest_cost 65
+theorem «memcpy» (hE : GuestEnv E) : FunCost E "memcpy" 3394200909562557497360 := by
+  guest_cost 16
 
-theorem «digits_len» (hE : GuestEnv E) : FunCost E "digits_len" 405828369621610135555 := by
-  guest_cost 66
+theorem «memzero» (hE : GuestEnv E) : FunCost E "memzero" 2434970217729660813326 := by
+  guest_cost 17
 
-theorem «bit_length64» (hE : GuestEnv E) : FunCost E "bit_length64" 102 := by
-  guest_cost 77
+theorem «memeq» (hE : GuestEnv E) : FunCost E "memeq" 4427218577690292388125 := by
+  guest_cost 18
 
-theorem «u256_shl» (hE : GuestEnv E) : FunCost E "u256_shl" 127 := by
-  guest_cost 81
-
-theorem «u256_shr» (hE : GuestEnv E) : FunCost E "u256_shr" 127 := by
-  guest_cost 82
-
-theorem «sha256_state_init» (hE : GuestEnv E) : FunCost E "sha256_state_init" 50 := by
-  guest_cost 92
-
-theorem «sha256_block» (hE : GuestEnv E) : FunCost E "sha256_block" 8068 := by
-  guest_cost 93
-
-theorem «sha256_pair» (hE : GuestEnv E) : FunCost E "sha256_pair" 13580 := by
-  guest_cost 96
-
-theorem «keccak_f1600» (hE : GuestEnv E) : FunCost E "keccak_f1600" 9334052501297033117976 := by
-  guest_cost 101
-
-theorem «rlp_fail» (hE : GuestEnv E) : FunCost E "rlp_fail" 5 := by
-  guest_cost 105
-
-theorem «rlp_be_len» (hE : GuestEnv E) : FunCost E "rlp_be_len" 4423670769972200025983100588445883433017 := by
-  guest_cost 118 [1]
-
-theorem «rlp_put_be» (hE : GuestEnv E) : FunCost E "rlp_put_be" 350488137400481480709 := by
-  guest_cost 119
-
-theorem «htab_first_diff» (hE : GuestEnv E) : FunCost E "htab_first_diff" 8507059173023461587045533787636944076807 := by
-  guest_cost 130
-
-theorem «htab_find_leaf» (hE : GuestEnv E) : FunCost E "htab_find_leaf" 793209995169510719508 := by
-  guest_cost 131
-
-theorem «htab_count» (hE : GuestEnv E) : FunCost E "htab_count" 5 := by
-  guest_cost 141
-
-theorem «htab_cap» (hE : GuestEnv E) : FunCost E "htab_cap" 5 := by
-  guest_cost 142
-
-theorem «htab_item» (hE : GuestEnv E) : FunCost E "htab_item" 53 := by
-  guest_cost 143
-
-theorem «secp256k1_init» (hE : GuestEnv E) : FunCost E "secp256k1_init" 2 := by
-  guest_cost 148
-
-theorem «ec_set_infinity» (hE : GuestEnv E) : FunCost E "ec_set_infinity" 30 := by
-  guest_cost 167
-
-theorem «ec_set_affine» (hE : GuestEnv E) : FunCost E "ec_set_affine" 22 := by
-  guest_cost 168
-
-theorem «ssz_fail» (hE : GuestEnv E) : FunCost E "ssz_fail" 5 := by
-  guest_cost 196
-
-theorem «host_input_byte» (hE : GuestEnv E) : FunCost E "host_input_byte" 21 := by
-  guest_cost 197
-
-theorem «mpt_fail» (hE : GuestEnv E) : FunCost E "mpt_fail" 5 := by
-  guest_cost 246
-
-theorem «key_to_nibbles» (hE : GuestEnv E) : FunCost E "key_to_nibbles" 2840798587351270948870 := by
-  guest_cost 248
-
-theorem «nibble_list_to_compact» (hE : GuestEnv E) : FunCost E "nibble_list_to_compact" 553402322211286548511 := by
-  guest_cost 250
-
-theorem «node_invalidate» (hE : GuestEnv E) : FunCost E "node_invalidate" 20 := by
-  guest_cost 259
-
-theorem «_node_needs_rlp» (hE : GuestEnv E) : FunCost E "_node_needs_rlp" 29 := by
-  guest_cost 283
-
-theorem «tx_gas» (hE : GuestEnv E) : FunCost E "tx_gas" 5 := by
-  guest_cost 308
-
-theorem «tx_nonce» (hE : GuestEnv E) : FunCost E "tx_nonce" 5 := by
-  guest_cost 309
-
-theorem «tx_to» (hE : GuestEnv E) : FunCost E "tx_to" 5 := by
-  guest_cost 310
-
-theorem «tx_value» (hE : GuestEnv E) : FunCost E "tx_value" 5 := by
-  guest_cost 311
-
-theorem «tx_data» (hE : GuestEnv E) : FunCost E "tx_data" 10 := by
-  guest_cost 312
-
-theorem «tx_r» (hE : GuestEnv E) : FunCost E "tx_r" 5 := by
-  guest_cost 313
-
-theorem «tx_s» (hE : GuestEnv E) : FunCost E "tx_s" 5 := by
-  guest_cost 314
-
-theorem «tx_has_access_list» (hE : GuestEnv E) : FunCost E "tx_has_access_list" 12 := by
-  guest_cost 315
-
-theorem «tx_blob_count» (hE : GuestEnv E) : FunCost E "tx_blob_count" 5 := by
-  guest_cost 316
-
-theorem «calculate_total_blob_gas» (hE : GuestEnv E) : FunCost E "calculate_total_blob_gas" 7 := by
-  guest_cost 317
-
-theorem «count_tokens_in_data» (hE : GuestEnv E) : FunCost E "count_tokens_in_data" 368934881474191032333 := by
-  guest_cost 344
+theorem «is_zero_bytes» (hE : GuestEnv E) : FunCost E "is_zero_bytes" 332041393326771929093 := by
+  guest_cost 19
 
 end InitECandidate.Solver.GuestBound.Fn

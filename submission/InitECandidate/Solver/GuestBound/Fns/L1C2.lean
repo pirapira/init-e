@@ -7,55 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
-  guest_cost 680
+theorem «u256_mul_full» (hE : GuestEnv E) : FunCost E "u256_mul_full" 1694 := by
+  guest_cost 61
 
-theorem «bls_fp_add» (hE : GuestEnv E) : FunCost E "bls_fp_add" 246 := by
-  guest_cost 702
+theorem «divmnu» (hE : GuestEnv E) : FunCost E "divmnu" 3821138944831434450842141720696545146376477132127326556323590582721876030652625 := by
+  guest_cost 67 [0, 0, 0, 0, 1, 0, 0, 0, 0]
 
-theorem «bls_fp_sub» (hE : GuestEnv E) : FunCost E "bls_fp_sub" 246 := by
-  guest_cost 703
+theorem «u256_abs» (hE : GuestEnv E) : FunCost E "u256_abs" 81 := by
+  guest_cost 72
 
-theorem «bls_fp_neg» (hE : GuestEnv E) : FunCost E "bls_fp_neg" 170 := by
-  guest_cost 704
+theorem «u256_bit_length» (hE : GuestEnv E) : FunCost E "u256_bit_length" 450 := by
+  guest_cost 78
 
-theorem «bls_fp_mul» (hE : GuestEnv E) : FunCost E "bls_fp_mul" 7156 := by
-  guest_cost 706
+theorem «u256_sar» (hE : GuestEnv E) : FunCost E "u256_sar" 345 := by
+  guest_cost 83
 
-theorem «bls_fp_half_can» (hE : GuestEnv E) : FunCost E "bls_fp_half_can" 213 := by
-  guest_cost 711
-
-theorem «fp2_copy» (hE : GuestEnv E) : FunCost E "fp2_copy" 3394200909562557497367 := by
-  guest_cost 721
-
-theorem «fp2_set_zero» (hE : GuestEnv E) : FunCost E "fp2_set_zero" 2434970217729660813332 := by
-  guest_cost 722
-
-theorem «fp2_eq» (hE : GuestEnv E) : FunCost E "fp2_eq" 107 := by
-  guest_cost 725
-
-theorem «fp6_copy» (hE : GuestEnv E) : FunCost E "fp6_copy" 3394200909562557497367 := by
-  guest_cost 738
-
-theorem «fp6_set_zero» (hE : GuestEnv E) : FunCost E "fp6_set_zero" 2434970217729660813332 := by
-  guest_cost 739
-
-theorem «fp12_copy» (hE : GuestEnv E) : FunCost E "fp12_copy" 3394200909562557497367 := by
-  guest_cost 747
-
-theorem «g1_is_inf» (hE : GuestEnv E) : FunCost E "g1_is_inf" 28 := by
-  guest_cost 759
-
-theorem «g1_copy» (hE : GuestEnv E) : FunCost E "g1_copy" 3394200909562557497367 := by
-  guest_cost 760
-
-theorem «g2_is_inf» (hE : GuestEnv E) : FunCost E "g2_is_inf" 45 := by
-  guest_cost 771
-
-theorem «g2_copy» (hE : GuestEnv E) : FunCost E "g2_copy" 3394200909562557497367 := by
-  guest_cost 772
-
-theorem «precompile_index» (hE : GuestEnv E) : FunCost E "precompile_index" 332041393326771929151 := by
-  guest_cost 822
+theorem «u256_byte» (hE : GuestEnv E) : FunCost E "u256_byte" 60 := by
+  guest_cost 85
 
 end InitECandidate.Solver.GuestBound.Fn

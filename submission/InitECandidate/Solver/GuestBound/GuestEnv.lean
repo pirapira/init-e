@@ -3,6 +3,7 @@ import InitECandidate.Solver.GuestBound.ExpCostEval
 import InitECandidate.Solver.GuestBound.Loops
 import InitECandidate.Solver.GuestBound.WalkMBound
 import InitECandidate.Solver.GuestBound.ShapeLoop
+import InitECandidate.Solver.GuestBound.MemLaws
 import Guest.SoftwareAst
 import Lean.Elab.Tactic
 
@@ -22,6 +23,7 @@ open Flapjack
 structure GuestEnv {σ : Type} (E : Env σ) : Prop where
   functions : FunctionsFrom E.functions Guest.Software.guestAst
   word : WordEnv E
+  mem : MemEnv E
 
 variable {σ : Type} {E : Env σ}
 

@@ -7,124 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
-  guest_cost 255
+theorem «u256_exp» (hE : GuestEnv E) : FunCost E "u256_exp" 27577882390195779666385 := by
+  guest_cost 80
 
-theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := by
-  guest_cost 256
+theorem «u256_signextend» (hE : GuestEnv E) : FunCost E "u256_signextend" 297 := by
+  guest_cost 84
 
-theorem «node_new_ext» (hE : GuestEnv E) : FunCost E "node_new_ext" 130 := by
-  guest_cost 257
+theorem «u256_to_be32» (hE : GuestEnv E) : FunCost E "u256_to_be32" 702 := by
+  guest_cost 87
 
-theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434970217729660813424 := by
-  guest_cost 258
+theorem «sha256_init» (hE : GuestEnv E) : FunCost E "sha256_init" 176 := by
+  guest_cost 91
 
-theorem «trie_lookup» (hE : GuestEnv E) : FunCost E "trie_lookup" 3013008832985606767528295053702566454067098414840783751350995 := by
-  guest_cost 267
+theorem «sha256» (hE : GuestEnv E) : FunCost E "sha256" 155893434166919420723226 := by
+  guest_cost 95
 
-theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
-  guest_cost 268
-
-theorem «validate_transaction» (hE : GuestEnv E) : FunCost E "validate_transaction" 5460236245818027278892 := by
-  guest_cost 346
-
-theorem «jdel» (hE : GuestEnv E) : FunCost E "jdel" 13835058055282163713076 := by
-  guest_cost 357
-
-theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
-  guest_cost 361
-
-theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
-  guest_cost 363
-
-theorem «stor_lookup» (hE : GuestEnv E) : FunCost E "stor_lookup" 10440857145719606215399 := by
-  guest_cost 377
-
-theorem «get_transient_storage» (hE : GuestEnv E) : FunCost E "get_transient_storage" 12008830391984918102449 := by
-  guest_cost 380
-
-theorem «lst_new» (hE : GuestEnv E) : FunCost E "lst_new" 194 := by
-  guest_cost 408
-
-theorem «lst_new_scratch» (hE : GuestEnv E) : FunCost E "lst_new_scratch" 192 := by
-  guest_cost 409
-
-theorem «lst_push» (hE : GuestEnv E) : FunCost E "lst_push" 3394200909562557497505 := by
-  guest_cost 410
-
-theorem «bal_remove_change» (hE : GuestEnv E) : FunCost E "bal_remove_change" 62611955513452677283680394705096274870671 := by
-  guest_cost 425
-
-theorem «remove_storage_write» (hE : GuestEnv E) : FunCost E "remove_storage_write" 62611955513452677294121251850815881086233 := by
-  guest_cost 426
-
-theorem «words_of» (hE : GuestEnv E) : FunCost E "words_of" 37 := by
-  guest_cost 443
-
-theorem «to_address_masked» (hE : GuestEnv E) : FunCost E "to_address_masked" 301 := by
-  guest_cost 444
-
-theorem «address_to_u256» (hE : GuestEnv E) : FunCost E "address_to_u256" 1199038364791120855248 := by
-  guest_cost 445
-
-theorem «stack_push» (hE : GuestEnv E) : FunCost E "stack_push" 3394200909562557497529 := by
-  guest_cost 454
-
-theorem «extend_memory» (hE : GuestEnv E) : FunCost E "extend_memory" 4869940435459321626813 := by
-  guest_cost 460
-
-theorem «msg_new» (hE : GuestEnv E) : FunCost E "msg_new" 2434970217729660813418 := by
-  guest_cost 465
-
-theorem «msg_new_scratch» (hE : GuestEnv E) : FunCost E "msg_new_scratch" 2434970217729660813417 := by
-  guest_cost 466
-
-theorem «is_warm_address» (hE : GuestEnv E) : FunCost E "is_warm_address" 5220428572859803107676 := by
-  guest_cost 471
-
-theorem «is_warm_storage_key» (hE : GuestEnv E) : FunCost E "is_warm_storage_key" 12008830391984918102413 := by
-  guest_cost 525
-
-theorem «set_retdata» (hE : GuestEnv E) : FunCost E "set_retdata" 3394200909562557497513 := by
-  guest_cost 595
-
-theorem «ripemd160_init» (hE : GuestEnv E) : FunCost E "ripemd160_init" 477 := by
-  guest_cost 612
-
-theorem «ripemd160» (hE : GuestEnv E) : FunCost E "ripemd160" 151425653279817616266842674569593130844589 := by
-  guest_cost 617
-
-theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
-  guest_cost 621
-
-theorem «bn_mod» (hE : GuestEnv E) : FunCost E "bn_mod" 3821138944831434450842141720696545146376477132127326556329825582218789859098899 := by
-  guest_cost 628
-
-theorem «p256_fp_mul» (hE : GuestEnv E) : FunCost E "p256_fp_mul" 3311728558695821483594784174556843993487403357686321164297719676599275715428166103270062951647225146639437868972062054560877209054550802776769111304502773793 := by
-  guest_cost 634 [3, 3]
-
-theorem «p256_fp_sqr» (hE : GuestEnv E) : FunCost E "p256_fp_sqr" 3311728558695821483594784174556843993487403357686321164297719676599275715428166103270062951647225146639437868972062054560877209054550802776769111304502773495 := by
-  guest_cost 635 [3, 3]
-
-theorem «bn254_init» (hE : GuestEnv E) : FunCost E "bn254_init" 567 := by
-  guest_cost 648
-
-theorem «fq_to_mont» (hE : GuestEnv E) : FunCost E "fq_to_mont" 3137 := by
-  guest_cost 653
-
-theorem «fq_from_mont» (hE : GuestEnv E) : FunCost E "fq_from_mont" 3137 := by
-  guest_cost 654
-
-theorem «fq_mul_small» (hE : GuestEnv E) : FunCost E "fq_mul_small" 8522395762053812846705 := by
-  guest_cost 656
-
-theorem «fq2_mul» (hE : GuestEnv E) : FunCost E "fq2_mul" 13000 := by
-  guest_cost 657
-
-theorem «fe_add» (hE : GuestEnv E) : FunCost E "fe_add" 4648579506574807007237 := by
-  guest_cost 663
-
-theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773 := by
-  guest_cost 664
+theorem «keccak_init» (hE : GuestEnv E) : FunCost E "keccak_init" 407 := by
+  guest_cost 100
 
 end InitECandidate.Solver.GuestBound.Fn

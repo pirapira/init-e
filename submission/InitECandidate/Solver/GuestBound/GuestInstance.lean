@@ -42,6 +42,35 @@ theorem guest_wordEnv (state : PanValueProgramState Word) :
         RiscV.panRiscVCmp, evalPanCmp] <;>
       split <;> simp_all
 
+/-- The guest's memory-access model stores and loads single word cells. -/
+theorem guest_memEnv (state : PanValueProgramState Word) :
+    MemEnv (programEnv Guest.guestFfiContext Guest.guestPrimitiveHandler Guest.guestHostFfi
+      (some Guest.guestMemoryAccess) (none : Option (PanValueMemoryFfiHandler Word Guest.HostMemory))
+      state) where
+  access := by
+    refine ⟨Guest.guestMemoryAccess, rfl, ?_, ?_⟩
+    · intro memory b address value memory' h
+      simp only [Guest.guestMemoryAccess, panValueMemoryAccessOfModel] at h
+      split at h
+      · simp only [Option.some.injEq] at h
+        rw [← h]
+        rfl
+      · cases h
+    · intro memory b address v h
+      simp only [Guest.guestMemoryAccess, panValueMemoryAccessOfModel] at h
+      split at h
+      · cases hm : memory address with
+        | none => rw [hm] at h; simp at h
+        | some value =>
+          rw [hm] at h
+          cases value with
+          | word w =>
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq] at h
+            rw [h]
+          | _ => simp at h
+      · simp at h
+
 /-- The environment of a stepped guest run is a `GuestEnv`. -/
 theorem guest_guestEnv (state : PanValueProgramState Word)
     (hdecl : evalPanValueDeclarations Guest.guestInitialState Guest.Software.guestAst
@@ -52,6 +81,7 @@ theorem guest_guestEnv (state : PanValueProgramState Word)
   functions := functionsFrom_declarations Guest.guestInitialState state Guest.Software.guestAst
     (some Guest.guestMemoryAccess) rfl hdecl
   word := guest_wordEnv state
+  mem := guest_memEnv state
 
 /-- A bound on `main` in every guest environment bounds every stepped run of
 the guest that does not end in `.error`. -/

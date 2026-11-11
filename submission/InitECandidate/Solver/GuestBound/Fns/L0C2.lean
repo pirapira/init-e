@@ -7,124 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «state_snapshot» (hE : GuestEnv E) : FunCost E "state_snapshot" 2 := by
-  guest_cost 358
+theorem «ld_le32» (hE : GuestEnv E) : FunCost E "ld_le32" 22 := by
+  guest_cost 20
 
-theorem «track_ancestor_access» (hE : GuestEnv E) : FunCost E "track_ancestor_access" 22 := by
-  guest_cost 402
+theorem «ld_le64» (hE : GuestEnv E) : FunCost E "ld_le64" 50 := by
+  guest_cost 21
 
-theorem «bal_sort_gt» (hE : GuestEnv E) : FunCost E "bal_sort_gt" 590295810358705651742 := by
-  guest_cost 429
+theorem «ld_be32» (hE : GuestEnv E) : FunCost E "ld_be32" 22 := by
+  guest_cost 22
 
-theorem «sat_word» (hE : GuestEnv E) : FunCost E "sat_word" 16 := by
-  guest_cost 440
+theorem «bswap64» (hE : GuestEnv E) : FunCost E "bswap64" 34 := by
+  guest_cost 23
 
-theorem «add_sat» (hE : GuestEnv E) : FunCost E "add_sat" 13 := by
-  guest_cost 441
+theorem «st_le32» (hE : GuestEnv E) : FunCost E "st_le32" 30 := by
+  guest_cost 25
 
-theorem «is_valid_delegation» (hE : GuestEnv E) : FunCost E "is_valid_delegation" 36 := by
-  guest_cost 446
-
-theorem «check_gas» (hE : GuestEnv E) : FunCost E "check_gas" 12 := by
-  guest_cost 447
-
-theorem «charge_gas» (hE : GuestEnv E) : FunCost E "charge_gas" 33 := by
-  guest_cost 448
-
-theorem «frame_state_gas_used» (hE : GuestEnv E) : FunCost E "frame_state_gas_used" 20 := by
-  guest_cost 451
-
-theorem «refill_frame_state_gas» (hE : GuestEnv E) : FunCost E "refill_frame_state_gas" 36 := by
-  guest_cost 452
-
-theorem «stack_pop» (hE : GuestEnv E) : FunCost E "stack_pop" 33 := by
-  guest_cost 453
-
-theorem «is_valid_jumpdest» (hE : GuestEnv E) : FunCost E "is_valid_jumpdest" 46 := by
-  guest_cost 464
-
-theorem «pc_add» (hE : GuestEnv E) : FunCost E "pc_add" 13 := by
-  guest_cost 468
-
-theorem «cur_msg» (hE : GuestEnv E) : FunCost E "cur_msg" 5 := by
-  guest_cost 469
-
-theorem «require_not_static» (hE : GuestEnv E) : FunCost E "require_not_static" 15 := by
-  guest_cost 470
-
-theorem «stack_swap_positions» (hE : GuestEnv E) : FunCost E "stack_swap_positions" 46 := by
-  guest_cost 516
-
-theorem «code_imm» (hE : GuestEnv E) : FunCost E "code_imm" 26 := by
-  guest_cost 518
-
-theorem «decode_single» (hE : GuestEnv E) : FunCost E "decode_single" 22 := by
-  guest_cost 519
-
-theorem «block_env» (hE : GuestEnv E) : FunCost E "block_env" 8 := by
-  guest_cost 550
-
-theorem «frame_halt» (hE : GuestEnv E) : FunCost E "frame_halt" 28 := by
-  guest_cost 586
-
-theorem «incorporate_child_on_error» (hE : GuestEnv E) : FunCost E "incorporate_child_on_error" 44 := by
-  guest_cost 591
-
-theorem «rmd_f» (hE : GuestEnv E) : FunCost E "rmd_f" 61 := by
-  guest_cost 613
-
-theorem «rmd_k» (hE : GuestEnv E) : FunCost E "rmd_k" 30 := by
-  guest_cost 614
-
-theorem «rmd_kp» (hE : GuestEnv E) : FunCost E "rmd_kp" 30 := by
-  guest_cost 615
-
-theorem «blake2_g» (hE : GuestEnv E) : FunCost E "blake2_g" 104 := by
-  guest_cost 622
-
-theorem «bn_from_be» (hE : GuestEnv E) : FunCost E "bn_from_be" 996124179980315787279 := by
-  guest_cost 624
-
-theorem «bn_to_be» (hE : GuestEnv E) : FunCost E "bn_to_be" 848550227390639374341 := by
-  guest_cost 625
-
-theorem «bn_mul» (hE : GuestEnv E) : FunCost E "bn_mul" 13611294676837538539494214989103625142281 := by
-  guest_cost 626
-
-theorem «p256_set_infinity» (hE : GuestEnv E) : FunCost E "p256_set_infinity" 30 := by
-  guest_cost 637
-
-theorem «p256_set_affine» (hE : GuestEnv E) : FunCost E "p256_set_affine" 22 := by
-  guest_cost 638
-
-theorem «bls_fp_is_zero» (hE : GuestEnv E) : FunCost E "bls_fp_is_zero" 21 := by
-  guest_cost 697
-
-theorem «bls_fp_eq» (hE : GuestEnv E) : FunCost E "bls_fp_eq" 39 := by
-  guest_cost 698
-
-theorem «bls_fp_lt_raw» (hE : GuestEnv E) : FunCost E "bls_fp_lt_raw" 101 := by
-  guest_cost 699
-
-theorem «bls_fp_add_raw» (hE : GuestEnv E) : FunCost E "bls_fp_add_raw" 87 := by
-  guest_cost 700
-
-theorem «bls_fp_sub_raw» (hE : GuestEnv E) : FunCost E "bls_fp_sub_raw" 111 := by
-  guest_cost 701
-
-theorem «bls_fp_shr1» (hE : GuestEnv E) : FunCost E "bls_fp_shr1" 51 := by
-  guest_cost 710
-
-theorem «bls_fp_from_be48» (hE : GuestEnv E) : FunCost E "bls_fp_from_be48" 347 := by
-  guest_cost 717
-
-theorem «fp2_set_one» (hE : GuestEnv E) : FunCost E "fp2_set_one" 24 := by
-  guest_cost 723
-
-theorem «fp2_is_zero» (hE : GuestEnv E) : FunCost E "fp2_is_zero" 41 := by
-  guest_cost 724
-
-theorem «g1_set_inf» (hE : GuestEnv E) : FunCost E "g1_set_inf" 36 := by
-  guest_cost 758
+theorem «st_be32» (hE : GuestEnv E) : FunCost E "st_be32" 30 := by
+  guest_cost 27
 
 end InitECandidate.Solver.GuestBound.Fn

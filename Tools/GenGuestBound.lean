@@ -177,7 +177,7 @@ def functions : List Info := Id.run do
     i := i + 1
   return out.reverse
 
-def chunkSize : Nat := 40
+def chunkSize : Nat := 6
 
 def run : IO Unit := do
   let fns := functions

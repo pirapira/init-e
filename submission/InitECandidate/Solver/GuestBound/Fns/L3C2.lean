@@ -7,124 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «fq12_reduce» (hE : GuestEnv E) : FunCost E "fq12_reduce" 314420907034947140253532026720393252306949 := by
-  guest_cost 658
+theorem «decode_payload» (hE : GuestEnv E) : FunCost E "decode_payload" 3412647653636267050039 := by
+  guest_cost 204
 
-theorem «fe_mul_small» (hE : GuestEnv E) : FunCost E "fe_mul_small" 157210453517473570122643166059722541367301 := by
-  guest_cost 666
+theorem «decode_requests» (hE : GuestEnv E) : FunCost E "decode_requests" 5165088340638674453162 := by
+  guest_cost 205
 
-theorem «fq12_twist» (hE : GuestEnv E) : FunCost E "fq12_twist" 157210453517473570129837396248469266497559 := by
-  guest_cost 677
+theorem «decode_bytes_list» (hE : GuestEnv E) : FunCost E "decode_bytes_list" 2250502776992565297353 := by
+  guest_cost 206
 
-theorem «fq12_frob» (hE : GuestEnv E) : FunCost E "fq12_frob" 314420907034947140494963013157103863857157 := by
-  guest_cost 679
+theorem «htr_list_roots» (hE : GuestEnv E) : FunCost E "htr_list_roots" 4629881884326288734149156573605446467729007 := by
+  guest_cost 209
 
-theorem «bn254_parse_g1» (hE : GuestEnv E) : FunCost E "bn254_parse_g1" 9702987382771224166713 := by
-  guest_cost 686
+theorem «check_gas_limit» (hE : GuestEnv E) : FunCost E "check_gas_limit" 645636042579834306649 := by
+  guest_cost 235
 
-theorem «bn254_parse_g2» (hE : GuestEnv E) : FunCost E "bn254_parse_g2" 21508903589945337237727 := by
-  guest_cost 687
-
-theorem «bls_fp_inv» (hE : GuestEnv E) : FunCost E "bls_fp_inv" 2065613615292457654667135874993153997492712710587221879879686660930556492472485371338294296479448815935939133080175884430506375715847707636443780056128868021252037036318120487056936666026823234185153920820524197886654285177641386988089600214259092919343750285177944144293680720746524323987510285659833379991914448113332797199725892335782600933184642509757895140981427094230115697898056887753376224979563384522703902363611097411979569155433623145674918142287671372211710794072151471109558266845246374201458600768774803923526087148404040620641256705364036493909233474404196236947000100512052999433227541587770602069792875310644719282650528324730616501605711587086005534564312282034735449780158209094 := by
-  guest_cost 713
-
-theorem «bls_fp_sgn0» (hE : GuestEnv E) : FunCost E "bls_fp_sgn0" 7172 := by
-  guest_cost 715
-
-theorem «bls_fp_is_high» (hE : GuestEnv E) : FunCost E "bls_fp_is_high" 7279 := by
-  guest_cost 716
-
-theorem «bls_fp_decode64» (hE : GuestEnv E) : FunCost E "bls_fp_decode64" 332041393326771936744 := by
-  guest_cost 719
-
-theorem «bls_fp_encode64» (hE : GuestEnv E) : FunCost E "bls_fp_encode64" 2434970217729660821288 := by
-  guest_cost 720
-
-theorem «fp2_dbl» (hE : GuestEnv E) : FunCost E "fp2_dbl" 530 := by
-  guest_cost 729
-
-theorem «fp2_pow» (hE : GuestEnv E) : FunCost E "fp2_pow" 705569514075316639760657 := by
-  guest_cost 736
-
-theorem «fp6_add» (hE : GuestEnv E) : FunCost E "fp6_add" 1607 := by
-  guest_cost 741
-
-theorem «fp6_sub» (hE : GuestEnv E) : FunCost E "fp6_sub" 1607 := by
-  guest_cost 742
-
-theorem «fp6_neg» (hE : GuestEnv E) : FunCost E "fp6_neg" 1114 := by
-  guest_cost 743
-
-theorem «fp6_mul» (hE : GuestEnv E) : FunCost E "fp6_mul" 209208 := by
-  guest_cost 744
-
-theorem «fp6_mul_v» (hE : GuestEnv E) : FunCost E "fp6_mul_v" 10182602728687672492742 := by
-  guest_cost 745
-
-theorem «fp12_set_one» (hE : GuestEnv E) : FunCost E "fp12_set_one" 7304910653188982440045 := by
-  guest_cost 748
-
-theorem «fp12_frob» (hE : GuestEnv E) : FunCost E "fp12_frob" 115013 := by
-  guest_cost 754
-
-theorem «g1_double» (hE : GuestEnv E) : FunCost E "g1_double" 82536 := by
-  guest_cost 762
-
-theorem «g1_on_curve» (hE : GuestEnv E) : FunCost E "g1_on_curve" 21779 := by
-  guest_cost 766
-
-theorem «g2_neg» (hE : GuestEnv E) : FunCost E "g2_neg" 6788401819125114995124 := by
-  guest_cost 773
-
-theorem «g2_double» (hE : GuestEnv E) : FunCost E "g2_double" 10182602728687672719882 := by
-  guest_cost 774
-
-theorem «g2_on_curve» (hE : GuestEnv E) : FunCost E "g2_on_curve" 53765 := by
-  guest_cost 778
-
-theorem «pair_doubling_step» (hE : GuestEnv E) : FunCost E "pair_doubling_step" 3394200909562557699623 := by
-  guest_cost 782
-
-theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step" 3394200909562557790663 := by
-  guest_cost 783
-
-theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
-  guest_cost 787
-
-theorem «iso_map_g1» (hE : GuestEnv E) : FunCost E "iso_map_g1" 1209516115424987880401068 := by
-  guest_cost 790
-
-theorem «iso_horner_fp2» (hE : GuestEnv E) : FunCost E "iso_horner_fp2" 856574561062703029289208 := by
-  guest_cost 794
-
-theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
-  guest_cost 801
-
-theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
-  guest_cost 823
-
-theorem «pre_sha256» (hE : GuestEnv E) : FunCost E "pre_sha256" 155893434166919420723423 := by
-  guest_cost 824
-
-theorem «pre_ripemd160» (hE : GuestEnv E) : FunCost E "pre_ripemd160" 151425653279817616269277644787322791658118 := by
-  guest_cost 826
-
-theorem «add_to_bloom» (hE : GuestEnv E) : FunCost E "add_to_bloom" 198044337547986185764719196697307933311495 := by
-  guest_cost 831
-
-theorem «rlp_finish_list» (hE : GuestEnv E) : FunCost E "rlp_finish_list" 8847341539944400055710890223854805844180 := by
-  guest_cost 833
-
-theorem «withdrawal_rlp_len» (hE : GuestEnv E) : FunCost E "withdrawal_rlp_len" 17694683079888800103932402353783533732302 := by
-  guest_cost 837
-
-theorem «compute_requests_hash» (hE : GuestEnv E) : FunCost E "compute_requests_hash" 2875726282848850955188099820656430185201803 := by
-  guest_cost 840
-
-theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
-  guest_cost 861
-
-theorem «udiv_small5» (hE : GuestEnv E) : FunCost E "udiv_small5" 645636042579834306624 := by
-  guest_cost 874
+theorem «mpt_init» (hE : GuestEnv E) : FunCost E "mpt_init" 396088675095972371527593718987244911461627 := by
+  guest_cost 247
 
 end InitECandidate.Solver.GuestBound.Fn

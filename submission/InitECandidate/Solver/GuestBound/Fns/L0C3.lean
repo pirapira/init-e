@@ -7,19 +7,22 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
-theorem «bls_g1_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g1_msm_discount" 16 := by
-  guest_cost 812
+theorem «output_write» (hE : GuestEnv E) : FunCost E "output_write" 313594649253062377477 := by
+  guest_cost 30
 
-theorem «bls_g2_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g2_msm_discount" 18 := by
-  guest_cost 813
+theorem «min» (hE : GuestEnv E) : FunCost E "min" 9 := by
+  guest_cost 31
 
-theorem «logs_encoded_bound» (hE : GuestEnv E) : FunCost E "logs_encoded_bound" 553402322211286548497 := by
-  guest_cost 834
+theorem «max» (hE : GuestEnv E) : FunCost E "max" 9 := by
+  guest_cost 32
 
-theorem «tx_is_blob» (hE : GuestEnv E) : FunCost E "tx_is_blob" 12 := by
-  guest_cost 865
+theorem «ceil_log2» (hE : GuestEnv E) : FunCost E "ceil_log2" 184467440737095516165 := by
+  guest_cost 36
 
-theorem «tx_is_setcode» (hE : GuestEnv E) : FunCost E "tx_is_setcode" 12 := by
-  guest_cost 866
+theorem «u256_from_word» (hE : GuestEnv E) : FunCost E "u256_from_word" 6 := by
+  guest_cost 39
+
+theorem «u256_low» (hE : GuestEnv E) : FunCost E "u256_low" 3 := by
+  guest_cost 40
 
 end InitECandidate.Solver.GuestBound.Fn
