@@ -193,7 +193,8 @@ theorem decCall_run_inv {f : FunName} {fuel : Nat} {s : St σ} {x : VarName} {sh
       E.run fuel₁ ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ calleeBody = some (rb, nb) ∧
       match rb with
       | .returned _ g m ffi [value] =>
-          ∃ fuel₂ r' n', E.run fuel₂ ⟨updatePanValueMap s.locals x value, g, m, ffi⟩ body =
+          ∃ fuel₂ r' n', panShapeMatches (panValueShape E.structs value) shape = true ∧
+            E.run fuel₂ ⟨updatePanValueMap s.locals x value, g, m, ffi⟩ body =
               some (r', n') ∧
             r = restorePanValueFfiLocal x (s.locals x) r'
       | .raised _ g m ffi exception value => r = .raised (fun _ => none) g m ffi exception value
@@ -238,7 +239,8 @@ theorem decCall_run_inv {f : FunName} {fuel : Nat} {s : St σ} {x : VarName} {sh
               | nil =>
                 simp only at h
                 split at h
-                · cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                · rename_i hshape
+                  cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
                       E.functions E.baseAddress E.topAddress E.bytesInWord fuel
                       (updatePanValueMap s.locals x value) g m ffi body
                       (memoryAccess := E.memoryAccess) (contracts := E.contracts)
@@ -251,7 +253,7 @@ theorem decCall_run_inv {f : FunName} {fuel : Nat} {s : St σ} {x : VarName} {sh
                       Prod.mk.injEq] at h
                     obtain ⟨rfl, -⟩ := h
                     exact Or.inr ⟨fuel₁, parameters, calleeBody, values, calleeLocals, _, nb,
-                      hlookup, hvalues, hbind, hbody, fuel, r', n', hb, rfl⟩
+                      hlookup, hvalues, hbind, hbody, fuel, r', n', hshape, hb, rfl⟩
                 · simp only [Option.some.injEq, Prod.mk.injEq] at h
                   obtain ⟨rfl, -⟩ := h
                   exact Or.inl rfl

@@ -103,7 +103,7 @@ theorem StepOk.decCall_quiet {x : VarName} {shape : Shape} {f : FunName}
       cases rest with
       | cons value' rest' => exact hout.elim
       | nil =>
-        obtain ⟨fuel₂, r', n', hrun', rfl⟩ := hout
+        obtain ⟨fuel₂, r', n', -, hrun', rfl⟩ := hout
         refine StepPost.restore hx (h fuel₂ _ r' n' ?_ hrun')
         intro y hy
         have hyx : (y == x) = false := by
@@ -178,7 +178,7 @@ theorem StepOk.alloc_push (hE : GuestEnv E) {x : VarName} {k : Word} {rest : Pro
       cases restv with
       | cons value' rest' => exact hout.elim
       | nil =>
-        obtain ⟨fuel₂, r', n', hrun', rfl⟩ := hout
+        obtain ⟨fuel₂, r', n', -, hrun', rfl⟩ := hout
         have hkeep := keepWith_sound (globalsKeeper E) (fun _ => false)
           (fun f hf => by cases hf) fuel₂ rest _ r' n' hrest hrun'
         have hg : r'.st.globals = g := hkeep
