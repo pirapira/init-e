@@ -31,8 +31,14 @@ theorem «u256_to_be32» (hE : GuestEnv E) : FunCost E "u256_to_be32" 702 := by
 theorem «sha256_init» (hE : GuestEnv E) : FunCost E "sha256_init" 176 := by
   guest_cost 91
 
+theorem «sha256» (hE : GuestEnv E) : FunCost E "sha256" 155893434166919420723226 := by
+  guest_cost 95
+
 theorem «keccak_init» (hE : GuestEnv E) : FunCost E "keccak_init" 407 := by
   guest_cost 100
+
+theorem «keccak256» (hE : GuestEnv E) : FunCost E "keccak256" 198044337547986185763796859493622455730588 := by
+  guest_cost 103
 
 theorem «rlp_item_header» (hE : GuestEnv E) : FunCost E "rlp_item_header" 664082786653543858453 := by
   guest_cost 109
@@ -120,11 +126,5 @@ theorem «jdel» (hE : GuestEnv E) : FunCost E "jdel" 13835058055282163713076 :=
 
 theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
   guest_cost 361
-
-theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
-  guest_cost 363
-
-theorem «stor_lookup» (hE : GuestEnv E) : FunCost E "stor_lookup" 10440857145719606215399 := by
-  guest_cost 377
 
 end InitECandidate.Solver.GuestBound.Fn

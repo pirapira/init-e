@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «swu_sqrt_division_fp2» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp2" 62611955513452679539108452365342022395239 := by
+  guest_cost 792
+
 theorem «iso_map_g2» (hE : GuestEnv E) : FunCost E "iso_map_g2" 3433086646069937232303475 := by
   guest_cost 795
 
@@ -15,5 +18,8 @@ theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 
 
 theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
   guest_cost 811
+
+theorem «logs_bloom» (hE : GuestEnv E) : FunCost E "logs_bloom" 67390995936118025750051744616550046098152109713142480037391683455831496005255201 := by
+  guest_cost 832
 
 end InitECandidate.Solver.GuestBound.Fn

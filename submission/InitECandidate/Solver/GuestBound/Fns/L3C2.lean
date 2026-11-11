@@ -7,6 +7,30 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «g1_double» (hE : GuestEnv E) : FunCost E "g1_double" 82536 := by
+  guest_cost 762
+
+theorem «g1_on_curve» (hE : GuestEnv E) : FunCost E "g1_on_curve" 21779 := by
+  guest_cost 766
+
+theorem «g2_neg» (hE : GuestEnv E) : FunCost E "g2_neg" 6788401819125114995124 := by
+  guest_cost 773
+
+theorem «g2_double» (hE : GuestEnv E) : FunCost E "g2_double" 10182602728687672719882 := by
+  guest_cost 774
+
+theorem «g2_on_curve» (hE : GuestEnv E) : FunCost E "g2_on_curve" 53765 := by
+  guest_cost 778
+
+theorem «pair_doubling_step» (hE : GuestEnv E) : FunCost E "pair_doubling_step" 3394200909562557699623 := by
+  guest_cost 782
+
+theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step" 3394200909562557790663 := by
+  guest_cost 783
+
+theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
+  guest_cost 787
+
 theorem «iso_map_g1» (hE : GuestEnv E) : FunCost E "iso_map_g1" 1209516115424987880401068 := by
   guest_cost 790
 
@@ -18,6 +42,18 @@ theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
 
 theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
   guest_cost 823
+
+theorem «pre_sha256» (hE : GuestEnv E) : FunCost E "pre_sha256" 155893434166919420723423 := by
+  guest_cost 824
+
+theorem «pre_ripemd160» (hE : GuestEnv E) : FunCost E "pre_ripemd160" 151425653279817616269277644787322791658118 := by
+  guest_cost 826
+
+theorem «add_to_bloom» (hE : GuestEnv E) : FunCost E "add_to_bloom" 198044337547986185764719196697307933311495 := by
+  guest_cost 831
+
+theorem «compute_requests_hash» (hE : GuestEnv E) : FunCost E "compute_requests_hash" 2875726282848850955188099820656430185201803 := by
+  guest_cost 840
 
 theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
   guest_cost 861

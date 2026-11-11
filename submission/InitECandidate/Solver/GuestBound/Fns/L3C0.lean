@@ -22,6 +22,9 @@ theorem «ec_double» (hE : GuestEnv E) : FunCost E "ec_double" 17912 := by
 theorem «ec_on_curve» (hE : GuestEnv E) : FunCost E "ec_on_curve" 6381 := by
   guest_cost 176
 
+theorem «secp256k1_address_of_point» (hE : GuestEnv E) : FunCost E "secp256k1_address_of_point" 198044337547986185767191060403185013228059 := by
+  guest_cost 179
+
 theorem «decode_payload» (hE : GuestEnv E) : FunCost E "decode_payload" 3412647653636267050039 := by
   guest_cost 204
 
@@ -33,6 +36,12 @@ theorem «decode_bytes_list» (hE : GuestEnv E) : FunCost E "decode_bytes_list" 
 
 theorem «check_gas_limit» (hE : GuestEnv E) : FunCost E "check_gas_limit" 645636042579834306649 := by
   guest_cost 235
+
+theorem «mpt_init» (hE : GuestEnv E) : FunCost E "mpt_init" 396088675095972371527593718987244911461627 := by
+  guest_cost 247
+
+theorem «mpt_nibble_key» (hE : GuestEnv E) : FunCost E "mpt_nibble_key" 198044337547986185769478456668324997628535 := by
+  guest_cost 270
 
 theorem «_create_branch_from_two_leaves» (hE : GuestEnv E) : FunCost E "_create_branch_from_two_leaves" 2434970217729660813745 := by
   guest_cost 272
@@ -46,8 +55,17 @@ theorem «_collapse_branch» (hE : GuestEnv E) : FunCost E "_collapse_branch" 72
 theorem «_delete_ext_finish» (hE : GuestEnv E) : FunCost E "_delete_ext_finish" 6788401819125114995166 := by
   guest_cost 277
 
+theorem «node_hash_cached» (hE : GuestEnv E) : FunCost E "node_hash_cached" 198044337547986185763796859493622455730720 := by
+  guest_cost 288
+
 theorem «tx_u256_encoded_len» (hE : GuestEnv E) : FunCost E "tx_u256_encoded_len" 483 := by
   guest_cost 319
+
+theorem «get_transaction_hash» (hE : GuestEnv E) : FunCost E "get_transaction_hash" 198044337547986185763796859493622455730601 := by
+  guest_cost 330
+
+theorem «sender_address_from_public_key» (hE : GuestEnv E) : FunCost E "sender_address_from_public_key" 198044337547986185767191060403185013228061 := by
+  guest_cost 341
 
 theorem «state_fresh_tx» (hE : GuestEnv E) : FunCost E "state_fresh_tx" 3705 := by
   guest_cost 355
@@ -108,23 +126,5 @@ theorem «op_not» (hE : GuestEnv E) : FunCost E "op_not" 3394200909562557497636
 
 theorem «op_shl» (hE : GuestEnv E) : FunCost E "op_shl" 3394200909562557497802 := by
   guest_cost 497
-
-theorem «op_shr» (hE : GuestEnv E) : FunCost E "op_shr" 3394200909562557497802 := by
-  guest_cost 498
-
-theorem «op_sar» (hE : GuestEnv E) : FunCost E "op_sar" 3394200909562557498020 := by
-  guest_cost 499
-
-theorem «op_push» (hE : GuestEnv E) : FunCost E "op_push" 10422410401645896663674 := by
-  guest_cost 514
-
-theorem «op_dup» (hE : GuestEnv E) : FunCost E "op_dup" 3394200909562557497612 := by
-  guest_cost 515
-
-theorem «op_dupn» (hE : GuestEnv E) : FunCost E "op_dupn" 3394200909562557497664 := by
-  guest_cost 520
-
-theorem «log_append» (hE : GuestEnv E) : FunCost E "log_append" 3394200909562557497517 := by
-  guest_cost 523
 
 end InitECandidate.Solver.GuestBound.Fn

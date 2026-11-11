@@ -7,6 +7,24 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_shr» (hE : GuestEnv E) : FunCost E "op_shr" 3394200909562557497802 := by
+  guest_cost 498
+
+theorem «op_sar» (hE : GuestEnv E) : FunCost E "op_sar" 3394200909562557498020 := by
+  guest_cost 499
+
+theorem «op_push» (hE : GuestEnv E) : FunCost E "op_push" 10422410401645896663674 := by
+  guest_cost 514
+
+theorem «op_dup» (hE : GuestEnv E) : FunCost E "op_dup" 3394200909562557497612 := by
+  guest_cost 515
+
+theorem «op_dupn» (hE : GuestEnv E) : FunCost E "op_dupn" 3394200909562557497664 := by
+  guest_cost 520
+
+theorem «log_append» (hE : GuestEnv E) : FunCost E "log_append" 3394200909562557497517 := by
+  guest_cost 523
+
 theorem «op_tload» (hE : GuestEnv E) : FunCost E "op_tload" 15403031301547475600788 := by
   guest_cost 529
 
@@ -43,8 +61,14 @@ theorem «op_coinbase» (hE : GuestEnv E) : FunCost E "op_coinbase" 459323927435
 theorem «op_prevrandao» (hE : GuestEnv E) : FunCost E "op_prevrandao" 4593239274353678352844 := by
   guest_cost 560
 
+theorem «evm_init» (hE : GuestEnv E) : FunCost E "evm_init" 198044337547986185768925054346113711080703 := by
+  guest_cost 566
+
 theorem «child_message» (hE : GuestEnv E) : FunCost E "child_message" 2434970217729660813568 := by
   guest_cost 594
+
+theorem «compute_create2_contract_address» (hE : GuestEnv E) : FunCost E "compute_create2_contract_address" 396088675095972371537776321715932583953478 := by
+  guest_cost 597
 
 theorem «fq12_reduce» (hE : GuestEnv E) : FunCost E "fq12_reduce" 314420907034947140253532026720393252306949 := by
   guest_cost 658
@@ -102,29 +126,5 @@ theorem «fp12_set_one» (hE : GuestEnv E) : FunCost E "fp12_set_one" 7304910653
 
 theorem «fp12_frob» (hE : GuestEnv E) : FunCost E "fp12_frob" 115013 := by
   guest_cost 754
-
-theorem «g1_double» (hE : GuestEnv E) : FunCost E "g1_double" 82536 := by
-  guest_cost 762
-
-theorem «g1_on_curve» (hE : GuestEnv E) : FunCost E "g1_on_curve" 21779 := by
-  guest_cost 766
-
-theorem «g2_neg» (hE : GuestEnv E) : FunCost E "g2_neg" 6788401819125114995124 := by
-  guest_cost 773
-
-theorem «g2_double» (hE : GuestEnv E) : FunCost E "g2_double" 10182602728687672719882 := by
-  guest_cost 774
-
-theorem «g2_on_curve» (hE : GuestEnv E) : FunCost E "g2_on_curve" 53765 := by
-  guest_cost 778
-
-theorem «pair_doubling_step» (hE : GuestEnv E) : FunCost E "pair_doubling_step" 3394200909562557699623 := by
-  guest_cost 782
-
-theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step" 3394200909562557790663 := by
-  guest_cost 783
-
-theorem «swu_sqrt_division_fp» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp" 264784564434026903939335 := by
-  guest_cost 787
 
 end InitECandidate.Solver.GuestBound.Fn

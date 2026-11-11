@@ -31,6 +31,9 @@ theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_statele
 theorem «_insert_into_leaf» (hE : GuestEnv E) : FunCost E "_insert_into_leaf" 7249570420967853786029 := by
   guest_cost 273
 
+theorem «node_write_ref» (hE : GuestEnv E) : FunCost E "node_write_ref" 198044337547986185773979462222310128222887 := by
+  guest_cost 289
+
 theorem «extend_memory_cost1» (hE : GuestEnv E) : FunCost E "extend_memory_cost1" 470 := by
   guest_cost 458
 
@@ -123,8 +126,5 @@ theorem «g2_decode» (hE : GuestEnv E) : FunCost E "g2_decode" 3763135791036748
 
 theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 264784564434026904084006 := by
   guest_cost 788
-
-theorem «swu_sqrt_division_fp2» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp2" 62611955513452679539108452365342022395239 := by
-  guest_cost 792
 
 end InitECandidate.Solver.GuestBound.Fn

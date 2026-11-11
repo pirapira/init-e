@@ -146,9 +146,10 @@ theorem callHandler (σ : Type) (E : Env σ) (destination : Option (VarKind × V
   exact Costs.callHandler destination exception handlerVar arguments hf hh
 
 theorem whileCounter (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word)
-    (body : Prog Word) (b : Nat) (hcheck : loopOk c body = true) (hbody : Costs E body b) :
+    (body : Prog Word) (b : Nat) (hcheck : loopOk Guest.Software.guestAst c body = true)
+    (hbody : Costs E body b) :
     Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) :=
-  loop_costs hE.word c body b hcheck hbody
+  loop_costs hE.word hE.functions c body b hcheck hbody
 
 end X
 

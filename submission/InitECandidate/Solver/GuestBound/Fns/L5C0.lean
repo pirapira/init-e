@@ -19,6 +19,9 @@ theorem «extend_memory_cost2» (hE : GuestEnv E) : FunCost E "extend_memory_cos
 theorem «charge_with_memory» (hE : GuestEnv E) : FunCost E "charge_with_memory" 4869940435459321627345 := by
   guest_cost 461
 
+theorem «op_keccak» (hE : GuestEnv E) : FunCost E "op_keccak" 198044337547986185773260039203435455710981 := by
+  guest_cost 501
+
 theorem «op_log» (hE : GuestEnv E) : FunCost E "op_log" 28924494707576576935466 := by
   guest_cost 524
 

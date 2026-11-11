@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
+  guest_cost 363
+
+theorem «stor_lookup» (hE : GuestEnv E) : FunCost E "stor_lookup" 10440857145719606215399 := by
+  guest_cost 377
+
 theorem «get_transient_storage» (hE : GuestEnv E) : FunCost E "get_transient_storage" 12008830391984918102449 := by
   guest_cost 380
 
@@ -57,6 +63,9 @@ theorem «set_retdata» (hE : GuestEnv E) : FunCost E "set_retdata" 339420090956
 
 theorem «ripemd160_init» (hE : GuestEnv E) : FunCost E "ripemd160_init" 477 := by
   guest_cost 612
+
+theorem «ripemd160» (hE : GuestEnv E) : FunCost E "ripemd160" 151425653279817616266842674569593130844589 := by
+  guest_cost 617
 
 theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
   guest_cost 621
@@ -117,14 +126,5 @@ theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
 
 theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
   guest_cost 727
-
-theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
-  guest_cost 728
-
-theorem «fp2_conj» (hE : GuestEnv E) : FunCost E "fp2_conj" 192 := by
-  guest_cost 730
-
-theorem «fp2_mul» (hE : GuestEnv E) : FunCost E "fp2_mul" 22752 := by
-  guest_cost 731
 
 end InitECandidate.Solver.GuestBound.Fn

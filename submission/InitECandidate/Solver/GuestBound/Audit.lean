@@ -47,3 +47,10 @@ open InitECandidate.Solver.GuestBound
 #print axioms offsetLoop_costs
 #print axioms loop_costs
 #print axioms Fn.memcpy
+#print axioms pureLoop_costs
+#print axioms constLoop_costs
+#print axioms walkLoop_costs
+#print axioms calmFn_sound
+#print axioms orbit_bound
+#print axioms Fn.keccak256
+#print axioms Fn.memeq

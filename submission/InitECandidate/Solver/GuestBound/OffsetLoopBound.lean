@@ -17,10 +17,10 @@ def offsetGuard : Exp Word → Option (VarName × VarName × Word)
   | _ => none
 
 /-- The loop is `while i + k <=+ n { straight-line body that adds k to i and keeps n }`. -/
-def offsetLoop (c : Exp Word) (body : Prog Word) : Bool :=
+def offsetLoop (callee : FunName → Bool) (c : Exp Word) (body : Prog Word) : Bool :=
   match offsetGuard c with
   | some (i, n, k) =>
-      straight body && (effect (.upBy k) i body).normal == .step &&
+      straight callee body && (effect (.upBy k) i body).normal == .step &&
         (effect .up n body).normal == .keep
   | none => false
 
@@ -91,7 +91,8 @@ theorem offset_guard_val (hE : WordEnv E) {s : St σ} {n i : VarName} {k v : Wor
 
 section loop
 variable (hE : WordEnv E) {n i : VarName} {k : Word} {body : Prog Word} {b : Nat}
-  (hstraight : straight body = true)
+  {callee : FunName → Bool} (hcallee : ∀ f, callee f = true → FunCalm E f)
+  (hstraight : straight callee body = true)
   (hstep : (effect (.upBy k) i body).normal = .step)
   (hkeep : (effect .up n body).normal = .keep)
 
@@ -109,7 +110,7 @@ theorem offset_body {fuel : Nat} {s : St σ} {l g : VarName → Option (PanValue
   rw [hkeep] at p₂
   exact ⟨p₁ w hw, p₂ N hN⟩
 
-include hE hstraight hstep hkeep in
+include hE hcallee hstraight hstep hkeep in
 /-- If the guard becomes false after `t` more steps, the loop takes at most
 `t + 1` iterations. -/
 theorem offset_bounded (hbody : Costs E body b) :
@@ -165,7 +166,7 @@ theorem offset_bounded (hbody : Costs E body b) :
           | some pair =>
             obtain ⟨rb, nb⟩ := pair
             rw [hb] at hrun
-            have pb := straight_sound fuel body s rb nb hstraight hb
+            have pb := straight_sound callee hcallee fuel body s rb nb hstraight hb
             cases rb with
             | normal l g m f =>
               have hnb : nb ≤ b := (hbody fuel s _ nb trivial hb rfl).1
@@ -194,7 +195,7 @@ theorem offset_bounded (hbody : Costs E body b) :
               exact Bool.noConfusion hne
             | _ => exact absurd pb (by simp [PanValueFfiControlResult.plain])
 
-include hE hstraight hstep hkeep in
+include hE hcallee hstraight hstep hkeep in
 /-- If the guard never becomes false, the loop returns only `.error`. -/
 theorem offset_never :
     ∀ (fuel : Nat) (s : St σ) (w N : Word) (r : Result σ) (steps : Nat),
@@ -236,7 +237,7 @@ theorem offset_never :
       | some pair =>
         obtain ⟨rb, nb⟩ := pair
         rw [hb] at hrun
-        have pb := straight_sound fuel body s rb nb hstraight hb
+        have pb := straight_sound callee hcallee fuel body s rb nb hstraight hb
         cases rb with
         | normal l g m f =>
           obtain ⟨hl, hln⟩ := offset_body hE hstep hkeep hb hw hN
@@ -263,8 +264,9 @@ theorem offset_never :
 end loop
 
 /-- An offset-guard loop costs at most `2^64` iterations of its guard and body. -/
-theorem offsetLoop_costs (hE : WordEnv E) (c : Exp Word) (body : Prog Word) (b : Nat)
-    (hcheck : offsetLoop c body = true) (hbody : Costs E body b) :
+theorem offsetLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunCalm E f) (c : Exp Word) (body : Prog Word) (b : Nat)
+    (hcheck : offsetLoop callee c body = true) (hbody : Costs E body b) :
     Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) := by
   unfold offsetLoop at hcheck
   split at hcheck
@@ -282,11 +284,11 @@ theorem offsetLoop_costs (hE : WordEnv E) (c : Exp Word) (body : Prog Word) (b :
       by_cases ht : ∃ t, N < stepN k t w + k
       · obtain ⟨t, ht⟩ := ht
         have hmod : N < stepN k (t % 2 ^ 64) w + k := by rw [stepN_mod]; exact ht
-        have hle := offset_bounded hE hstraight hstep hkeep hbody fuel (t % 2 ^ 64) s w N r steps
+        have hle := offset_bounded hE hcallee hstraight hstep hkeep hbody fuel (t % 2 ^ 64) s w N r steps
           hw hN hmod hrun hne
         have hlt : t % 2 ^ 64 + 1 ≤ 2 ^ 64 := Nat.mod_lt _ (by decide)
         exact Nat.le_trans hle (Nat.mul_le_mul_right _ hlt)
-      · have herr := offset_never hE hstraight hstep hkeep fuel s w N r steps hw hN
+      · have herr := offset_never hE hcallee hstraight hstep hkeep fuel s w N r steps hw hN
           (fun t h => ht ⟨t, h⟩) hrun
         rw [herr] at hne
         cases hne
