@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
+  guest_cost 255
+
 theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := by
   guest_cost 256
 
@@ -123,8 +126,5 @@ theorem «fe_add» (hE : GuestEnv E) : FunCost E "fe_add" 4648579506574807007237
 
 theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773 := by
   guest_cost 664
-
-theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
-  guest_cost 665
 
 end InitECandidate.Solver.GuestBound.Fn

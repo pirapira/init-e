@@ -34,6 +34,9 @@ theorem «ec_mul2» (hE : GuestEnv E) : FunCost E "ec_mul2" 89181559796078205777
 theorem «secp256k1_decompress_r» (hE : GuestEnv E) : FunCost E "secp256k1_decompress_r" 77347197901064149932625 := by
   guest_cost 177
 
+theorem «decode_host_input» (hE : GuestEnv E) : FunCost E "decode_host_input" 23076876836348088027932 := by
+  guest_cost 200
+
 theorem «encode_header» (hE : GuestEnv E) : FunCost E "encode_header" 110591769249305000714768308267636641239695 := by
   guest_cost 229
 

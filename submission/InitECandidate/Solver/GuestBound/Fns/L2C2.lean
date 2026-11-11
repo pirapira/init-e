@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
+  guest_cost 665
+
 theorem «ecp_set_inf» (hE : GuestEnv E) : FunCost E "ecp_set_inf" 7304910653188982440042 := by
   guest_cost 671
 

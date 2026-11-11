@@ -1,0 +1,8 @@
+# Hand-proved functions used by Tools/GenGuestBound.lean.
+# One function per line: <function> <step bound> <module proving it>
+# The module must prove
+#   Manual.«<function>».cost {σ} {E : Env σ} (hE : GuestEnv E) (h₁ : FunCost E "<callee₁>" B₁) … :
+#     FunCost E "<function>" B
+# with one hypothesis per distinct callee, in order of first occurrence in the
+# body, and B at most the step bound when the Bᵢ are the generated callee bounds.
+input_blob 137438951918 InitECandidate.Solver.GuestBound.Manual.InputBlob
