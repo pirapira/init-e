@@ -165,4 +165,153 @@ theorem runs_ite {s : St σ} {c : Exp Word} {thenBranch elseBranch : Prog Word}
       rw [evalPanValueFfiProgSteps, hc]
       simp [St.err]
 
+theorem runs_return {s : St σ} {e : Exp Word} {r : Result σ} :
+    Runs E s (.return e) r ↔
+      r = match E.eval s e with
+        | some v =>
+            if panValuePayloadWithinLimit E.structs v then
+              .returned (fun _ => none) s.globals s.memory s.ffi [v]
+            else s.err
+        | none => s.err := by
+  have hrun : ∀ fuel, (E.run (fuel + 1) s (.return e)).map Prod.fst = some
+      (match E.eval s e with
+        | some v =>
+            if panValuePayloadWithinLimit E.structs v then
+              .returned (fun _ => none) s.globals s.memory s.ffi [v]
+            else s.err
+        | none => s.err) := by
+    intro fuel
+    simp only [Env.run]
+    rw [evalPanValueFfiProgSteps]
+    simp only [panValueReturnResult, evalPanValueExpCounted, Env.eval, St.err]
+    cases evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+        E.bytesInWord e E.memoryAccess with
+    | none => simp
+    | some v =>
+      simp only [Option.map_some]
+      split <;> simp
+  constructor
+  · rintro ⟨fuel, n, h⟩
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at h
+    | succ fuel =>
+      have := hrun fuel
+      rw [h] at this
+      simp only [Option.map_some, Option.some.injEq] at this
+      exact this
+  · rintro rfl
+    exact runs_of_map (hrun 0)
+
+theorem runs_assign_local {s : St σ} {x : VarName} {e : Exp Word} {r : Result σ} :
+    Runs E s (.assign .local x e) r ↔
+      r = match E.eval s e with
+        | some v =>
+            if panValueAssignmentValid E.structs s.locals s.globals .local x v then
+              .normal (updatePanValueMap s.locals x v) s.globals s.memory s.ffi
+            else s.err
+        | none => s.err := by
+  have hrun : ∀ fuel, (E.run (fuel + 1) s (.assign .local x e)).map Prod.fst = some
+      (match E.eval s e with
+        | some v =>
+            if panValueAssignmentValid E.structs s.locals s.globals .local x v then
+              .normal (updatePanValueMap s.locals x v) s.globals s.memory s.ffi
+            else s.err
+        | none => s.err) := by
+    intro fuel
+    simp only [Env.run]
+    rw [evalPanValueFfiProgSteps]
+    simp only [panValueAssignLocalResult, evalPanValueExpCounted, Env.eval, St.err]
+    cases evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+        E.bytesInWord e E.memoryAccess with
+    | none => simp
+    | some v =>
+      simp only [Option.map_some]
+      split <;> simp
+  constructor
+  · rintro ⟨fuel, n, h⟩
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at h
+    | succ fuel =>
+      have := hrun fuel
+      rw [h] at this
+      simp only [Option.map_some, Option.some.injEq] at this
+      exact this
+  · rintro rfl
+    exact runs_of_map (hrun 0)
+
+theorem runs_dec {s : St σ} {x : VarName} {shape : Shape} {e : Exp Word} {body : Prog Word}
+    {r : Result σ} :
+    Runs E s (.dec x shape e body) r ↔
+      match E.eval s e with
+      | some v =>
+          if panShapeMatches (panValueShape E.structs v) shape then
+            ∃ rb, Runs E ⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ body rb ∧
+              r = restorePanValueFfiLocal x (s.locals x) rb
+          else r = s.err
+      | none => r = s.err := by
+  have hacc : panValueDecAccepted E.structs E.baseAddress E.topAddress E.bytesInWord
+      s.locals s.globals s.memory e E.memoryAccess shape =
+        match E.eval s e with
+        | some v =>
+            if panShapeMatches (panValueShape E.structs v) shape then
+              some (v, panValueExpStepCost e)
+            else none
+        | none => none := by
+    simp only [panValueDecAccepted, evalPanValueExpCounted, Env.eval]
+    cases evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+        E.bytesInWord e E.memoryAccess with
+    | none => rfl
+    | some v => rfl
+  constructor
+  · rintro ⟨fuel, n, h⟩
+    cases fuel with
+    | zero => simp [Env.run, evalPanValueFfiProgSteps] at h
+    | succ fuel =>
+      simp only [Env.run] at h
+      rw [evalPanValueFfiProgSteps, hacc] at h
+      cases hv : E.eval s e with
+      | none =>
+        rw [hv] at h
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at h
+        exact h.1.symm
+      | some v =>
+        rw [hv] at h
+        simp only at h ⊢
+        by_cases hm : panShapeMatches (panValueShape E.structs v) shape = true
+        · rw [if_pos hm] at h ⊢
+          simp only [Option.elim_some] at h
+          obtain ⟨⟨rb, nb⟩, hb, hr⟩ := Option.bind_eq_some_iff.mp h
+          simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
+          exact ⟨rb, ⟨fuel, nb, hb⟩, hr.1.symm⟩
+        · rw [if_neg hm] at h ⊢
+          simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at h
+          exact h.1.symm
+  · intro h
+    cases hv : E.eval s e with
+    | none =>
+      rw [hv] at h hacc
+      simp only at h
+      subst h
+      refine runs_of_map (fuel := 1) ?_
+      simp only [Env.run]
+      rw [evalPanValueFfiProgSteps, hacc]
+      simp [St.err]
+    | some v =>
+      rw [hv] at h hacc
+      simp only at h hacc
+      by_cases hm : panShapeMatches (panValueShape E.structs v) shape = true
+      · rw [if_pos hm] at h hacc
+        obtain ⟨rb, ⟨fuel, nb, hb⟩, rfl⟩ := h
+        simp only [Env.run] at hb
+        refine runs_of_map (fuel := fuel + 1) ?_
+        simp only [Env.run]
+        rw [evalPanValueFfiProgSteps, hacc]
+        simp [hb]
+      · rw [if_neg hm] at h hacc
+        subst h
+        refine runs_of_map (fuel := 1) ?_
+        simp only [Env.run]
+        rw [evalPanValueFfiProgSteps, hacc]
+        simp [St.err]
+
 end InitECandidate.Solver.GuestBound
