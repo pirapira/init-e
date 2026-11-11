@@ -114,4 +114,29 @@ theorem subLimbs_sub (as bs : List Nat) (h : as.length = bs.length)
     subst this
     omega
 
+/-- Limbs of the number shifted right by one bit. -/
+def shrLimbs : List Nat → List Nat
+  | [] => []
+  | [x] => [x / 2]
+  | x :: y :: rest => (x / 2 + (y % 2) * 2 ^ 63) :: shrLimbs (y :: rest)
+
+theorem nval_parity : ∀ (xs : List Nat), nval xs % 2 = (xs.headD 0) % 2
+  | [] => rfl
+  | x :: xs => by
+    simp only [nval, List.headD_cons]
+    omega
+
+/-- Shifting the limbs right by one bit halves the number. -/
+theorem shrLimbs_val : ∀ (xs : List Nat), nval (shrLimbs xs) = nval xs / 2
+  | [] => rfl
+  | [x] => by simp [shrLimbs, nval]
+  | x :: y :: rest => by
+    have ih := shrLimbs_val (y :: rest)
+    have hp := nval_parity (y :: rest)
+    simp only [List.headD_cons] at hp
+    simp only [shrLimbs, nval] at ih hp ⊢
+    generalize nval (shrLimbs (y :: rest)) = D at ih ⊢
+    generalize y + 2 ^ 64 * nval rest = N at ih hp ⊢
+    omega
+
 end InitECandidate.Solver.GuestBound

@@ -143,4 +143,55 @@ theorem bls_fp_sub_raw_spec (hE : GuestEnv E) (parameters : List VarName) (body 
   simp only [limbsVal, BitVec.toNat_ofNat, not_word, carry_in]
   exact key
 
+/-- One limb of a right shift by one: the low bit of the next limb moves in. -/
+theorem shr_limb (x y : BitVec 64) :
+    BitVec.toNat (OrOp.or (x >>> (1 : Nat)) (OrOp.or (y <<< (63 : Nat)) (0 : BitVec 64))) =
+      x.toNat / 2 + y.toNat % 2 * 2 ^ 63 := by
+  have h1 : (x >>> (1 : Nat) ||| (y <<< (63 : Nat) ||| 0)) = (x >>> (1 : Nat)) + (y <<< (63 : Nat)) := by
+    bv_decide
+  show (x >>> (1 : Nat) ||| (y <<< (63 : Nat) ||| 0)).toNat = _
+  rw [h1, BitVec.toNat_add, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft]
+  simp only [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+  have := x.isLt
+  have := y.isLt
+  omega
+
+theorem shr_last (x : BitVec 64) : (x >>> (1 : Nat)).toNat = x.toNat / 2 := by
+  rw [BitVec.toNat_ushiftRight]
+  simp [Nat.shiftRight_eq_div_pow]
+
+theorem payload_words6 (structs : StructContext) (d0 d1 d2 d3 d4 d5 : Word) :
+    panValuePayloadWithinLimit structs
+      (.rStruct [.word d0, .word d1, .word d2, .word d3, .word d4, .word d5]) = true := by
+  simp [panValuePayloadWithinLimit, panValuePayloadSizeFuel,
+    panValuePayloadSizeFuel.panValuePayloadSizeFieldsFuel, panValueFlatValueFuel,
+    panValueFlatValueFuel.panValueFlatValueListFuel]
+
+set_option maxHeartbeats 4000000 in
+/-- `bls_fp_shr1` halves the represented number. -/
+theorem bls_fp_shr1_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "bls_fp_shr1" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (x0 x1 x2 x3 x4 x5 : Word)
+    (hx : s.locals "x" =
+      some (.rStruct [.word x0, .word x1, .word x2, .word x3, .word x4, .word x5]))
+    (h : Runs E s body r) :
+    ∃ d0 d1 d2 d3 d4 d5, r = .returned (fun _ => none) s.globals s.memory s.ffi
+        [.rStruct [.word d0, .word d1, .word d2, .word d3, .word d4, .word d5]] ∧
+      limbsVal [d0, d1, d2, d3, d4, d5] = limbsVal [x0, x1, x2, x3, x4, x5] / 2 := by
+  have hbody := (fun_of_index 710 hE.functions (by guest_decl_at 710) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp (config := { decide := true }) only [runs_return, evalF_rStruct, evalF_rField,
+    evalF_local, eval_const, evalF_op hE.word, evalF_shift hE.word, evalArgs_cons, evalArgs_nil,
+    hx, Option.map_some, List.getElem?_cons_zero, List.getElem?_cons_succ, wordsProj_nil,
+    wordsProj_cons, wordOp, List.foldr, RiscV.panRiscVShift, BitVec.toNat_ofNat, if_true,
+    payload_words6] at h
+  refine ⟨_, _, _, _, _, _, h, ?_⟩
+  have key := shrLimbs_val [x0.toNat, x1.toNat, x2.toNat, x3.toNat, x4.toNat, x5.toNat]
+  simp only [shrLimbs, nval] at key
+  simp only [limbsVal, show (1 % 2 ^ 64 : Nat) = 1 from by decide,
+    show (63 % 2 ^ 64 : Nat) = 63 from by decide, shr_limb, shr_last]
+  exact key
+
 end InitECandidate.Solver.GuestBound
