@@ -1,4 +1,5 @@
 import InitECandidate.Solver.GuestBound.GuestEnv
+import InitECandidate.Solver.GuestBound.CounterCheck
 import Std.Data.HashMap
 
 /-!
@@ -32,6 +33,15 @@ partial def loopCount : Prog (BitVec 64) → Nat
   | .call (some (_, some (_, _, h))) _ _ => loopCount h
   | .decCall _ _ _ _ body => loopCount body
   | _ => 0
+
+partial def loops : Prog (BitVec 64) → List (Exp (BitVec 64) × Prog (BitVec 64))
+  | .dec _ _ _ body => loops body
+  | .seq a b => loops a ++ loops b
+  | .ite _ a b => loops a ++ loops b
+  | .while c body => (c, body) :: loops body
+  | .call (some (_, some (_, _, h))) _ _ => loops h
+  | .decCall _ _ _ _ body => loops body
+  | _ => []
 
 structure Info where
   index : Nat
@@ -106,6 +116,17 @@ def run : IO Unit := do
     IO.FS.writeFile s!"{dir}/L{lv}.lean" imports
   IO.println s!"functions {fns.length}, generated {total}, skipped {skipped.size}, pending {pending.length}, levels {maxLevel + 1}"
 
+def loopReport : IO Unit := do
+  let mut accepted := 0
+  let mut rejected : List String := []
+  for f in functions do
+    for (c, body) in loops f.body do
+      if counterLoop c body then accepted := accepted + 1
+      else rejected := s!"{f.name}: {repr (guardCounter c)}" :: rejected
+  IO.println s!"counter loops accepted {accepted}, rejected {rejected.length}"
+  for r in rejected.reverse do IO.println r
+
 #eval run
+#eval loopReport
 
 end Tools.GenGuestBound
