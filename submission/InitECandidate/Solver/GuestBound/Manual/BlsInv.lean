@@ -97,4 +97,41 @@ theorem call_shr1 (hE : GuestEnv E) {x : VarName} {n : Nat} {s : St σ} {r : Res
       simp [updatePanValueMap, this]
   · cases hassign
 
+/-- The low bit of a word, in the form the evaluator produces for `w & 1`. -/
+theorem low_bit (w : BitVec 64) :
+    (AndOp.and w (AndOp.and (1#64) (~~~(0 : BitVec 64)))).toNat = w.toNat % 2 := by
+  have h : (w &&& (1#64 &&& ~~~(0 : BitVec 64))) = w &&& 1#64 := by bv_decide
+  show (w &&& (1#64 &&& ~~~(0 : BitVec 64))).toNat = _
+  rw [h, BitVec.toNat_and]
+  simp [Nat.and_one_is_mod]
+
+/-- The guard `(x.0 & 1) == 0` of the halving loops. -/
+def evenGuard (x : VarName) : Exp Word :=
+  .cmp .equal (.op .and [.rField 0 (.var .local x), .const (BitVec.ofNat 64 1)])
+    (.const (BitVec.ofNat 64 0))
+
+/-- The halving-loop guard is nonzero exactly when the low limb is even. -/
+theorem evenGuard_eval (hE : GuestEnv E) {x : VarName} {s : St σ} {w0 w1 w2 w3 w4 w5 : Word}
+    (hl : s.locals x = some (.rStruct [.word w0, .word w1, .word w2, .word w3, .word w4,
+      .word w5])) {g : Word} (h : E.eval s (evenGuard x) = some (.word g)) :
+    g = 0 ↔ w0.toNat % 2 = 1 := by
+  simp only [evenGuard, evalF_cmp hE.word, evalF_op hE.word, evalF_rField, evalF_local,
+    eval_const, evalArgs_cons, evalArgs_nil, hl, wordsProj_cons, wordsProj_nil, wordOp,
+    List.foldr, Option.map_some, List.getElem?_cons_zero, Option.some.injEq,
+    PanValue.word.injEq] at h
+  subst h
+  have hlow := low_bit w0
+  generalize (AndOp.and w0 (AndOp.and (1#64) (~~~(0 : BitVec 64))) : BitVec 64) = A at hlow ⊢
+  by_cases hz : A = 0#64
+  · have h0 : w0.toNat % 2 = 0 := by rw [← hlow, hz]; rfl
+    simp [evalPanCmp, hz, h0]
+  · have h1 : w0.toNat % 2 ≠ 0 := by
+      intro h0
+      apply hz
+      apply BitVec.eq_of_toNat_eq
+      rw [hlow, h0]
+      rfl
+    have h1' : w0.toNat % 2 = 1 := by omega
+    simp [evalPanCmp, hz, h1']
+
 end InitECandidate.Solver.GuestBound
