@@ -547,4 +547,120 @@ theorem innerBlock_runs {c2 c3 c4 : Exp Word} {b2 b3 b4 : Prog Word}
     subst hrest
     simp only [restorePanValueFfiLocal, InnerPost]
 
+/-- `x` clamped to at most `n` (unsigned). -/
+def clampU (x n : Word) : Word := if n < x then n else x
+
+/-- `if n <+ x { x = n; }`. -/
+theorem clampIte_runs (hE : GuestEnv E) {x : VarName} {xv nw : Word} {s : St σ} {r : Result σ}
+    (hx : s.locals x = some (.word xv)) (hn : s.locals "n" = some (.word nw)) :
+    Runs E s (.ite (.cmp .lower (.var .local "n") (.var .local x))
+      (.assign .local x (.var .local "n")) .skip) r →
+    ∃ l, r = .normal l s.globals s.memory s.ffi ∧ l x = some (.word (clampU xv nw)) ∧
+      ∀ y, y ≠ x → l y = s.locals y := by
+  intro h
+  rw [runs_ite] at h
+  simp only [evalF_cmp hE.word, evalF_local, hx, hn] at h
+  by_cases hlt : nw < xv
+  · simp [evalPanCmp, hlt] at h
+    rw [runs_assign_local] at h
+    simp [evalF_local, hn, panValueAssignmentValid, hx, shape_word, shape_matches_self] at h
+    subst h
+    refine ⟨_, rfl, by simp [update_lookup, clampU, hlt], ?_⟩
+    intro y hy
+    have : (y == x) = false := by simpa using hy
+    simp [update_lookup, this]
+  · simp [evalPanCmp, hlt] at h
+    rw [runs_skip] at h
+    subst h
+    exact ⟨_, rfl, by simp [clampU, hlt, hx], fun _ _ => rfl⟩
+
+/-- One iteration of the run loop, around the inner block `blk`. -/
+def runBody (blk : Prog Word) : Prog Word :=
+  .dec "mid" .one (.op .add [.var .local "left", .var .local "width"])
+    (.seq (.ite (.cmp .lower (.var .local "n") (.var .local "mid"))
+        (.assign .local "mid" (.var .local "n")) .skip)
+      (.dec "right" .one (.op .add [.var .local "mid", .var .local "width"])
+        (.seq (.ite (.cmp .lower (.var .local "n") (.var .local "right"))
+            (.assign .local "right" (.var .local "n")) .skip)
+          blk)))
+
+/-- The run-loop iteration moves `left` to the end of the merged runs. -/
+def RunPost (lw ww nw : Word) (s : St σ) : Result σ → Prop
+  | .normal l _ _ _ =>
+      l "left" = some (.word (clampU (clampU (lw + ww) nw + ww) nw)) ∧
+        ∀ y, y ≠ "left" → l y = s.locals y
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+set_option maxHeartbeats 2000000 in
+theorem runBody_runs (hE : GuestEnv E) {blk : Prog Word}
+    (hblk : ∀ (s : St σ) (r : Result σ), Runs E s blk r → InnerPost s r) {lw ww nw : Word}
+    {s : St σ} {r : Result σ} (hl : s.locals "left" = some (.word lw))
+    (hw : s.locals "width" = some (.word ww)) (hn : s.locals "n" = some (.word nw)) :
+    Runs E s (runBody blk) r → RunPost lw ww nw s r := by
+  intro h
+  unfold runBody at h
+  rw [runs_dec] at h
+  simp only [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_local, hl, hw, wordsProj_cons,
+    wordsProj_nil, wordOp, List.foldr, Option.map_some, shape_word, shape_matches_self,
+    if_true] at h
+  obtain ⟨rb, hb, rfl⟩ := h
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb
+  obtain ⟨l1, rfl, hmid1, hfr1⟩ := clampIte_runs hE (x := "mid") (xv := lw + (ww + 0))
+    (s := ⟨updatePanValueMap s.locals "mid" (PanValue.word (lw + (ww + 0))), s.globals, s.memory,
+      s.ffi⟩) (by simp [update_lookup])
+    (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hn) h₁
+  simp only at hrest
+  have hw1 : l1 "width" = some (.word ww) := by
+    rw [hfr1 "width" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hw
+  have hn1 : l1 "n" = some (.word nw) := by
+    rw [hfr1 "n" (by decide)]
+    simp (config := { decide := true }) only [update_lookup, if_false]
+    exact hn
+  rw [runs_dec] at hrest
+  simp only [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_local, hmid1, hw1,
+    wordsProj_cons, wordsProj_nil, wordOp, List.foldr, Option.map_some, shape_word,
+    shape_matches_self, if_true] at hrest
+  obtain ⟨rb2, hb2, rfl⟩ := hrest
+  obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hb2
+  obtain ⟨l2, rfl, hright2, hfr2⟩ := clampIte_runs hE (x := "right")
+    (xv := clampU (lw + (ww + 0)) nw + (ww + 0))
+    (s := ⟨updatePanValueMap l1 "right"
+      (PanValue.word (clampU (lw + (ww + 0)) nw + (ww + 0))), s.globals, s.memory, s.ffi⟩)
+    (by simp [update_lookup])
+    (by simp (config := { decide := true }) only [update_lookup, if_false]; exact hn1) h₂
+  simp only at hrest₂
+  have hp := hblk _ _ hrest₂
+  dsimp only at hmid1 hfr1 hright2 hfr2
+  cases rb2 with
+  | normal l g m f =>
+    obtain ⟨hleft, hfr⟩ := hp
+    dsimp only at hleft hfr
+    simp only [restorePanValueFfiLocal, RunPost]
+    refine ⟨?_, ?_⟩
+    · simp (config := { decide := true }) only [restorePanValueLocal, if_false]
+      rw [hleft, hright2]
+      simp
+    · intro y hy
+      by_cases hym : y = "mid"
+      · subst hym
+        simp [restorePanValueLocal]
+      · have hym' : (y == "mid") = false := by simpa using hym
+        by_cases hyr : y = "right"
+        · subst hyr
+          simp (config := { decide := true }) only [restorePanValueLocal, if_false, if_true]
+          rw [hfr1 "right" (by decide)]
+          simp (config := { decide := true }) only [update_lookup, if_false]
+        · have hyr' : (y == "right") = false := by simpa using hyr
+          simp only [restorePanValueLocal, hym', hyr', Bool.false_eq_true, if_false]
+          rw [hfr y hy, hfr2 y hyr]
+          simp only [update_lookup, hyr', Bool.false_eq_true, if_false]
+          rw [hfr1 y hym]
+          simp only [update_lookup, hym', Bool.false_eq_true, if_false]
+  | continued l g m f => exact hp.elim
+  | broke l g m f => exact hp.elim
+  | _ => simp only [restorePanValueFfiLocal, RunPost]
+
 end InitECandidate.Solver.GuestBound
