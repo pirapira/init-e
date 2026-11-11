@@ -6,3 +6,4 @@
 # with one hypothesis per distinct callee, in order of first occurrence in the
 # body, and B at most the step bound when the Bᵢ are the generated callee bounds.
 input_blob 137438951918 InitECandidate.Solver.GuestBound.Manual.InputBlob
+bls_fp_inv_raw 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763119694021320456691476683 InitECandidate.Solver.GuestBound.Manual.BlsInv

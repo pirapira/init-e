@@ -630,4 +630,117 @@ theorem outerBody_triple (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can")
   exact key U V (by rw [← hμ]; show U + V = sixNat "u" s.locals + sixNat "v" s.locals
                     rw [hu.sixNat_eq, hv.sixNat_eq]) fuel s r n ⟨hu, hv⟩ hrun hne
 
+/-- A value whose shape is six words is a record of six words. -/
+theorem six_of_shape {structs : StructContext} {v : PanValue Word}
+    (h : panShapeMatches (panValueShape structs v)
+      (.comb [.one, .one, .one, .one, .one, .one]) = true) :
+    ∃ w0 w1 w2 w3 w4 w5 : Word,
+      v = .rStruct [.word w0, .word w1, .word w2, .word w3, .word w4, .word w5] := by
+  obtain ⟨ws, rfl, hlen⟩ := panValueShape_matches_word_record_inv structs v
+    [(0 : Word), 0, 0, 0, 0, 0] h
+  match ws, hlen with
+  | [w0, w1, w2, w3, w4, w5], _ => exact ⟨w0, w1, w2, w3, w4, w5, rfl⟩
+
+theorem sixVal_of_shape {structs : StructContext} {v : PanValue Word} {x : VarName}
+    {l : VarName → Option (PanValue Word)}
+    (h : panShapeMatches (panValueShape structs v)
+      (.comb [.one, .one, .one, .one, .one, .one]) = true) :
+    ∃ n, SixVal x n (updatePanValueMap l x v) := by
+  obtain ⟨w0, w1, w2, w3, w4, w5, rfl⟩ := six_of_shape h
+  exact ⟨_, w0, w1, w2, w3, w4, w5, by simp [updatePanValueMap], rfl⟩
+
+/-- Close a cost inequality between closed expression costs. -/
+macro "cost_le'" : tactic => `(tactic| (
+  simp only [stepCost_eq, stepsCost_eq, expCost, expsCost, evenGuard]
+  omega))
+
+namespace Manual
+
+set_option maxHeartbeats 2000000 in
+theorem «bls_fp_inv_raw».cost (hE : GuestEnv E) {Z S H L R B : Nat}
+    (hz : FunCost E "bls_fp_is_zero" Z) (hs : FunCost E "bls_fp_shr1" S)
+    (hh : FunCost E "bls_fp_half_can" H) (hl : FunCost E "bls_fp_lt_raw" L)
+    (hr : FunCost E "bls_fp_sub_raw" R) (hb : FunCost E "bls_fp_sub" B) :
+    FunCost E "bls_fp_inv_raw"
+      (Z + (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 200) := by
+  have hcalm : FunCalm E "bls_fp_half_can" :=
+    calmFn_sound hE.functions calmDepth "bls_fp_half_can" (by decide +kernel)
+  have hpow : (2 : Nat) ^ 384 * 2 = 78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 := by decide +kernel
+  have hr1 : Costs E (retCheck "u" "x1") 64 :=
+    (X.ite σ E _ _ _ _ _ (X.ite σ E _ _ _ _ _ (X.ret σ E _) (X.skip σ E))
+      (X.skip σ E)).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  have hr2 : Costs E (retCheck "v" "x2") 64 :=
+    (X.ite σ E _ _ _ _ _ (X.ite σ E _ _ _ _ _ (X.ret σ E _) (X.skip σ E))
+      (X.skip σ E)).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  have hh1 : Costs E (halveBody "u" "x1") (S + H + 16) :=
+    (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hs) (X.callDest σ E _ _ _ _ hh)).consequence
+      (fun _ h => h) (by cost_le') (fun _ h => h)
+  have hh2 : Costs E (halveBody "v" "x2") (S + H + 16) :=
+    (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hs) (X.callDest σ E _ _ _ _ hh)).consequence
+      (fun _ h => h) (by cost_le') (fun _ h => h)
+  have hbr : ∀ a b d xa xb : VarName, Costs E (subBranch a b d xa xb) (R + B + 48) := by
+    intro a b d xa xb
+    exact (X.decCall σ E _ _ _ _ _ _ _ hr (X.seq σ E _ _ _ _ (X.assign σ E _ _ _)
+      (X.callDest σ E _ _ _ _ hb))).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  have ht : Costs E cmpTail (L + R + B + 128) :=
+    (X.decCall σ E _ _ _ _ _ _ _ hl (X.ite σ E _ _ _ _ _ (hbr _ _ _ _ _)
+      (hbr _ _ _ _ _))).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  have hloop : Triple E OuterInv (.while (.const (BitVec.ofNat 64 1)) outerBody)
+      ((78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004))
+      (fun r => match r with
+        | .normal _ _ _ _ => True
+        | _ => True) := by
+    refine (Triple.while (I := OuterInv) (μ := outerMu) (Q := fun _ => True)
+      (e := panValueExpStepCost (Exp.const (BitVec.ofNat 64 1) : Exp Word))
+      78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 (condCost _ _) (fun _ _ => trivial)
+      (fun k => (outerBody_triple hE hcalm k hr1 hr2 hh1 hh2 ht).consequence
+        (fun s h => ⟨h.1, h.2.1⟩) (Nat.le_refl _) (fun _ h => h))).consequence ?_ ?_
+      (fun r _ => by cases r <;> trivial)
+    · intro s hI
+      refine ⟨hI, ?_⟩
+      obtain ⟨U, V, hu, hv⟩ := hI
+      show sixNat "u" s.locals + sixNat "v" s.locals ≤ 78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632
+      rw [hu.sixNat_eq, hv.sixNat_eq]
+      have := hu.lt
+      have := hv.lt
+      omega
+    · apply Nat.mul_le_mul_left
+      cost_le'
+  refine FunCost.mono (funCost_of_index 712 hE.functions (by guest_decl_at 712)
+    (by decide +kernel) (B := Z + (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 200) ?_)
+    (Nat.le_refl _)
+  reduce_body
+  refine (Triple.decCall (C := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 180)
+    (P' := fun _ => True) _ _ _ hz (fun _ _ _ _ _ _ _ => trivial) ?_).consequence
+    (fun _ h => h) (by cost_le') (fun _ h => h)
+  refine (Triple.seq (B₁ := 40) (B₂ := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 130)
+    (Mid := fun _ => True) (Q := fun _ => True) ?_ ?_).consequence (fun _ h => h) (by omega)
+    (fun _ h => h)
+  · exact ((X.ite σ E _ _ _ _ _ (X.ret σ E _) (X.skip σ E)).consequence (fun _ h => h)
+      (by cost_le') (fun _ h => h)).consequence (fun _ h => h) (Nat.le_refl _)
+      (fun r _ => by cases r <;> trivial)
+  refine (Triple.dec (B := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 120)
+    (P' := fun s => ∃ U, SixVal "u" U s.locals) _ _ _
+    (fun s v _ _ hshape => sixVal_of_shape hshape) ?_).consequence (fun _ h => h)
+    (by cost_le') (fun _ h => h)
+  refine (Triple.dec (B := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 90)
+    (P' := OuterInv) _ _ _ ?_ ?_).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  · intro s v hP _ hshape
+    obtain ⟨U, hu⟩ := hP
+    obtain ⟨V, hv⟩ := sixVal_of_shape (x := "v") (l := s.locals) hshape
+    exact ⟨U, V, hu.update_other (by decide), hv⟩
+  refine (Triple.dec (B := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 60)
+    (P' := OuterInv) _ _ _ ?_ ?_).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  · intro s v hP _ _
+    obtain ⟨U, V, hu, hv⟩ := hP
+    exact ⟨U, V, hu.update_other (by decide), hv.update_other (by decide)⟩
+  refine (Triple.dec (B := (78804012392788958424558080200287227610159478540930893335896586808491443542994421222828532509769831281613255980613632 + 1) * (768 * (S + H) + L + R + B + 20004) + 30)
+    (P' := OuterInv) _ _ _ ?_ ?_).consequence (fun _ h => h) (by cost_le') (fun _ h => h)
+  · intro s v hP _ _
+    obtain ⟨U, V, hu, hv⟩ := hP
+    exact ⟨U, V, hu.update_other (by decide), hv.update_other (by decide)⟩
+  exact (Triple.seq (Mid := fun _ => True) (Q := fun _ => True) hloop (X.ret σ E _)).consequence
+    (fun _ h => h) (by cost_le') (fun _ h => h)
+
+end Manual
 end InitECandidate.Solver.GuestBound
