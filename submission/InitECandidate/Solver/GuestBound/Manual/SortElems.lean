@@ -804,4 +804,52 @@ theorem run_loop (hE : GuestEnv E) {blk : Prog Word}
       simp only [runMu, hl]
       omega
 
+/-- With `left = mid = right = 0` no inner loop runs, so the block ends normally. -/
+theorem innerBlock_zero (hE : GuestEnv E) {b2 b3 b4 : Prog Word} {s : St σ} {r : Result σ}
+    (hl : s.locals "left" = some (.word 0)) (hm : s.locals "mid" = some (.word 0))
+    (hr : s.locals "right" = some (.word 0)) :
+    Runs E s (innerBlock mergeGuard (.cmp .less (.var .local "i") (.var .local "mid"))
+      (.cmp .less (.var .local "j") (.var .local "right")) b2 b3 b4) r →
+    ∃ l g m f, r = .normal l g m f := by
+  intro h
+  unfold innerBlock at h
+  rw [runs_dec] at h
+  simp only [evalF_local, hl, shape_word, shape_matches_self, if_true] at h
+  obtain ⟨rb, hb, rfl⟩ := h
+  rw [runs_dec] at hb
+  simp (config := { decide := true }) only [evalF_local, update_lookup, if_false, hm,
+    shape_word, shape_matches_self, if_true] at hb
+  obtain ⟨rb2, hb2, rfl⟩ := hb
+  rw [runs_dec] at hb2
+  simp (config := { decide := true }) only [evalF_local, update_lookup, if_false, hl,
+    shape_word, shape_matches_self, if_true] at hb2
+  obtain ⟨rb3, hb3, rfl⟩ := hb2
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp hb3
+  rw [runs_while_false (by
+    simp (config := { decide := true }) only [mergeGuard, evalF_op hE.word, evalArgs_cons,
+      evalArgs_nil, evalF_cmp hE.word, evalF_local, eval_const, update_lookup, if_true,
+      if_false, hm, hr, wordsProj_cons, wordsProj_nil, wordOp, List.foldr, Option.map_some]
+    rfl)] at h₁
+  subst h₁
+  simp only at hrest
+  obtain ⟨r₂, h₂, hrest₂⟩ := runs_seq.mp hrest
+  rw [runs_while_false (by
+    simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_local, update_lookup,
+      if_true, if_false, hm]
+    rfl)] at h₂
+  subst h₂
+  simp only at hrest₂
+  obtain ⟨r₃, h₃, hrest₃⟩ := runs_seq.mp hrest₂
+  rw [runs_while_false (by
+    simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_local, update_lookup,
+      if_true, if_false, hr]
+    rfl)] at h₃
+  subst h₃
+  simp only at hrest₃
+  rw [runs_assign_local] at hrest₃
+  simp (config := { decide := true }) only [evalF_local, update_lookup, if_false, hr, hl,
+    panValueAssignmentValid, shape_word, shape_matches_self, if_true] at hrest₃
+  subst hrest₃
+  exact ⟨_, _, _, _, rfl⟩
+
 end InitECandidate.Solver.GuestBound
