@@ -663,4 +663,145 @@ theorem runBody_runs (hE : GuestEnv E) {blk : Prog Word}
   | broke l g m f => exact hp.elim
   | _ => simp only [restorePanValueFfiLocal, RunPost]
 
+/-- With `1 ≤ width ≤ 2^63` and `left < n < 2^63`, the clamped end is past
+`left` and at most `n`; nothing wraps. -/
+theorem clamp_progress {lw ww nw : Word} (hw1 : 1 ≤ ww.toNat) (hw2 : ww.toNat ≤ 2 ^ 63)
+    (hn : nw.toNat < 2 ^ 63) (hl : lw.toNat < nw.toNat) :
+    lw.toNat < (clampU (clampU (lw + ww) nw + ww) nw).toNat ∧
+      (clampU (clampU (lw + ww) nw + ww) nw).toNat ≤ nw.toNat := by
+  have := lw.isLt
+  have := ww.isLt
+  have := nw.isLt
+  have h1 : (lw + ww).toNat = lw.toNat + ww.toNat := by
+    rw [BitVec.toNat_add]
+    omega
+  by_cases c1 : nw < lw + ww
+  · have hM : clampU (lw + ww) nw = nw := by simp [clampU, c1]
+    rw [hM]
+    have h2 : (nw + ww).toNat = nw.toNat + ww.toNat := by
+      rw [BitVec.toNat_add]
+      omega
+    have c2 : nw < nw + ww := by
+      rw [BitVec.lt_def, h2]
+      omega
+    have hR : clampU (nw + ww) nw = nw := by simp [clampU, c2]
+    rw [hR]
+    omega
+  · have hM : clampU (lw + ww) nw = lw + ww := by simp [clampU, c1]
+    rw [hM]
+    have c1' : ¬ nw.toNat < lw.toNat + ww.toNat := by
+      rw [BitVec.lt_def, h1] at c1
+      exact c1
+    have h2 : (lw + ww + ww).toNat = lw.toNat + ww.toNat + ww.toNat := by
+      rw [BitVec.toNat_add, h1]
+      omega
+    by_cases c2 : nw < lw + ww + ww
+    · have hR : clampU (lw + ww + ww) nw = nw := by simp [clampU, c2]
+      rw [hR]
+      omega
+    · have hR : clampU (lw + ww + ww) nw = lw + ww + ww := by simp [clampU, c2]
+      rw [hR, h2]
+      have c2' : ¬ nw.toNat < lw.toNat + ww.toNat + ww.toNat := by
+        rw [BitVec.lt_def, h2] at c2
+        exact c2
+      omega
+
+theorem bias_small {x : Word} (h : x.toNat < 2 ^ 63) : bias x = x.toNat + 2 ^ 63 := by
+  have := x.isLt
+  unfold bias
+  omega
+
+theorem bias_large {x : Word} (h : 2 ^ 63 ≤ x.toNat) : bias x = x.toNat - 2 ^ 63 := by
+  have := x.isLt
+  unfold bias
+  omega
+
+/-- The guard `left < n`. -/
+def runGuard : Exp Word := .cmp .less (.var .local "left") (.var .local "n")
+
+/-- The run loop's invariant relative to the locals `L0` at entry. -/
+def RunInv (nw : Word) (L0 : VarName → Option (PanValue Word)) (s : St σ) : Prop :=
+  (∀ y, y ≠ "left" → s.locals y = L0 y) ∧
+    ((nw.toNat < 2 ^ 63 ∧ ∃ lw : Word, s.locals "left" = some (.word lw) ∧
+        lw.toNat ≤ nw.toNat) ∨
+      (2 ^ 63 ≤ nw.toNat ∧ s.locals "left" = some (.word 0)))
+
+/-- Elements left to merge. -/
+def runMu (nw : Word) (s : St σ) : Nat :=
+  match s.locals "left" with
+  | some (.word lw) => nw.toNat - lw.toNat
+  | _ => 0
+
+/-- The run loop, entered with `left = 0`, ends within `2^64 + 1` iterations
+and changes no local but `left`, for `1 ≤ width ≤ 2^63`. -/
+theorem run_loop (hE : GuestEnv E) {blk : Prog Word}
+    (hblk : ∀ (s : St σ) (r : Result σ), Runs E s blk r → InnerPost s r) {b : Nat}
+    (hb : Costs E (runBody blk) b) (ww nw : Word) (hw1 : 1 ≤ ww.toNat)
+    (hw2 : ww.toNat ≤ 2 ^ 63) (L0 : VarName → Option (PanValue Word))
+    (hLw : L0 "width" = some (.word ww)) (hLn : L0 "n" = some (.word nw)) :
+    Triple E (fun s => (∀ y, y ≠ "left" → s.locals y = L0 y) ∧
+        s.locals "left" = some (.word 0))
+      (.while runGuard (runBody blk))
+      ((18446744073709551616 + 1) * (panValueExpStepCost runGuard + b + 1))
+      (fun r => match r with
+        | .normal l _ _ _ => ∀ y, y ≠ "left" → l y = L0 y
+        | .continued _ _ _ _ | .broke _ _ _ _ => False
+        | _ => True) := by
+  refine (Triple.while (I := RunInv nw L0) (μ := runMu nw)
+    (Q := fun r => match r with
+      | .normal l _ _ _ => ∀ y, y ≠ "left" → l y = L0 y
+      | .continued _ _ _ _ | .broke _ _ _ _ => False
+      | _ => True)
+    (e := panValueExpStepCost runGuard) (b := b) 18446744073709551616 (condCost _ _)
+    (fun s hI => hI.1) ?_).consequence ?_ (Nat.le_refl _) (fun _ h => h)
+  · intro k
+    refine Triple.of_costs hb ?_
+    intro fuel s r n hP hrun hne
+    obtain ⟨⟨hfr, hcase⟩, hμ, hct⟩ := hP
+    obtain ⟨lw, nw', hl, hn', hlt⟩ := less_true hE.word hct
+    have hn : s.locals "n" = some (.word nw) := by rw [hfr "n" (by decide)]; exact hLn
+    have hw : s.locals "width" = some (.word ww) := by rw [hfr "width" (by decide)]; exact hLw
+    rw [hn] at hn'
+    simp only [Option.some.injEq, PanValue.word.injEq] at hn'
+    subst hn'
+    have hnlt := nw.isLt
+    have hllt := lw.isLt
+    rcases hcase with ⟨hnsmall, lw', hl', hle⟩ | ⟨hnbig, hl0⟩
+    · rw [hl] at hl'
+      simp only [Option.some.injEq, PanValue.word.injEq] at hl'
+      subst hl'
+      have hlw : lw.toNat < nw.toNat := by
+        rw [bias_small (by omega), bias_small hnsmall] at hlt
+        omega
+      have hprog := clamp_progress hw1 hw2 hnsmall hlw
+      have hp := runBody_runs hE hblk hl hw hn (Runs.of_run hrun)
+      cases r with
+      | normal l g m f =>
+        obtain ⟨hleft, hfr'⟩ := hp
+        refine ⟨⟨fun y hy => (hfr' y hy).trans (hfr y hy),
+          Or.inl ⟨hnsmall, _, hleft, hprog.2⟩⟩, ?_⟩
+        show runMu nw ⟨l, g, m, f⟩ < k
+        rw [← hμ]
+        simp only [runMu, hleft, hl]
+        omega
+      | continued l g m f => exact hp.elim
+      | broke l g m f => exact hp.elim
+      | _ => trivial
+    · rw [hl] at hl0
+      simp only [Option.some.injEq, PanValue.word.injEq] at hl0
+      subst hl0
+      rw [bias_large hnbig, bias_small (by decide)] at hlt
+      simp at hlt
+      omega
+  · intro s hP
+    obtain ⟨hfr, hl⟩ := hP
+    have hnlt := nw.isLt
+    refine ⟨⟨hfr, ?_⟩, ?_⟩
+    · by_cases hn : nw.toNat < 2 ^ 63
+      · exact Or.inl ⟨hn, 0, hl, by simp⟩
+      · exact Or.inr ⟨by omega, hl⟩
+    · show runMu nw s ≤ 18446744073709551616
+      simp only [runMu, hl]
+      omega
+
 end InitECandidate.Solver.GuestBound
