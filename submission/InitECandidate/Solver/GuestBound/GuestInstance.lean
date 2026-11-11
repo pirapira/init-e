@@ -18,6 +18,16 @@ theorem guest_wordEnv (state : PanValueProgramState Word) :
       (some Guest.guestMemoryAccess) (none : Option (PanValueMemoryFfiHandler Word Guest.HostMemory))
       state) where
   noMemoryHandler := rfl
+  wordOp := by
+    intro access h operator values
+    simp only [programEnv, Option.some.injEq] at h
+    subst h
+    rfl
+  shift := by
+    intro access h operator a b
+    simp only [programEnv, Option.some.injEq] at h
+    subst h
+    rfl
   access := by
     refine ⟨Guest.guestMemoryAccess, rfl, ?_, ?_, ?_⟩
     · intro a b

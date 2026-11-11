@@ -423,7 +423,7 @@ theorem calmFn_sound {decls : List (Decl Word)} (hfrom : FunctionsFrom E.functio
   | zero => intro f h; simp [calmFn] at h
   | succ depth ih =>
     intro f h parameters body hlookup fuel s r n hrun
-    obtain ⟨d, hmem, hname, hbody⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
+    obtain ⟨d, hmem, hname, hbody, -⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
     simp only [calmFn, List.all_eq_true] at h
     have hd := h _ hmem
     simp only [Bool.or_eq_true, bne_iff_ne, ne_eq] at hd

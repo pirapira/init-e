@@ -17,7 +17,8 @@ variable {σ : Type}
 def FunctionsFrom (functions : List (FunName × List VarName × Prog Word))
     (declarations : List (Decl Word)) : Prop :=
   ∀ f parameters body, (f, parameters, body) ∈ functions →
-    ∃ d, Decl.function d ∈ declarations ∧ d.name = f ∧ d.body = body
+    ∃ d, Decl.function d ∈ declarations ∧ d.name = f ∧ d.body = body ∧
+      d.params.map Prod.fst = parameters
 
 /-- The function declarations named `f`, as declarations. -/
 def declsNamed (f : FunName) : List (Decl Word) → List (Decl Word)
@@ -81,7 +82,8 @@ theorem functionsFrom_withStructs (structs : StructContext)
         intro f parameters body hmem
         rcases List.mem_cons.mp hmem with heq | hmem
         · simp only [Prod.mk.injEq] at heq
-          exact ⟨declaration, hsub _ (List.mem_cons_self), heq.1.symm, heq.2.2.symm⟩
+          exact ⟨declaration, hsub _ (List.mem_cons_self), heq.1.symm, heq.2.2.symm,
+            heq.2.1.symm⟩
         · exact hfrom f parameters body hmem
       · simp at h
   | .exnDecl exception shape :: rest, all, state, state', hsub, hfrom, h => by
@@ -154,7 +156,7 @@ theorem funCost_of_index {declarations : List (Decl Word)} {f : FunName} {d : Fu
     (hunique : uniqueAt f i declarations 0 = true) (hbody : Costs E d.body B) :
     FunCost E f B := by
   intro parameters body hlookup
-  obtain ⟨d', hmem, hname, hbody'⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
+  obtain ⟨d', hmem, hname, hbody', -⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
   obtain ⟨k, hk, hik⟩ := uniqueAt_mem hunique hmem hname
   have hki : k = i := by omega
   subst hki

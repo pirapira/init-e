@@ -529,7 +529,7 @@ theorem keepFn_sound (K : Keeper E) {decls : List (Decl Word)}
   | zero => intro f h; simp [keepFn] at h
   | succ depth ih =>
     intro f h parameters body hlookup fuel s r n hrun
-    obtain ⟨d, hmem, hname, hbody⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
+    obtain ⟨d, hmem, hname, hbody, -⟩ := hfrom f parameters body (lookupPanFunction_mem hlookup)
     simp only [keepFn, List.all_eq_true] at h
     have hd := h _ hmem
     simp only [Bool.or_eq_true, bne_iff_ne, ne_eq] at hd

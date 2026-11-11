@@ -1,3 +1,4 @@
+import Flapjack.RiscV.PanMemory
 import InitECandidate.Solver.GuestBound.CounterCheck
 import InitECandidate.Solver.GuestBound.Call
 
@@ -22,6 +23,10 @@ structure WordEnv {σ : Type} (E : Env σ) : Prop where
     (∀ a b, access.wordOp .add [a, b] = some (a + b)) ∧
     (∀ a b, access.wordOp .sub [a, b] = some (a - b)) ∧
     (∀ operator a b, access.compare operator a b = evalPanCmp operator a b)
+  wordOp : ∀ access, E.memoryAccess = some access → ∀ operator values,
+    access.wordOp operator values = Flapjack.wordOp operator values
+  shift : ∀ access, E.memoryAccess = some access → ∀ operator a b,
+    access.shift operator a b = RiscV.panRiscVShift operator a b
 
 def stepWord : Mode → Word → Word
   | .up, w => w + 1
