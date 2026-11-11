@@ -15,7 +15,7 @@ set_option hygiene false in
 /-- Prove the cost of a one-expression leaf whose evaluator helper is `helper`. -/
 local macro "leaf_one" helper:ident value:ident : tactic => `(tactic| (
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -39,7 +39,7 @@ set_option hygiene false in
 /-- Prove the cost of a two-expression (address, value) leaf. -/
 local macro "leaf_two" helper:ident address:ident value:ident : tactic => `(tactic| (
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -101,7 +101,7 @@ theorem Costs.skip : Costs E .skip 1 :=
 
 theorem Costs.break : Costs E .break 1 := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -111,7 +111,7 @@ theorem Costs.break : Costs E .break 1 := by
 
 theorem Costs.continue : Costs E .continue 1 := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -129,14 +129,14 @@ theorem Costs.seq {first second : Prog Word} {B₁ B₂ : Nat}
 theorem Costs.ite (c : Exp Word) {thenBranch elseBranch : Prog Word} {B₁ B₂ : Nat}
     (h₁ : Costs E thenBranch B₁) (h₂ : Costs E elseBranch B₂) :
     Costs E (.ite c thenBranch elseBranch) (panValueExpStepCost c + max B₁ B₂ + 1) :=
-  Triple.ite (condCost _ c) (fun _ _ => trivial) h₁ h₂
+  Triple.ite (condCost _ c) h₁ h₂
 
 /-- A declaration costs its initialiser, its body and one step. -/
 theorem Costs.dec (name : VarName) (shape : Shape) (value : Exp Word) {body : Prog Word}
     {B : Nat} (h : Costs E body B) :
     Costs E (.dec name shape value body) (panValueExpStepCost value + B + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -175,9 +175,10 @@ theorem Costs.dec (name : VarName) (shape : Shape) (value : Exp Word) {body : Pr
         rw [hbody] at hrun
         simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
           Prod.mk.injEq] at hrun
+        obtain ⟨rfl, rfl⟩ := hrun
         have hnb : nb ≤ B :=
           (h fuel ⟨updatePanValueMap s.locals name accepted.1, s.globals, s.memory, s.ffi⟩
-            rb nb trivial hbody).1
+            rb nb trivial hbody (by cases rb <;> first | rfl | cases hne)).1
         omega
 
 end InitECandidate.Solver.GuestBound

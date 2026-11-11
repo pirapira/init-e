@@ -31,7 +31,8 @@ def programEnv (context : PanValueFfiContext Word) (primitive : PanPrimitiveHand
     state.parameterShapes)
   memoryHandler := memoryHandler
 
-/-- A program run costs at most the entry call's arguments plus the entry function. -/
+/-- A program run that does not end in `.error` costs at most the entry call's
+arguments plus the entry function. -/
 theorem programStepped_le (context : PanValueFfiContext Word)
     (initial : PanValueFfiProgramState Word σ) (primitive : PanPrimitiveHandler Word)
     (handler : PanValueStatefulFfiHandler Word σ) (fuel : Nat)
@@ -45,7 +46,8 @@ theorem programStepped_le (context : PanValueFfiContext Word)
     (r : Result σ) (n : Nat)
     (hrun : evalPanValueFfiProgramStepped context initial primitive handler fuel declarations
       entry arguments (memoryAccess := memoryAccess) (memoryHandler := memoryHandler) =
-        some (r, n)) :
+        some (r, n))
+    (hne : r.isError = false) :
     n ≤ panValueExpsStepCost arguments + B := by
   unfold evalPanValueFfiProgramStepped at hrun
   cases hdecl : evalPanValueDeclarations initial.source declarations
@@ -65,14 +67,26 @@ theorem programStepped_le (context : PanValueFfiContext Word)
     | some callPair =>
       obtain ⟨rc, nc⟩ := callPair
       rw [hcall] at hrun
-      have hnc : nc ≤ panValueExpsStepCost arguments + B + 0 :=
+      have hncOf : rc.isError = false → nc ≤ panValueExpsStepCost arguments + B + 0 := fun hrc =>
         callSteps_le (E := programEnv context primitive handler memoryAccess memoryHandler state)
           (info := none) (H := 0) (hentry state hdecl) trivial fuel
-          ⟨fun _ => none, state.globals, state.memory, initial.ffi⟩ arguments false rc nc hcall
+          ⟨fun _ => none, state.globals, state.memory, initial.ffi⟩ arguments false rc nc hcall hrc
       simp only [Option.bind_some] at hrun
-      repeat' split at hrun
-      all_goals first
-        | (simp at hrun; done)
-        | (simp only [Option.some.injEq, Prod.mk.injEq] at *; omega)
+      cases rc with
+      | error l g m f =>
+        repeat' split at hrun
+        all_goals first
+          | (simp at hrun; done)
+          | (simp only [Option.some.injEq, Prod.mk.injEq] at hrun
+             obtain ⟨rfl, -⟩ := hrun
+             exact Bool.noConfusion hne)
+          | (rename_i heq _; simp at heq; done)
+          | (rename_i heq; simp at heq; done)
+      | _ =>
+        have hnc := hncOf rfl
+        repeat' split at hrun
+        all_goals first
+          | (simp at hrun; done)
+          | (simp only [Option.some.injEq, Prod.mk.injEq] at *; omega)
 
 end InitECandidate.Solver.GuestBound

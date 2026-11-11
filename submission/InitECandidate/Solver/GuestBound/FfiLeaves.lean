@@ -14,7 +14,7 @@ variable {σ : Type} {E : Env σ}
 
 theorem Costs.tick : Costs E .tick 1 := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -24,7 +24,7 @@ theorem Costs.tick : Costs E .tick 1 := by
 
 theorem Costs.annot (key value : String) : Costs E (.annot key value) 1 := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -35,7 +35,7 @@ theorem Costs.annot (key value : String) : Costs E (.annot key value) 1 := by
 theorem Costs.primitive (name : VarName) (operator : PrimOp) (arguments : List (Exp Word)) :
     Costs E (.primitive name operator arguments) (panValueExpsStepCost arguments + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -58,7 +58,7 @@ theorem Costs.primitive (name : VarName) (operator : PrimOp) (arguments : List (
 theorem Costs.shMemLoad (size : OpSize) (kind : VarKind) (name : VarName) (address : Exp Word) :
     Costs E (.shMemLoad size kind name address) (panValueExpStepCost address + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -82,7 +82,7 @@ theorem Costs.shMemStore (size : OpSize) (address value : Exp Word) :
     Costs E (.shMemStore size address value)
       (panValueExpStepCost address + panValueExpStepCost value + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -116,7 +116,7 @@ theorem Costs.extCall (function : FunName)
     Costs E (.extCall function configuration configurationLength array arrayLength)
       (panValueExpsStepCost [configuration, configurationLength, array, arrayLength] + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun

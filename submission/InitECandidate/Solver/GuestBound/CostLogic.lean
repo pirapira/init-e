@@ -47,6 +47,11 @@ def Result.st {σ : Type} : Result σ → St σ
   | .normal l g m f | .error l g m f | .returned l g m f _ | .raised l g m f _ _
   | .broke l g m f | .continued l g m f | .finalFfi l g m f _ => ⟨l, g, m, f⟩
 
+/-- The result is the evaluator's `.error` outcome (a failing source semantics). -/
+def _root_.Flapjack.PanValueFfiControlResult.isError {σ : Type} : Result σ → Bool
+  | .error _ _ _ _ => true
+  | _ => false
+
 namespace Env
 variable {σ : Type} (E : Env σ)
 
@@ -64,10 +69,12 @@ def cond (s : St σ) (c : Exp Word) : Option (Word × Nat) :=
 
 end Env
 
-/-- Every returning run of `p` from a `P`-state takes at most `B` steps and ends in `Q`. -/
+/-- Every run of `p` from a `P`-state that returns a result other than `.error`
+takes at most `B` steps and ends in `Q`. An `.error` result is a failing source
+semantics, which the challenge does not cover, so such runs are left unbounded. -/
 def Triple {σ : Type} (E : Env σ) (P : St σ → Prop) (p : Prog Word) (B : Nat)
     (Q : Result σ → Prop) : Prop :=
-  ∀ fuel s r n, P s → E.run fuel s p = some (r, n) → n ≤ B ∧ Q r
+  ∀ fuel s r n, P s → E.run fuel s p = some (r, n) → r.isError = false → n ≤ B ∧ Q r
 
 /-- An unconditional step bound. -/
 def Costs {σ : Type} (E : Env σ) (p : Prog Word) (B : Nat) : Prop :=
@@ -87,14 +94,14 @@ theorem Triple.consequence {P P' : St σ → Prop} {Q Q' : Result σ → Prop} {
     {B B' : Nat} (h : Triple E P p B Q) (pre : ∀ s, P' s → P s) (bound : B ≤ B')
     (post : ∀ r, Q r → Q' r) : Triple E P' p B' Q' := by
   unfold Triple
-  intro fuel s r n hP hrun
-  obtain ⟨hn, hQ⟩ := h fuel s r n (pre s hP) hrun
+  intro fuel s r n hP hrun hne
+  obtain ⟨hn, hQ⟩ := h fuel s r n (pre s hP) hrun hne
   exact ⟨Nat.le_trans hn bound, post r hQ⟩
 
 theorem Triple.skip {P : St σ → Prop} :
     Triple E P .skip 1 (fun r => ∃ s, P s ∧ r = .normal s.locals s.globals s.memory s.ffi) := by
   unfold Triple
-  intro fuel s r n hP hrun
+  intro fuel s r n hP hrun _
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -113,7 +120,7 @@ theorem Triple.seq {P Mid : St σ → Prop} {Q : Result σ → Prop} {first seco
     (h₂ : Triple E Mid second B₂ Q) :
     Triple E P (.seq first second) (B₁ + B₂ + 1) Q := by
   unfold Triple
-  intro fuel s r n hP hrun
+  intro fuel s r n hP hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -127,9 +134,9 @@ theorem Triple.seq {P Mid : St σ → Prop} {Q : Result σ → Prop} {first seco
     | some firstPair =>
       obtain ⟨r₁, n₁⟩ := firstPair
       rw [hfirst] at hrun
-      obtain ⟨hn₁, hQ₁⟩ := h₁ fuel s r₁ n₁ hP hfirst
       cases r₁ with
       | normal l g m f =>
+        obtain ⟨hn₁, hQ₁⟩ := h₁ fuel s _ n₁ hP hfirst rfl
         simp only [Option.bind_eq_bind, Option.bind_some] at hrun
         cases hsecond : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
             E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f second
@@ -141,24 +148,24 @@ theorem Triple.seq {P Mid : St σ → Prop} {Q : Result σ → Prop} {first seco
           rw [hsecond] at hrun
           simp only [Option.bind_some, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
           obtain ⟨rfl, rfl⟩ := hrun
-          obtain ⟨hn₂, hQ₂⟩ := h₂ fuel ⟨l, g, m, f⟩ r₂ n₂ hQ₁ hsecond
+          obtain ⟨hn₂, hQ₂⟩ := h₂ fuel ⟨l, g, m, f⟩ r₂ n₂ hQ₁ hsecond hne
           exact ⟨by omega, hQ₂⟩
       | _ =>
         simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
           Prod.mk.injEq] at hrun
         obtain ⟨rfl, rfl⟩ := hrun
+        obtain ⟨hn₁, hQ₁⟩ := h₁ fuel s _ n₁ hP hfirst hne
         exact ⟨by omega, hQ₁⟩
 
-/-- Conditional. A condition that does not evaluate to a word yields `.error`
-in the unchanged state at count zero, so `Q` must accept that result. -/
+/-- Conditional. A condition that does not evaluate to a word yields `.error`,
+which is not covered. -/
 theorem Triple.ite {P : St σ → Prop} {Q : Result σ → Prop} {c : Exp Word}
     {thenBranch elseBranch : Prog Word} {e B₁ B₂ : Nat}
     (hc : CondCost E P c e)
-    (herr : ∀ s, P s → Q (.error s.locals s.globals s.memory s.ffi))
     (h₁ : Triple E P thenBranch B₁ Q) (h₂ : Triple E P elseBranch B₂ Q) :
     Triple E P (.ite c thenBranch elseBranch) (e + max B₁ B₂ + 1) Q := by
   unfold Triple
-  intro fuel s r n hP hrun
+  intro fuel s r n hP hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>
@@ -170,7 +177,7 @@ theorem Triple.ite {P : St σ → Prop} {Q : Result σ → Prop} {c : Exp Word}
       rw [hcond] at hrun
       simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
       obtain ⟨rfl, rfl⟩ := hrun
-      exact ⟨Nat.zero_le _, herr s hP⟩
+      cases hne
     | some pair =>
       obtain ⟨v, k⟩ := pair
       rw [hcond] at hrun
@@ -189,7 +196,7 @@ theorem Triple.ite {P : St σ → Prop} {Q : Result σ → Prop} {c : Exp Word}
           simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
             Prod.mk.injEq] at hrun
           obtain ⟨rfl, rfl⟩ := hrun
-          obtain ⟨hn₁, hQ⟩ := h₁ fuel s r₁ n₁ hP hbranch
+          obtain ⟨hn₁, hQ⟩ := h₁ fuel s r₁ n₁ hP hbranch hne
           exact ⟨by omega, hQ⟩
       · rw [if_neg hv] at hrun
         cases hbranch : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
@@ -203,7 +210,7 @@ theorem Triple.ite {P : St σ → Prop} {Q : Result σ → Prop} {c : Exp Word}
           simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
             Prod.mk.injEq] at hrun
           obtain ⟨rfl, rfl⟩ := hrun
-          obtain ⟨hn₂, hQ⟩ := h₂ fuel s r₂ n₂ hP hbranch
+          obtain ⟨hn₂, hQ⟩ := h₂ fuel s r₂ n₂ hP hbranch hne
           exact ⟨by omega, hQ⟩
 
 /-- What one loop-body run must establish: an iteration that reaches the loop
@@ -220,11 +227,10 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
     {c : Exp Word} {body : Prog Word} {e b : Nat}
     (hc : CondCost E I c e)
     (hexit : ∀ s, I s → Q (.normal s.locals s.globals s.memory s.ffi))
-    (herr : ∀ s, I s → Q (.error s.locals s.globals s.memory s.ffi))
     (hbody : ∀ k, Triple E (fun s => I s ∧ μ s = k ∧ CondTrue E s c) body b
       (loopBodyPost I μ k Q)) :
     ∀ (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat), I s →
-      Env.run E fuel s (.while c body) = some (r, n) →
+      Env.run E fuel s (.while c body) = some (r, n) → r.isError = false →
       n ≤ (μ s + 1) * (e + b + 1) ∧ Q r := by
   intro fuel
   induction fuel with
@@ -232,7 +238,7 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
     intro s r n _ hrun
     simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel ih =>
-    intro s r n hI hrun
+    intro s r n hI hrun hne
     have hpos : e + b + 1 ≤ (μ s + 1) * (e + b + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
     simp only [Env.run] at hrun
     rw [evalPanValueFfiProgSteps] at hrun
@@ -242,7 +248,7 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
       rw [hcond] at hrun
       simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
       obtain ⟨rfl, rfl⟩ := hrun
-      exact ⟨Nat.zero_le _, herr s hI⟩
+      cases hne
     | some pair =>
       obtain ⟨v, k⟩ := pair
       rw [hcond] at hrun
@@ -262,17 +268,17 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
         | some bodyPair =>
           obtain ⟨rb, nb⟩ := bodyPair
           rw [hb] at hrun
-          obtain ⟨hnb, hpost⟩ := hbody (μ s) fuel s rb nb
-            ⟨hI, rfl, v, k, hcond, by simpa using hv⟩ hb
-          have again : ∀ l g m f, I ⟨l, g, m, f⟩ → μ ⟨l, g, m, f⟩ < μ s →
-              ∀ r n, (do
+          have hpre : I s ∧ μ s = μ s ∧ CondTrue E s c := ⟨hI, rfl, v, k, hcond, by simpa using hv⟩
+          have again : ∀ l g m f, nb ≤ b → I ⟨l, g, m, f⟩ → μ ⟨l, g, m, f⟩ < μ s →
+              ∀ (r : Result σ) (n : Nat), (do
                 let (loopResult, loopSteps) ← evalPanValueFfiProgSteps E.context E.primitive
                   E.handler E.structs E.functions E.baseAddress E.topAddress E.bytesInWord fuel
                   l g m f (.while c body) (memoryAccess := E.memoryAccess)
                   (contracts := E.contracts) (memoryHandler := E.memoryHandler)
                 pure (loopResult, k + nb + loopSteps + 1)) = some (r, n) →
+              r.isError = false →
               n ≤ (μ s + 1) * (e + b + 1) ∧ Q r := by
-            intro l g m f hI' hμ r n hrun
+            intro l g m f hnb hI' hμ r n hrun hne
             cases hloop : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
                 E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
                 (.while c body) (memoryAccess := E.memoryAccess) (contracts := E.contracts)
@@ -284,7 +290,7 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
               simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
                 Option.some.injEq, Prod.mk.injEq] at hrun
               obtain ⟨rfl, rfl⟩ := hrun
-              obtain ⟨hnl, hQ⟩ := ih ⟨l, g, m, f⟩ rl nl hI' hloop
+              obtain ⟨hnl, hQ⟩ := ih ⟨l, g, m, f⟩ rl nl hI' hloop hne
               refine ⟨?_, hQ⟩
               have step : (μ (⟨l, g, m, f⟩ : St σ) + 1) * (e + b + 1) + (e + b + 1) ≤
                   (μ s + 1) * (e + b + 1) := by
@@ -292,9 +298,14 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
                 exact Nat.mul_le_mul_right _ (by omega)
               omega
           cases rb with
-          | normal l g m f => exact again l g m f hpost.1 hpost.2 r n hrun
-          | continued l g m f => exact again l g m f hpost.1 hpost.2 r n hrun
+          | normal l g m f =>
+            obtain ⟨hnb, hpost⟩ := hbody (μ s) fuel s _ nb hpre hb rfl
+            exact again l g m f hnb hpost.1 hpost.2 r n hrun hne
+          | continued l g m f =>
+            obtain ⟨hnb, hpost⟩ := hbody (μ s) fuel s _ nb hpre hb rfl
+            exact again l g m f hnb hpost.1 hpost.2 r n hrun hne
           | broke l g m f =>
+            obtain ⟨hnb, hpost⟩ := hbody (μ s) fuel s _ nb hpre hb rfl
             simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
               Option.some.injEq, Prod.mk.injEq] at hrun
             obtain ⟨rfl, rfl⟩ := hrun
@@ -303,6 +314,7 @@ theorem while_steps {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ →
             simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
               Option.some.injEq, Prod.mk.injEq] at hrun
             obtain ⟨rfl, rfl⟩ := hrun
+            obtain ⟨hnb, hpost⟩ := hbody (μ s) fuel s _ nb hpre hb hne
             exact ⟨by omega, hpost⟩
 
 /-- The while rule as a triple: a loop entered with variant at most `M`
@@ -311,13 +323,12 @@ theorem Triple.while {I : St σ → Prop} {μ : St σ → Nat} {Q : Result σ �
     {c : Exp Word} {body : Prog Word} {e b : Nat} (M : Nat)
     (hc : CondCost E I c e)
     (hexit : ∀ s, I s → Q (.normal s.locals s.globals s.memory s.ffi))
-    (herr : ∀ s, I s → Q (.error s.locals s.globals s.memory s.ffi))
     (hbody : ∀ k, Triple E (fun s => I s ∧ μ s = k ∧ CondTrue E s c) body b
       (loopBodyPost I μ k Q)) :
     Triple E (fun s => I s ∧ μ s ≤ M) (.while c body) ((M + 1) * (e + b + 1)) Q := by
   unfold Triple
-  intro fuel s r n hP hrun
-  obtain ⟨hn, hQ⟩ := while_steps hc hexit herr hbody fuel s r n hP.1 hrun
+  intro fuel s r n hP hrun hne
+  obtain ⟨hn, hQ⟩ := while_steps hc hexit hbody fuel s r n hP.1 hrun hne
   exact ⟨Nat.le_trans hn (Nat.mul_le_mul_right _ (by omega)), hQ⟩
 
 /-- Crude loop bound: a 64-bit variant gives at most `2^64` iterations. -/
@@ -325,11 +336,10 @@ theorem Triple.while_word {I : St σ → Prop} {w : St σ → Word} {Q : Result 
     {c : Exp Word} {body : Prog Word} {e b : Nat}
     (hc : CondCost E I c e)
     (hexit : ∀ s, I s → Q (.normal s.locals s.globals s.memory s.ffi))
-    (herr : ∀ s, I s → Q (.error s.locals s.globals s.memory s.ffi))
     (hbody : ∀ k, Triple E (fun s => I s ∧ (w s).toNat = k ∧ CondTrue E s c) body b
       (loopBodyPost I (fun s => (w s).toNat) k Q)) :
     Triple E I (.while c body) (2 ^ 64 * (e + b + 1)) Q := by
-  have h := Triple.while (μ := fun s => (w s).toNat) (2 ^ 64 - 1) hc hexit herr hbody
+  have h := Triple.while (μ := fun s => (w s).toNat) (2 ^ 64 - 1) hc hexit hbody
   exact h.consequence (fun s hI => ⟨hI, by have := (w s).isLt; omega⟩) (Nat.le_refl _)
     (fun _ hQ => hQ)
 

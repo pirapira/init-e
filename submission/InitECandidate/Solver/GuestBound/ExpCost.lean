@@ -30,7 +30,7 @@ theorem condCost (P : St σ → Prop) (c : Exp Word) :
 theorem Costs.assignLocal (name : VarName) (value : Exp Word) :
     Costs E (.assign .local name value) (panValueExpStepCost value + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
   | succ fuel =>

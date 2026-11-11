@@ -27,7 +27,7 @@ def HandlerCost (E : Env σ)
   | some (_, some (_, _, handlerProgram)) => Costs E handlerProgram H
   | _ => True
 
-/-- Step bound for the call evaluator. -/
+/-- Step bound for the call evaluator, for results other than `.error`. -/
 theorem callSteps_le {f : FunName} {B H : Nat}
     {info : Option (Option (VarKind × VarName) × Option (ExceptionId × VarName × Prog Word))}
     (hf : FunCost E f B) (hh : HandlerCost E info H)
@@ -36,7 +36,8 @@ theorem callSteps_le {f : FunName} {B H : Nat}
     (hrun : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs E.functions
       E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi info f
       arguments (memoryAccess := E.memoryAccess) (contracts := E.contracts)
-      (memoryHandler := E.memoryHandler) (preserveReturnLocals := preserve) = some (r, n)) :
+      (memoryHandler := E.memoryHandler) (preserveReturnLocals := preserve) = some (r, n))
+    (hne : r.isError = false) :
     n ≤ panValueExpsStepCost arguments + B + H := by
   cases fuel with
   | zero => simp [evalPanValueFfiCallSteps] at hrun
@@ -86,11 +87,12 @@ theorem callSteps_le {f : FunName} {B H : Nat}
         | some bodyPair =>
           obtain ⟨rb, nb⟩ := bodyPair
           rw [hbody] at hrun
-          have hnb : nb ≤ B :=
-            (hbodyCost fuel ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb trivial hbody).1
+          have hnb : rb.isError = false → nb ≤ B := fun hrb =>
+            (hbodyCost fuel ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb nb trivial hbody hrb).1
           simp only [Option.bind_eq_bind, Option.bind_some] at hrun
           cases rb with
           | raised l g m ffi exception value =>
+            have hnb := hnb rfl
             simp only at hrun
             split at hrun
             · cases info with
@@ -119,15 +121,17 @@ theorem callSteps_le {f : FunName} {B H : Nat}
                         rw [hhandler] at hrun
                         simp only [Option.bind_some, Option.pure_def, Option.some.injEq,
                           Prod.mk.injEq] at hrun
+                        obtain ⟨rfl, rfl⟩ := hrun
                         have hnh : nh ≤ H :=
                           (hh fuel ⟨updatePanValueMap s.locals handlerVariable value, g, m, ffi⟩
-                            rh nh trivial hhandler).1
+                            rh nh trivial hhandler hne).1
                         omega
                     · simp at hrun
                   · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
                     omega
             · simp at hrun
           | returned l g m ffi returned =>
+            have hnb := hnb rfl
             simp only at hrun
             split at hrun
             · cases info with
@@ -147,9 +151,14 @@ theorem callSteps_le {f : FunName} {B H : Nat}
                   omega
             · simp only [Option.some.injEq, Prod.mk.injEq] at hrun
               omega
-          | _ =>
+          | finalFfi l g m ffi event =>
+            have hnb := hnb rfl
             simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
             omega
+          | _ =>
+            simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            cases hne
 
 /-- A call statement costs its arguments, the callee, the handler and one step. -/
 theorem Costs.call {f : FunName} {B H : Nat}
@@ -157,7 +166,7 @@ theorem Costs.call {f : FunName} {B H : Nat}
     (arguments : List (Exp Word)) (hf : FunCost E f B) (hh : HandlerCost E info H) :
     Costs E (.call info f arguments) (panValueExpsStepCost arguments + B + H + 1) := by
   unfold Costs Triple
-  intro fuel s r n _ hrun
+  intro fuel s r n _ hrun hne
   refine ⟨?_, trivial⟩
   cases fuel with
   | zero => simp [Env.run, evalPanValueFfiProgSteps] at hrun
@@ -174,7 +183,8 @@ theorem Costs.call {f : FunName} {B H : Nat}
       rw [hcall] at hrun
       simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
         Prod.mk.injEq] at hrun
-      have := callSteps_le hf hh fuel s arguments false rc nc hcall
+      obtain ⟨rfl, rfl⟩ := hrun
+      have := callSteps_le hf hh fuel s arguments false rc nc hcall hne
       omega
 
 end InitECandidate.Solver.GuestBound

@@ -221,11 +221,11 @@ theorem counterLoop_costs (hE : WordEnv E) (c : Exp Word) (body : Prog Word) (b 
   · rename_i kind i hk
     have hw := Triple.while (E := E) (I := fun _ => True) (μ := counterVariant kind i)
       (Q := fun _ => True) (c := c) (body := body) (e := expCost c) (b := b) (2 ^ 64 - 1)
-      (by rw [← stepCost_eq]; exact condCost _ c) (fun _ _ => trivial) (fun _ _ => trivial)
+      (by rw [← stepCost_eq]; exact condCost _ c) (fun _ _ => trivial)
       (by
-        intro k fuel s r n hP hrun
+        intro k fuel s r n hP hrun hne
         obtain ⟨-, hμ, hc⟩ := hP
-        refine ⟨(hbody fuel s r n trivial hrun).1, ?_⟩
+        refine ⟨(hbody fuel s r n trivial hrun hne).1, ?_⟩
         obtain ⟨w, hw, hlt⟩ := guard_step hE hk hc
         have post := effect_sound hE kind.mode i fuel body s r n hrun
         simp only [stepsBack, Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hcheck
