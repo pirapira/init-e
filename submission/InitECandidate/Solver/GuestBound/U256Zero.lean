@@ -90,4 +90,37 @@ theorem u256_divmod_zero (hE : GuestEnv E) (parameters : List VarName) (body : P
     payload_words8, if_true, if_false, exists_eq_left] at h
   exact h
 
+theorem payload_words2 (structs : StructContext) (d0 d1 : Word) :
+    panValuePayloadWithinLimit structs (.rStruct [.word d0, .word d1]) = true := by
+  simp [panValuePayloadWithinLimit, panValuePayloadSizeFuel,
+    panValuePayloadSizeFuel.panValuePayloadSizeFieldsFuel, panValueFlatValueFuel,
+    panValueFlatValueFuel.panValueFlatValueListFuel]
+
+set_option maxHeartbeats 4000000 in
+/-- `mul64x64(0, b)` is `<0, 0>`. -/
+theorem mul64x64_zero (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "mul64x64" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (b : Word) (ha : s.locals "a" = some (.word 0))
+    (hb : s.locals "b" = some (.word b)) (h : Runs E s body r) :
+    ∃ l, r = .returned l s.globals s.memory s.ffi [.rStruct [.word 0, .word 0]] := by
+  have hbody := (fun_of_index 59 hE.functions (by guest_decl_at 59) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp (config := { decide := true }) only [runs_seq, runs_dec, runs_primitive', runs_return,
+    evalF_rStruct, evalF_rField, evalF_local, eval_const, evalF_op hE.word,
+    evalF_shift hE.word, evalF_panOp, evalArgs_cons, evalArgs_nil, ha, hb,
+    hE.prim.addCarry, Option.map_some, List.getElem?_cons_zero, List.getElem?_cons_succ,
+    shape_word, shape_rStruct, shape_matches_self, wordsProj_nil, wordsProj_cons,
+    update_lookup, addCarryResult, List.map_cons, List.map_nil, if_true, if_false, wordOp,
+    List.foldr, RiscV.panRiscVShift, BitVec.toNat_ofNat, evalPanOp_mul,
+    restorePanValueFfiLocal, payload_words2, exists_eq_left] at h
+  have hz : ∀ m : BitVec 64, AndOp.and (0 : BitVec 64) (AndOp.and m (~~~0)) = 0 := by
+    intro m
+    show (0 &&& (m &&& ~~~0)) = 0
+    simp
+  simp only [hz] at h
+  simp at h
+  exact ⟨_, h⟩
+
 end InitECandidate.Solver.GuestBound
