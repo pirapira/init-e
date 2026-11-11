@@ -7,6 +7,18 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «buffer_read» (hE : GuestEnv E) : FunCost E "buffer_read" 5829171127292218310721 := by
+  guest_cost 462
+
+theorem «op_stop» (hE : GuestEnv E) : FunCost E "op_stop" 24 := by
+  guest_cost 502
+
+theorem «op_jump» (hE : GuestEnv E) : FunCost E "op_jump" 134 := by
+  guest_cost 503
+
+theorem «op_jumpi» (hE : GuestEnv E) : FunCost E "op_jumpi" 210 := by
+  guest_cost 504
+
 theorem «op_jumpdest» (hE : GuestEnv E) : FunCost E "op_jumpdest" 54 := by
   guest_cost 507
 
@@ -33,6 +45,9 @@ theorem «calculate_message_call_gas» (hE : GuestEnv E) : FunCost E "calculate_
 
 theorem «ripemd160_block» (hE : GuestEnv E) : FunCost E "ripemd160_block" 8208801112800750469237 := by
   guest_cost 616
+
+theorem «blake2b_f» (hE : GuestEnv E) : FunCost E "blake2b_f" 29072068660166253346915 := by
+  guest_cost 623
 
 theorem «be_top_bit» (hE : GuestEnv E) : FunCost E "be_top_bit" 2471863705877079916551 := by
   guest_cost 629
@@ -61,6 +76,15 @@ theorem «fq_mul» (hE : GuestEnv E) : FunCost E "fq_mul" 3130 := by
 theorem «fe_is_zero» (hE : GuestEnv E) : FunCost E "fe_is_zero" 332041393326771929098 := by
   guest_cost 667
 
+theorem «fe_set_zero» (hE : GuestEnv E) : FunCost E "fe_set_zero" 2434970217729660813334 := by
+  guest_cost 669
+
+theorem «fe_set_one» (hE : GuestEnv E) : FunCost E "fe_set_one" 2434970217729660813342 := by
+  guest_cost 670
+
+theorem «fq12_cast» (hE : GuestEnv E) : FunCost E "fq12_cast" 2434970217729660813357 := by
+  guest_cost 678
+
 theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
   guest_cost 680
 
@@ -79,16 +103,28 @@ theorem «bls_fp_mul» (hE : GuestEnv E) : FunCost E "bls_fp_mul" 7156 := by
 theorem «bls_fp_half_can» (hE : GuestEnv E) : FunCost E "bls_fp_half_can" 213 := by
   guest_cost 711
 
+theorem «fp2_copy» (hE : GuestEnv E) : FunCost E "fp2_copy" 3394200909562557497367 := by
+  guest_cost 721
+
+theorem «fp2_set_zero» (hE : GuestEnv E) : FunCost E "fp2_set_zero" 2434970217729660813332 := by
+  guest_cost 722
+
 theorem «fp2_eq» (hE : GuestEnv E) : FunCost E "fp2_eq" 107 := by
   guest_cost 725
+
+theorem «fp6_copy» (hE : GuestEnv E) : FunCost E "fp6_copy" 3394200909562557497367 := by
+  guest_cost 738
+
+theorem «fp6_set_zero» (hE : GuestEnv E) : FunCost E "fp6_set_zero" 2434970217729660813332 := by
+  guest_cost 739
+
+theorem «fp12_copy» (hE : GuestEnv E) : FunCost E "fp12_copy" 3394200909562557497367 := by
+  guest_cost 747
 
 theorem «g1_is_inf» (hE : GuestEnv E) : FunCost E "g1_is_inf" 28 := by
   guest_cost 759
 
-theorem «g2_is_inf» (hE : GuestEnv E) : FunCost E "g2_is_inf" 45 := by
-  guest_cost 771
-
-theorem «precompile_index» (hE : GuestEnv E) : FunCost E "precompile_index" 332041393326771929151 := by
-  guest_cost 822
+theorem «g1_copy» (hE : GuestEnv E) : FunCost E "g1_copy" 3394200909562557497367 := by
+  guest_cost 760
 
 end InitECandidate.Solver.GuestBound.Fn

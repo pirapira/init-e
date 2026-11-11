@@ -17,10 +17,12 @@ theorem eval_isStep (hE : WordEnv E) {mode : Mode} {i : VarName} {value : Exp Wo
   unfold isStep at hstep
   split at hstep
   · rename_i name k
-    simp only [Bool.and_eq_true, beq_iff_eq] at hstep
-    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hstep
+    simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hstep
+    obtain ⟨rfl, hmode⟩ := hstep
     rw [hacc]
-    simp [evalPanValueExp, evalPanValueExp.evalPanValueExps, hw, hadd, stepWord]
+    rcases hmode with ⟨rfl, rfl⟩ | rfl
+    · simp [evalPanValueExp, evalPanValueExp.evalPanValueExps, hw, hadd, stepWord]
+    · simp [evalPanValueExp, evalPanValueExp.evalPanValueExps, hw, hadd, stepWord]
   · rename_i name k
     simp only [Bool.and_eq_true, beq_iff_eq] at hstep
     obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hstep

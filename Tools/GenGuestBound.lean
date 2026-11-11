@@ -1,5 +1,4 @@
 import InitECandidate.Solver.GuestBound.GuestEnv
-import InitECandidate.Solver.GuestBound.CounterCheck
 import Std.Data.HashMap
 
 /-!
@@ -78,7 +77,7 @@ def run : IO Unit := do
     let mut rest := []
     for f in pending do
       let cs := callees f.body
-      if (loops f.body).any (fun (c, body) => !counterLoop c body) ||
+      if (loops f.body).any (fun (c, body) => !loopOk c body) ||
           cs.any (fun c => skipped.contains c || !byName.contains c) then
         skipped := skipped.insert f.name ()
         progress := true
@@ -127,12 +126,33 @@ def loopReport : IO Unit := do
   let mut rejected : List String := []
   for f in functions do
     for (c, body) in loops f.body do
-      if counterLoop c body then accepted := accepted + 1
+      if loopOk c body then accepted := accepted + 1
       else rejected := s!"{f.name}: {repr (guardKind c)}" :: rejected
-  IO.println s!"counter loops accepted {accepted}, rejected {rejected.length}"
+  IO.println s!"loops accepted {accepted}, rejected {rejected.length}"
   for r in rejected.reverse do IO.println r
+
+/-- For each function with a rejected loop, how many functions call it transitively. -/
+def blockerReport : IO Unit := do
+  let fns := functions
+  let direct : Std.HashMap String (List String) :=
+    fns.foldl (fun m f => m.insert f.name (callees f.body)) {}
+  let roots := fns.filter (fun f => (loops f.body).any (fun (c, body) => !loopOk c body))
+  let mut lines : List (Nat × String) := []
+  for root in roots do
+    let mut reach : Std.HashMap String Unit := ({} : Std.HashMap String Unit).insert root.name ()
+    let mut changed := true
+    while changed do
+      changed := false
+      for f in fns do
+        if !reach.contains f.name && ((direct.getD f.name []).any fun c => reach.contains c) then
+          reach := reach.insert f.name ()
+          changed := true
+    lines := (reach.size - 1, root.name) :: lines
+  let sorted := lines.toArray.qsort (fun a b => a.1 > b.1)
+  for (count, name) in sorted do IO.println s!"{count} {name}"
 
 #eval run
 #eval loopReport
+#eval blockerReport
 
 end Tools.GenGuestBound

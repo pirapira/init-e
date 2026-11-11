@@ -14,8 +14,12 @@ open Flapjack
 
 /-- Direction of a counter. -/
 inductive Mode where
+  /-- `i = i + 1`. -/
   | up
+  /-- `i = i - 1`. -/
   | down
+  /-- `i = i + k`. -/
+  | upBy (k : Word)
   deriving DecidableEq, Repr
 
 /-- Abstract effect on the tracked local along one kind of exit. -/
@@ -71,7 +75,8 @@ def Effs.bad : Effs := ⟨.bad, .bad, .bad⟩
 
 /-- `value` is `i + 1` (up) or `i - 1` (down). -/
 def isStep (mode : Mode) (i : VarName) : Exp Word → Bool
-  | .op .add [.var .local name, .const k] => mode == .up && name == i && k == 1
+  | .op .add [.var .local name, .const k] =>
+      name == i && ((mode == .up && k == 1) || mode == .upBy k)
   | .op .sub [.var .local name, .const k] => mode == .down && name == i && k == 1
   | _ => false
 

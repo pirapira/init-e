@@ -46,6 +46,18 @@ theorem «htab_new» (hE : GuestEnv E) : FunCost E "htab_new" 441 := by
 theorem «htab_new_scratch» (hE : GuestEnv E) : FunCost E "htab_new_scratch" 437 := by
   guest_cost 129
 
+theorem «htab_grow» (hE : GuestEnv E) : FunCost E "htab_grow" 10182602728687672492437 := by
+  guest_cost 137
+
+theorem «htab_keys» (hE : GuestEnv E) : FunCost E "htab_keys" 62611955513452677278072584506688571179125 := by
+  guest_cost 144
+
+theorem «htab_copy» (hE : GuestEnv E) : FunCost E "htab_copy" 13576803638250229989867 := by
+  guest_cost 145
+
+theorem «htab_copy_scratch» (hE : GuestEnv E) : FunCost E "htab_copy_scratch" 13576803638250229989863 := by
+  guest_cost 146
+
 theorem «fp_mul» (hE : GuestEnv E) : FunCost E "fp_mul" 2204 := by
   guest_cost 153
 
@@ -54,6 +66,12 @@ theorem «fp_sqr» (hE : GuestEnv E) : FunCost E "fp_sqr" 1906 := by
 
 theorem «ssz_init» (hE : GuestEnv E) : FunCost E "ssz_init" 1808 := by
   guest_cost 185
+
+theorem «mix_in_length» (hE : GuestEnv E) : FunCost E "mix_in_length" 2434970217729660826995 := by
+  guest_cost 187
+
+theorem «pack_bytes» (hE : GuestEnv E) : FunCost E "pack_bytes" 5829171127292218310799 := by
+  guest_cost 192
 
 theorem «precheck_host_ssz_header» (hE : GuestEnv E) : FunCost E "precheck_host_ssz_header" 3099053004383204672795 := by
   guest_cost 199
@@ -64,6 +82,18 @@ theorem «ssz_split_var_list» (hE : GuestEnv E) : FunCost E "ssz_split_var_list
 theorem «ssz_fixed_list_count» (hE : GuestEnv E) : FunCost E "ssz_fixed_list_count" 645636042579834306645 := by
   guest_cost 203
 
+theorem «serialize_result» (hE : GuestEnv E) : FunCost E "serialize_result" 3394200909562557497469 := by
+  guest_cost 219
+
+theorem «header_init» (hE : GuestEnv E) : FunCost E "header_init" 2434970217729660813426 := by
+  guest_cost 238
+
+theorem «compact_to_nibbles» (hE : GuestEnv E) : FunCost E "compact_to_nibbles" 2840798587351270949024 := by
+  guest_cost 249
+
+theorem «nibbles_concat» (hE : GuestEnv E) : FunCost E "nibbles_concat" 6788401819125114994822 := by
+  guest_cost 252
+
 theorem «node_new_hashed» (hE : GuestEnv E) : FunCost E "node_new_hashed" 112 := by
   guest_cost 255
 
@@ -73,11 +103,17 @@ theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := b
 theorem «node_new_ext» (hE : GuestEnv E) : FunCost E "node_new_ext" 130 := by
   guest_cost 257
 
+theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434970217729660813424 := by
+  guest_cost 258
+
 theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
   guest_cost 268
 
 theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
   guest_cost 361
+
+theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
+  guest_cost 363
 
 theorem «lst_new» (hE : GuestEnv E) : FunCost E "lst_new" 194 := by
   guest_cost 408
@@ -85,46 +121,10 @@ theorem «lst_new» (hE : GuestEnv E) : FunCost E "lst_new" 194 := by
 theorem «lst_new_scratch» (hE : GuestEnv E) : FunCost E "lst_new_scratch" 192 := by
   guest_cost 409
 
+theorem «lst_push» (hE : GuestEnv E) : FunCost E "lst_push" 3394200909562557497505 := by
+  guest_cost 410
+
 theorem «words_of» (hE : GuestEnv E) : FunCost E "words_of" 37 := by
   guest_cost 443
-
-theorem «to_address_masked» (hE : GuestEnv E) : FunCost E "to_address_masked" 301 := by
-  guest_cost 444
-
-theorem «address_to_u256» (hE : GuestEnv E) : FunCost E "address_to_u256" 1199038364791120855248 := by
-  guest_cost 445
-
-theorem «ripemd160_init» (hE : GuestEnv E) : FunCost E "ripemd160_init" 477 := by
-  guest_cost 612
-
-theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
-  guest_cost 621
-
-theorem «bn254_init» (hE : GuestEnv E) : FunCost E "bn254_init" 567 := by
-  guest_cost 648
-
-theorem «fq_to_mont» (hE : GuestEnv E) : FunCost E "fq_to_mont" 3137 := by
-  guest_cost 653
-
-theorem «fq_from_mont» (hE : GuestEnv E) : FunCost E "fq_from_mont" 3137 := by
-  guest_cost 654
-
-theorem «fq_mul_small» (hE : GuestEnv E) : FunCost E "fq_mul_small" 8522395762053812846705 := by
-  guest_cost 656
-
-theorem «fq2_mul» (hE : GuestEnv E) : FunCost E "fq2_mul" 13000 := by
-  guest_cost 657
-
-theorem «fe_add» (hE : GuestEnv E) : FunCost E "fe_add" 4648579506574807007237 := by
-  guest_cost 663
-
-theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773 := by
-  guest_cost 664
-
-theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
-  guest_cost 665
-
-theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
-  guest_cost 672
 
 end InitECandidate.Solver.GuestBound.Fn

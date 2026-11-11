@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «htab_new_leaf» (hE : GuestEnv E) : FunCost E "htab_new_leaf" 13576803638250229989951 := by
+  guest_cost 135
+
+theorem «htab_new_internal» (hE : GuestEnv E) : FunCost E "htab_new_internal" 10182602728687672492543 := by
+  guest_cost 136
+
 theorem «fp_inv_fermat» (hE : GuestEnv E) : FunCost E "fp_inv_fermat" 77347197901064149925908 := by
   guest_cost 156
 
@@ -25,16 +31,100 @@ theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_statele
 theorem «extend_memory_cost1» (hE : GuestEnv E) : FunCost E "extend_memory_cost1" 470 := by
   guest_cost 458
 
+theorem «op_lt» (hE : GuestEnv E) : FunCost E "op_lt" 3394200909562557497735 := by
+  guest_cost 486
+
+theorem «op_gt» (hE : GuestEnv E) : FunCost E "op_gt" 3394200909562557497738 := by
+  guest_cost 487
+
+theorem «op_slt» (hE : GuestEnv E) : FunCost E "op_slt" 3394200909562557497735 := by
+  guest_cost 488
+
+theorem «op_sgt» (hE : GuestEnv E) : FunCost E "op_sgt" 3394200909562557497738 := by
+  guest_cost 489
+
+theorem «op_eq» (hE : GuestEnv E) : FunCost E "op_eq" 3394200909562557497699 := by
+  guest_cost 490
+
+theorem «op_iszero» (hE : GuestEnv E) : FunCost E "op_iszero" 3394200909562557497652 := by
+  guest_cost 491
+
+theorem «op_byte» (hE : GuestEnv E) : FunCost E "op_byte" 3394200909562557497744 := by
+  guest_cost 496
+
+theorem «op_clz» (hE : GuestEnv E) : FunCost E "op_clz" 3394200909562557498083 := by
+  guest_cost 500
+
+theorem «op_pc» (hE : GuestEnv E) : FunCost E "op_pc" 3394200909562557497598 := by
+  guest_cost 505
+
+theorem «op_gas» (hE : GuestEnv E) : FunCost E "op_gas" 3394200909562557497598 := by
+  guest_cost 506
+
+theorem «op_msize» (hE : GuestEnv E) : FunCost E "op_msize" 3394200909562557497598 := by
+  guest_cost 511
+
+theorem «op_calldatasize» (hE : GuestEnv E) : FunCost E "op_calldatasize" 3394200909562557497601 := by
+  guest_cost 537
+
+theorem «op_codesize» (hE : GuestEnv E) : FunCost E "op_codesize" 3394200909562557497598 := by
+  guest_cost 540
+
+theorem «op_returndatasize» (hE : GuestEnv E) : FunCost E "op_returndatasize" 3394200909562557497598 := by
+  guest_cost 546
+
+theorem «op_timestamp» (hE : GuestEnv E) : FunCost E "op_timestamp" 3394200909562557497607 := by
+  guest_cost 556
+
+theorem «op_number» (hE : GuestEnv E) : FunCost E "op_number" 3394200909562557497607 := by
+  guest_cost 557
+
+theorem «op_gaslimit» (hE : GuestEnv E) : FunCost E "op_gaslimit" 3394200909562557497607 := by
+  guest_cost 558
+
+theorem «op_chainid» (hE : GuestEnv E) : FunCost E "op_chainid" 3394200909562557497607 := by
+  guest_cost 559
+
+theorem «op_slotnum» (hE : GuestEnv E) : FunCost E "op_slotnum" 3394200909562557497607 := by
+  guest_cost 561
+
+theorem «emit_transfer_log» (hE : GuestEnv E) : FunCost E "emit_transfer_log" 18446744073709551617306 := by
+  guest_cost 567
+
+theorem «fq12_sqr» (hE : GuestEnv E) : FunCost E "fq12_sqr" 1465255871961561023756983937463614154211461 := by
+  guest_cost 660
+
 theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
   guest_cost 737
+
+theorem «fp12_mul» (hE : GuestEnv E) : FunCost E "fp12_mul" 10182602728687673128574 := by
+  guest_cost 750
+
+theorem «fp12_conj» (hE : GuestEnv E) : FunCost E "fp12_conj" 3394200909562557498495 := by
+  guest_cost 752
+
+theorem «g1_add» (hE : GuestEnv E) : FunCost E "g1_add" 6788401819125115179502 := by
+  guest_cost 763
 
 theorem «g1_decode» (hE : GuestEnv E) : FunCost E "g1_decode" 664082786653543895387 := by
   guest_cost 767
 
+theorem «g2_add» (hE : GuestEnv E) : FunCost E "g2_add" 29588577494230121327637 := by
+  guest_cost 775
+
+theorem «g2_decode» (hE : GuestEnv E) : FunCost E "g2_decode" 3763135791036748614271 := by
+  guest_cost 779
+
 theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 264784564434026904084006 := by
   guest_cost 788
 
-theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
-  guest_cost 811
+theorem «swu_sqrt_division_fp2» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp2" 62611955513452679539108452365342022395239 := by
+  guest_cost 792
+
+theorem «iso_map_g2» (hE : GuestEnv E) : FunCost E "iso_map_g2" 3433086646069937232303475 := by
+  guest_cost 795
+
+theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 268178765343589461430566 := by
+  guest_cost 797
 
 end InitECandidate.Solver.GuestBound.Fn

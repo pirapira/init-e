@@ -7,6 +7,15 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «is_valid_delegation» (hE : GuestEnv E) : FunCost E "is_valid_delegation" 36 := by
+  guest_cost 446
+
+theorem «check_gas» (hE : GuestEnv E) : FunCost E "check_gas" 12 := by
+  guest_cost 447
+
+theorem «charge_gas» (hE : GuestEnv E) : FunCost E "charge_gas" 33 := by
+  guest_cost 448
+
 theorem «frame_state_gas_used» (hE : GuestEnv E) : FunCost E "frame_state_gas_used" 20 := by
   guest_cost 451
 

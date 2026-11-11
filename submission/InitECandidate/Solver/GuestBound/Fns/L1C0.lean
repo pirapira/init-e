@@ -94,6 +94,9 @@ theorem «mod_sub» (hE : GuestEnv E) : FunCost E "mod_sub" 211 := by
 theorem «ec_is_infinity» (hE : GuestEnv E) : FunCost E "ec_is_infinity" 24 := by
   guest_cost 169
 
+theorem «htr_u64_at» (hE : GuestEnv E) : FunCost E "htr_u64_at" 5829171127292218310697 := by
+  guest_cost 195
+
 theorem «host_input_le32» (hE : GuestEnv E) : FunCost E "host_input_le32" 110 := by
   guest_cost 198
 
@@ -109,6 +112,12 @@ theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
 theorem «tx_chain_id» (hE : GuestEnv E) : FunCost E "tx_chain_id" 306 := by
   guest_cost 338
 
+theorem «sk_make» (hE : GuestEnv E) : FunCost E "sk_make" 6788401819125114994734 := by
+  guest_cost 360
+
+theorem «bal_list_remove_idx» (hE : GuestEnv E) : FunCost E "bal_list_remove_idx" 62611955513452677278459966132236471762959 := by
+  guest_cost 424
+
 theorem «ceil32» (hE : GuestEnv E) : FunCost E "ceil32" 31 := by
   guest_cost 442
 
@@ -117,14 +126,5 @@ theorem «charge_state_gas» (hE : GuestEnv E) : FunCost E "charge_state_gas" 82
 
 theorem «credit_state_gas_refund» (hE : GuestEnv E) : FunCost E "credit_state_gas_refund" 51 := by
   guest_cost 450
-
-theorem «op_stop» (hE : GuestEnv E) : FunCost E "op_stop" 24 := by
-  guest_cost 502
-
-theorem «op_jump» (hE : GuestEnv E) : FunCost E "op_jump" 134 := by
-  guest_cost 503
-
-theorem «op_jumpi» (hE : GuestEnv E) : FunCost E "op_jumpi" 210 := by
-  guest_cost 504
 
 end InitECandidate.Solver.GuestBound.Fn

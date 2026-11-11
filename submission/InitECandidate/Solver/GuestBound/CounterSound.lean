@@ -26,6 +26,7 @@ structure WordEnv {σ : Type} (E : Env σ) : Prop where
 def stepWord : Mode → Word → Word
   | .up, w => w + 1
   | .down, w => w - 1
+  | .upBy k, w => w + k
 
 /-- What an abstract effect says about the locals `l` at one exit, given the
 value `v` the tracked local had at entry. -/

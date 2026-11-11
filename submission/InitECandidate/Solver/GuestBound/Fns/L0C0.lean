@@ -31,6 +31,12 @@ theorem «scratch_mark» (hE : GuestEnv E) : FunCost E "scratch_mark" 2 := by
 theorem «scratch_release» (hE : GuestEnv E) : FunCost E "scratch_release" 5 := by
   guest_cost 15
 
+theorem «memcpy» (hE : GuestEnv E) : FunCost E "memcpy" 3394200909562557497360 := by
+  guest_cost 16
+
+theorem «memzero» (hE : GuestEnv E) : FunCost E "memzero" 2434970217729660813326 := by
+  guest_cost 17
+
 theorem «is_zero_bytes» (hE : GuestEnv E) : FunCost E "is_zero_bytes" 332041393326771929093 := by
   guest_cost 19
 
@@ -120,11 +126,5 @@ theorem «div64by32» (hE : GuestEnv E) : FunCost E "div64by32" 6456360425798343
 
 theorem «u256_to_digits» (hE : GuestEnv E) : FunCost E "u256_to_digits" 72 := by
   guest_cost 64
-
-theorem «digits_to_u256» (hE : GuestEnv E) : FunCost E "digits_to_u256" 44 := by
-  guest_cost 65
-
-theorem «digits_len» (hE : GuestEnv E) : FunCost E "digits_len" 405828369621610135555 := by
-  guest_cost 66
 
 end InitECandidate.Solver.GuestBound.Fn

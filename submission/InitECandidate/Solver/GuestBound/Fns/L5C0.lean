@@ -16,4 +16,40 @@ theorem «secp256k1_decompress_r» (hE : GuestEnv E) : FunCost E "secp256k1_deco
 theorem «extend_memory_cost2» (hE : GuestEnv E) : FunCost E "extend_memory_cost2" 994 := by
   guest_cost 459
 
+theorem «charge_with_memory» (hE : GuestEnv E) : FunCost E "charge_with_memory" 4869940435459321627345 := by
+  guest_cost 461
+
+theorem «op_log» (hE : GuestEnv E) : FunCost E "op_log" 28924494707576576935466 := by
+  guest_cost 524
+
+theorem «copy_from_buffer» (hE : GuestEnv E) : FunCost E "copy_from_buffer" 10699111562751539938297 := by
+  guest_cost 538
+
+theorem «op_returndatacopy» (hE : GuestEnv E) : FunCost E "op_returndatacopy" 8264141345021879124965 := by
+  guest_cost 547
+
+theorem «op_return» (hE : GuestEnv E) : FunCost E "op_return" 4869940435459321627456 := by
+  guest_cost 568
+
+theorem «op_revert» (hE : GuestEnv E) : FunCost E "op_revert" 4869940435459321627453 := by
+  guest_cost 569
+
+theorem «fp12_sqr» (hE : GuestEnv E) : FunCost E "fp12_sqr" 10182602728687673128578 := by
+  guest_cost 751
+
+theorem «fp12_pow_absx» (hE : GuestEnv E) : FunCost E "fp12_pow_absx" 375671733080716087162522353965869427589481 := by
+  guest_cost 755
+
+theorem «g1_mul» (hE : GuestEnv E) : FunCost E "g1_mul" 125223911026905359493840495455433952067869 := by
+  guest_cost 764
+
+theorem «g2_mul» (hE : GuestEnv E) : FunCost E "g2_mul" 733648783081543341316326735728921016271067 := by
+  guest_cost 776
+
+theorem «pair_ell» (hE : GuestEnv E) : FunCost E "pair_ell" 16011773855979891468073 := by
+  guest_cost 784
+
+theorem «swu_g2» (hE : GuestEnv E) : FunCost E "swu_g2" 125223911026905357956193696447300568104571 := by
+  guest_cost 793
+
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,6 +7,63 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «to_address_masked» (hE : GuestEnv E) : FunCost E "to_address_masked" 301 := by
+  guest_cost 444
+
+theorem «address_to_u256» (hE : GuestEnv E) : FunCost E "address_to_u256" 1199038364791120855248 := by
+  guest_cost 445
+
+theorem «stack_push» (hE : GuestEnv E) : FunCost E "stack_push" 3394200909562557497529 := by
+  guest_cost 454
+
+theorem «extend_memory» (hE : GuestEnv E) : FunCost E "extend_memory" 4869940435459321626813 := by
+  guest_cost 460
+
+theorem «msg_new» (hE : GuestEnv E) : FunCost E "msg_new" 2434970217729660813418 := by
+  guest_cost 465
+
+theorem «msg_new_scratch» (hE : GuestEnv E) : FunCost E "msg_new_scratch" 2434970217729660813417 := by
+  guest_cost 466
+
+theorem «set_retdata» (hE : GuestEnv E) : FunCost E "set_retdata" 3394200909562557497513 := by
+  guest_cost 595
+
+theorem «ripemd160_init» (hE : GuestEnv E) : FunCost E "ripemd160_init" 477 := by
+  guest_cost 612
+
+theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
+  guest_cost 621
+
+theorem «bn254_init» (hE : GuestEnv E) : FunCost E "bn254_init" 567 := by
+  guest_cost 648
+
+theorem «fq_to_mont» (hE : GuestEnv E) : FunCost E "fq_to_mont" 3137 := by
+  guest_cost 653
+
+theorem «fq_from_mont» (hE : GuestEnv E) : FunCost E "fq_from_mont" 3137 := by
+  guest_cost 654
+
+theorem «fq_mul_small» (hE : GuestEnv E) : FunCost E "fq_mul_small" 8522395762053812846705 := by
+  guest_cost 656
+
+theorem «fq2_mul» (hE : GuestEnv E) : FunCost E "fq2_mul" 13000 := by
+  guest_cost 657
+
+theorem «fe_add» (hE : GuestEnv E) : FunCost E "fe_add" 4648579506574807007237 := by
+  guest_cost 663
+
+theorem «fe_sub» (hE : GuestEnv E) : FunCost E "fe_sub" 4574792530279968800773 := by
+  guest_cost 664
+
+theorem «fe_neg» (hE : GuestEnv E) : FunCost E "fe_neg" 2490310449950789468165 := by
+  guest_cost 665
+
+theorem «ecp_set_inf» (hE : GuestEnv E) : FunCost E "ecp_set_inf" 7304910653188982440042 := by
+  guest_cost 671
+
+theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
+  guest_cost 672
+
 theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
   guest_cost 696
 
@@ -52,8 +109,14 @@ theorem «fp2_mul_xi» (hE : GuestEnv E) : FunCost E "fp2_mul_xi" 518 := by
 theorem «fp2_scale» (hE : GuestEnv E) : FunCost E "fp2_scale" 14338 := by
   guest_cost 734
 
+theorem «fp6_set_one» (hE : GuestEnv E) : FunCost E "fp6_set_one" 4869940435459321626703 := by
+  guest_cost 740
+
 theorem «g1_neg» (hE : GuestEnv E) : FunCost E "g1_neg" 207 := by
   guest_cost 761
+
+theorem «g2_set_inf» (hE : GuestEnv E) : FunCost E "g2_set_inf" 2434970217729660813395 := by
+  guest_cost 770
 
 theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 269285569988012034490382 := by
   guest_cost 789
@@ -61,13 +124,7 @@ theorem «iso_horner_fp» (hE : GuestEnv E) : FunCost E "iso_horner_fp" 26928556
 theorem «kzg_neg_scalar» (hE : GuestEnv E) : FunCost E "kzg_neg_scalar" 1199038364791120855367 := by
   guest_cost 799
 
-theorem «modexp_gas» (hE : GuestEnv E) : FunCost E "modexp_gas" 527 := by
-  guest_cost 828
-
-theorem «addr_from_words» (hE : GuestEnv E) : FunCost E "addr_from_words" 294 := by
-  guest_cost 860
-
-theorem «fee_mul» (hE : GuestEnv E) : FunCost E "fee_mul" 1729 := by
-  guest_cost 867
+theorem «pre_blake2f» (hE : GuestEnv E) : FunCost E "pre_blake2f" 34403177697468313764447 := by
+  guest_cost 827
 
 end InitECandidate.Solver.GuestBound.Fn

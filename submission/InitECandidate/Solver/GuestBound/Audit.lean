@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.Fns.L5
+import InitECandidate.Solver.GuestBound.Fns.L7
 
 /-! Axiom audit for the guest-bound modules: each line must report only
 `propext`, `Classical.choice` and `Quot.sound` (or no axioms). -/
@@ -41,3 +41,9 @@ open InitECandidate.Solver.GuestBound
 #print axioms functionsFrom_declarations
 #print axioms stepCost_eq
 #print axioms Fn.alloc
+#print axioms effect_sound
+#print axioms counterLoop_costs
+#print axioms straight_sound
+#print axioms offsetLoop_costs
+#print axioms loop_costs
+#print axioms Fn.memcpy

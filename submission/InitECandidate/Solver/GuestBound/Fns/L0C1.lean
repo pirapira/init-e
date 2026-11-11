@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «digits_to_u256» (hE : GuestEnv E) : FunCost E "digits_to_u256" 44 := by
+  guest_cost 65
+
+theorem «digits_len» (hE : GuestEnv E) : FunCost E "digits_len" 405828369621610135555 := by
+  guest_cost 66
+
 theorem «bit_length64» (hE : GuestEnv E) : FunCost E "bit_length64" 102 := by
   guest_cost 77
 
@@ -64,6 +70,9 @@ theorem «host_input_byte» (hE : GuestEnv E) : FunCost E "host_input_byte" 21 :
 theorem «mpt_fail» (hE : GuestEnv E) : FunCost E "mpt_fail" 5 := by
   guest_cost 246
 
+theorem «key_to_nibbles» (hE : GuestEnv E) : FunCost E "key_to_nibbles" 2840798587351270948870 := by
+  guest_cost 248
+
 theorem «node_invalidate» (hE : GuestEnv E) : FunCost E "node_invalidate" 20 := by
   guest_cost 259
 
@@ -117,14 +126,5 @@ theorem «sat_word» (hE : GuestEnv E) : FunCost E "sat_word" 16 := by
 
 theorem «add_sat» (hE : GuestEnv E) : FunCost E "add_sat" 13 := by
   guest_cost 441
-
-theorem «is_valid_delegation» (hE : GuestEnv E) : FunCost E "is_valid_delegation" 36 := by
-  guest_cost 446
-
-theorem «check_gas» (hE : GuestEnv E) : FunCost E "check_gas" 12 := by
-  guest_cost 447
-
-theorem «charge_gas» (hE : GuestEnv E) : FunCost E "charge_gas" 33 := by
-  guest_cost 448
 
 end InitECandidate.Solver.GuestBound.Fn
