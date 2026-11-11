@@ -43,7 +43,7 @@ structure St (σ : Type) where
 abbrev Result (σ : Type) := PanValueFfiControlResult Word σ
 
 /-- The state a control result carries. -/
-def Result.st {σ : Type} : Result σ → St σ
+def _root_.Flapjack.PanValueFfiControlResult.st {σ : Type} : Result σ → St σ
   | .normal l g m f | .error l g m f | .returned l g m f _ | .raised l g m f _ _
   | .broke l g m f | .continued l g m f | .finalFfi l g m f _ => ⟨l, g, m, f⟩
 
