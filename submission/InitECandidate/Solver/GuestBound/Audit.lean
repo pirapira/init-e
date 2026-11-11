@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.Call
+import InitECandidate.Solver.GuestBound.Leaves
 
 /-! Axiom audit for the guest-bound modules: each line must report only
 `propext`, `Classical.choice` and `Quot.sound` (or no axioms). -/
@@ -16,3 +16,15 @@ open InitECandidate.Solver.GuestBound
 #print axioms Costs.assignLocal
 #print axioms callSteps_le
 #print axioms Costs.call
+#print axioms Costs.assignGlobal
+#print axioms Costs.return
+#print axioms Costs.raise
+#print axioms Costs.store
+#print axioms Costs.store32
+#print axioms Costs.storeByte
+#print axioms Costs.skip
+#print axioms Costs.break
+#print axioms Costs.continue
+#print axioms Costs.seq
+#print axioms Costs.ite
+#print axioms Costs.dec
