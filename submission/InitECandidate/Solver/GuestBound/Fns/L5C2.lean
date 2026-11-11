@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «calculate_base_fee_per_gas» (hE : GuestEnv E) : FunCost E "calculate_base_fee_per_gas" 15284555779325737803368566882786180585505908528509306225303198321298810997838607 := by
+  guest_cost 236
+
 theorem «_node_rlp_finish» (hE : GuestEnv E) : FunCost E "_node_rlp_finish" 3653273209995048205276550321114618904443768126181322302423694 := by
   guest_cost 282
 
@@ -21,8 +24,5 @@ theorem «charge_with_memory» (hE : GuestEnv E) : FunCost E "charge_with_memory
 
 theorem «op_div» (hE : GuestEnv E) : FunCost E "op_div" 3821138944831434450842141720696545146376477132127326556329032372223620348380230 := by
   guest_cost 478
-
-theorem «op_mod» (hE : GuestEnv E) : FunCost E "op_mod" 3821138944831434450842141720696545146376477132127326556329032372223620348380230 := by
-  guest_cost 480
 
 end InitECandidate.Solver.GuestBound.Fn

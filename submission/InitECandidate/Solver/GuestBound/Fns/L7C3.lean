@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
+  guest_cost 592
+
+theorem «pre_p256verify» (hE : GuestEnv E) : FunCost E "pre_p256verify" 2810168021537413716015300015177406302080731093535309989064508863473616198646201392848730603150443192043198709591130265538813113990389381174114330089675574751720110510153465487963 := by
+  guest_cost 645
+
 theorem «ecp_double» (hE : GuestEnv E) : FunCost E "ecp_double" 22914614588455996130190883444721840071819831 := by
   guest_cost 673
 
@@ -18,11 +24,5 @@ theorem «fp12_final_exp» (hE : GuestEnv E) : FunCost E "fp12_final_exp" 175901
 
 theorem «pair_accumulate» (hE : GuestEnv E) : FunCost E "pair_accumulate" 35180317644487989131558614627653826447548275686070696850157641455741218158011914381454862653284130661716636371292441945067 := by
   guest_cost 786
-
-theorem «kzg_load_g1» (hE : GuestEnv E) : FunCost E "kzg_load_g1" 125223911026905359762351302192350185427770 := by
-  guest_cost 798
-
-theorem «bls_g1_msm_exec» (hE : GuestEnv E) : FunCost E "bls_g1_msm_exec" 17590158822243994565779307313826913223774137843035348425078825347817486323603181310259591857206219687288283232140527926471 := by
-  guest_cost 803
 
 end InitECandidate.Solver.GuestBound.Fn

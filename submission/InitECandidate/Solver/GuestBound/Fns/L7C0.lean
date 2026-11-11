@@ -19,10 +19,10 @@ theorem «fn_pow» (hE : GuestEnv E) : FunCost E "fn_pow" 4229254331123401965205
 theorem «secp256k1_recover» (hE : GuestEnv E) : FunCost E "secp256k1_recover" 92108901641429439341208350098183411749348279567836735322998596806305682449502782885 := by
   guest_cost 178
 
+theorem «calculate_excess_blob_gas» (hE : GuestEnv E) : FunCost E "calculate_excess_blob_gas" 70487572185390032761068244696740998731002734659311275220476410934685378874933822399945021056883695 := by
+  guest_cost 234
+
 theorem «tx_encode_generic» (hE : GuestEnv E) : FunCost E "tx_encode_generic" 1505297160085110544065539489077190796263375247816081612142582222933901006871683 := by
   guest_cost 328
-
-theorem «set_account» (hE : GuestEnv E) : FunCost E "set_account" 24160048051386630960926234699531135486806 := by
-  guest_cost 387
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «swu_g2» (hE : GuestEnv E) : FunCost E "swu_g2" 125223911026905357956193696447300568104571 := by
+  guest_cost 793
+
 theorem «encode_receipt» (hE : GuestEnv E) : FunCost E "encode_receipt" 68896293096203136292648442299546753595068464516772566919907487714043646921671660 := by
   guest_cost 836
 

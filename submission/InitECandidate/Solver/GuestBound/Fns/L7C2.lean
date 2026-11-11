@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «add_nonce_change» (hE : GuestEnv E) : FunCost E "add_nonce_change" 24160048051386630961645657718405808001443 := by
+  guest_cost 417
+
 theorem «add_code_change» (hE : GuestEnv E) : FunCost E "add_code_change" 24160048051386630961368956557300164727213 := by
   guest_cost 418
 
@@ -16,13 +19,10 @@ theorem «add_touched_account» (hE : GuestEnv E) : FunCost E "add_touched_accou
 theorem «warm_after_charge» (hE : GuestEnv E) : FunCost E "warm_after_charge" 24160048051386630952311605217108774881591 := by
   guest_cost 474
 
+theorem «op_blobbasefee» (hE : GuestEnv E) : FunCost E "op_blobbasefee" 70487572185390032761068244696740998731002734659311275220476410934685378874936570964812003780073121 := by
+  guest_cost 553
+
 theorem «frame_epilogue» (hE : GuestEnv E) : FunCost E "frame_epilogue" 445674223212454335088491484220825489660965659518482874630162 := by
   guest_cost 582
-
-theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
-  guest_cost 592
-
-theorem «pre_p256verify» (hE : GuestEnv E) : FunCost E "pre_p256verify" 2810168021537413716015300015177406302080731093535309989064508863473616198646201392848730603150443192043198709591130265538813113990389381174114330089675574751720110510153465487963 := by
-  guest_cost 645
 
 end InitECandidate.Solver.GuestBound.Fn

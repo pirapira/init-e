@@ -538,4 +538,105 @@ theorem tayLoop (hE : GuestEnv E) {b : Nat} (hb : Costs E tayBody b) :
       · omega
     · omega
 
+/-- Close a cost inequality between closed expression costs. -/
+macro "cost_leT" : tactic => `(tactic| (
+  simp only [stepCost_eq, stepsCost_eq, expCost, expsCost, tayGuard]
+  omega))
+
+namespace Manual
+
+set_option maxHeartbeats 2000000 in
+theorem «taylor_exponential».cost (hE : GuestEnv E) {FW MU IZ AD MF TR DV : Nat}
+    (hfw : FunCost E "u256_from_word" FW) (hmul : FunCost E "u256_mul" MU)
+    (hisz : FunCost E "u256_is_zero" IZ) (hadd : FunCost E "u256_add" AD)
+    (hmf : FunCost E "u256_mul_full" MF) (htrap : FunCost E "trap_with" TR)
+    (hdiv : FunCost E "u256_div" DV) :
+    FunCost E "taylor_exponential" (3 * FW + MU + IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 400) := by
+  have hb : Costs E tayBody (AD + MF + TR + FW + MU + DV + IZ + 300) :=
+    (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hadd)
+      (X.decCall σ E _ _ _ _ _ _ _ hmf
+        (X.seq σ E _ _ _ _ (X.ite σ E _ _ _ _ _ (X.callDest σ E _ _ _ _ htrap) (X.skip σ E))
+          (X.dec σ E _ _ _ _ _
+            (X.decCall σ E _ _ _ _ _ _ _ hfw
+              (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hmul)
+                (X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hdiv)
+                  (X.seq σ E _ _ _ _ (X.assign σ E _ _ _)
+                    (X.callDest σ E _ _ _ _ hisz))))))))).consequence
+      (fun _ h => h) (by cost_leT) (fun _ h => h)
+  have hloop : Triple E TayInv (.while tayGuard tayBody) (18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320))
+      (fun r => match r with
+        | .normal _ _ _ _ => True
+        | r => (fun _ => True) r) :=
+    (tayLoop hE hb).consequence (fun _ h => h) (by cost_leT)
+      (fun r _ => by cases r <;> trivial)
+  refine FunCost.mono (funCost_of_index 232 hE.functions (by guest_decl_at 232)
+    (by decide +kernel) (B := 3 * FW + MU + IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 400) ?_) (Nat.le_refl _)
+  reduce_body
+  refine (Triple.decCallRun (C := 2 * FW + MU + IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 380) (P' := DenOk) _ _ _ hfw
+    ?_ ?_).consequence (fun _ h => h) (by cost_leT) (fun _ h => h)
+  · intro s v g m ffi _ hcr hshape
+    obtain ⟨parameters, body, values, cl, l, hlookup, hvalues, hbind, hruns⟩ := hcr
+    have hparams := (fun_of_index 39 hE.functions (by guest_decl_at 39) (by decide +kernel)
+      hlookup).2
+    simp only [evalArgs_cons, evalArgs_nil, evalF_local] at hvalues
+    cases hx : s.locals "denominator" with
+    | none => rw [hx] at hvalues; cases hvalues
+    | some x =>
+      rw [hx] at hvalues
+      simp only [Option.map_some, Option.some.injEq] at hvalues
+      subst hvalues
+      rw [hparams] at hbind
+      simp [bindPanValueParameters] at hbind
+      rcases u256_from_word_any hE parameters body hlookup _ _ x
+        (by rw [← hbind]; simp [updatePanValueMap]) hruns with herr | heq
+      · cases herr
+      · simp only [PanValueFfiControlResult.returned.injEq, List.cons.injEq, and_true] at heq
+        obtain ⟨-, -, -, -, rfl⟩ := heq
+        obtain ⟨ws, hws, hlen⟩ := panValueShape_matches_word_record_inv E.structs _
+          [(0 : Word), 0, 0, 0] hshape
+        match ws, hlen, hws with
+        | [w0, w1, w2, w3], _, hws =>
+          simp only [List.map_cons, List.map_nil, PanValue.rStruct.injEq, List.cons.injEq,
+            PanValue.word.injEq, and_true] at hws
+          obtain ⟨rfl, -, -, -⟩ := hws
+          exact ⟨w0, by simp [updatePanValueMap]⟩
+  refine (Triple.decCall (C := FW + MU + IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 360) (P' := DenOk) _ _ _ hfw
+    (fun s v g m ffi (hP : DenOk s) _ => hP.update_other (by decide)) ?_).consequence
+    (fun _ h => h) (by cost_leT) (fun _ h => h)
+  refine (Triple.decCall (C := MU + IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 340) (P' := DenOk) _ _ _ hfw
+    (fun s v g m ffi (hP : DenOk s) _ => hP.update_other (by decide)) ?_).consequence
+    (fun _ h => h) (by cost_leT) (fun _ h => h)
+  refine (Triple.seq (B₁ := MU + 10) (B₂ := IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 320) (Mid := DenOk)
+    (Q := fun _ => True) ?_ ?_).consequence (fun _ h => h) (by omega) (fun _ h => h)
+  · refine Triple.of_costs ((X.callDest σ E _ _ _ _ hmul).consequence (fun _ h => h)
+      (by cost_leT) (fun _ h => h)) ?_
+    intro fuel s r n hP hrun hne
+    have hf := call_local_frame (Runs.of_run hrun)
+    cases r with
+    | normal l g m f =>
+      obtain ⟨dw, hd⟩ := hP
+      exact ⟨dw, (hf "den" (by decide)).trans hd⟩
+    | _ => trivial
+  refine (Triple.dec (B := IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 300) (P' := DenOk) _ _ _
+    (fun s v (hP : DenOk s) _ _ => hP.update_other (by decide)) ?_).consequence (fun _ h => h)
+    (by cost_leT) (fun _ h => h)
+  refine (Triple.dec (B := IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 290) (P' := TayInv) _ _ _ ?_ ?_).consequence
+    (fun _ h => h) (by cost_leT) (fun _ h => h)
+  · intro s v hP heval _
+    obtain ⟨dw, hd⟩ := hP
+    simp only [eval_const, Option.some.injEq] at heval
+    subst heval
+    exact ⟨BitVec.ofNat 64 1, dw, by simp [updatePanValueMap], by simp [updatePanValueMap, hd]⟩
+  refine (Triple.dec (B := IZ + DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 270) (P' := TayInv) _ _ _
+    (fun s v (hP : TayInv s) _ _ => hP.update_other (by decide) (by decide)) ?_).consequence
+    (fun _ h => h) (by cost_leT) (fun _ h => h)
+  refine (Triple.decCall (C := DV + 18446744073709551617 * (AD + MF + TR + FW + MU + DV + IZ + 320) + 250) (P' := TayInv) _ _ _ hisz
+    (fun s v g m ffi (hP : TayInv s) _ => hP.update_other (by decide) (by decide))
+    ?_).consequence (fun _ h => h) (by cost_leT) (fun _ h => h)
+  exact (Triple.seq (Mid := fun _ => True) (Q := fun _ => True) hloop
+    ((X.seq σ E _ _ _ _ (X.callDest σ E _ _ _ _ hdiv) (X.ret σ E _)).consequence
+      (fun _ h => h) (Nat.le_refl _) (fun _ h => h))).consequence
+    (fun _ h => h) (by cost_leT) (fun _ h => h)
+
+end Manual
 end InitECandidate.Solver.GuestBound

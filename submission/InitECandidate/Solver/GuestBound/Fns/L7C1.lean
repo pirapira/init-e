@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «set_account» (hE : GuestEnv E) : FunCost E "set_account" 24160048051386630960926234699531135486806 := by
+  guest_cost 387
+
 theorem «set_transient_storage» (hE : GuestEnv E) : FunCost E "set_transient_storage" 24160048051386630981549694573938414194742 := by
   guest_cost 394
 
@@ -21,8 +24,5 @@ theorem «add_storage_read» (hE : GuestEnv E) : FunCost E "add_storage_read" 48
 
 theorem «add_balance_change» (hE : GuestEnv E) : FunCost E "add_balance_change" 24160048051386630961368956557300164727207 := by
   guest_cost 416
-
-theorem «add_nonce_change» (hE : GuestEnv E) : FunCost E "add_nonce_change" 24160048051386630961645657718405808001443 := by
-  guest_cost 417
 
 end InitECandidate.Solver.GuestBound.Fn
