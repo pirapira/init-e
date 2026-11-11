@@ -1,6 +1,7 @@
 import InitECandidate.Solver.GuestBound.Limbs
 import InitECandidate.Solver.GuestBound.WhileExit
 import InitECandidate.Solver.GuestBound.TripleRules
+import InitECandidate.Solver.GuestBound.Calm
 
 /-!
 # `bls_fp_inv_raw`: binary extended Euclid on 384-bit numbers
@@ -133,5 +134,165 @@ theorem evenGuard_eval (hE : GuestEnv E) {x : VarName} {s : St σ} {w0 w1 w2 w3 
       rfl
     have h1' : w0.toNat % 2 = 1 := by omega
     simp [evalPanCmp, hz, h1']
+
+/-- The number held by a six-word local, or 0. -/
+def sixNat (x : VarName) (l : VarName → Option (PanValue Word)) : Nat :=
+  match l x with
+  | some (.rStruct [.word w0, .word w1, .word w2, .word w3, .word w4, .word w5]) =>
+      limbsVal [w0, w1, w2, w3, w4, w5]
+  | _ => 0
+
+theorem SixVal.sixNat_eq {x : VarName} {n : Nat} {l : VarName → Option (PanValue Word)}
+    (h : SixVal x n l) : sixNat x l = n := by
+  obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := h
+  simp [sixNat, hl, hn]
+
+theorem SixVal.lt {x : VarName} {n : Nat} {l : VarName → Option (PanValue Word)}
+    (h : SixVal x n l) : n < 2 ^ 384 := by
+  obtain ⟨w0, w1, w2, w3, w4, w5, -, hn⟩ := h
+  have := w0.isLt; have := w1.isLt; have := w2.isLt; have := w3.isLt; have := w4.isLt
+  have := w5.isLt
+  simp only [limbsVal] at hn
+  omega
+
+/-- A call to a calm function assigning to the local `y` ends in `.error` or
+normally, having changed `y` only among the locals. -/
+theorem call_calm_local {f : FunName} (hf : FunCalm E f) {y : VarName} {s : St σ}
+    {arguments : List (Exp Word)} {r : Result σ}
+    (h : Runs E s (.call (some (some (.local, y), none)) f arguments) r) :
+    r.isError = true ∨ ∃ l g m ffi, r = .normal l g m ffi ∧ ∀ z, z ≠ y → l z = s.locals z := by
+  rcases runs_call_inv (some (some (.local, y))) h with herr | ⟨parameters, body, values,
+    calleeLocals, rb, hlookup, -, -, ⟨fuel, n, hcallee⟩, hout⟩
+  · exact Or.inl herr
+  have hcalm := hf parameters body hlookup fuel _ rb n hcallee
+  cases rb with
+  | returned l g m ffi values' =>
+    simp only [CallOutcome] at hout
+    rcases hout with herr | ⟨l', g', hassign, rfl⟩
+    · exact Or.inl herr
+    · obtain ⟨-, hframe, -⟩ := assignResult_frame (structs := E.structs) (M := [y])
+        (by simp [destIn]) hassign
+      exact Or.inr ⟨l', g', m, ffi, rfl, fun z hz => hframe z (by simpa using hz)⟩
+  | raised l g m ffi exception value => cases hcalm
+  | finalFfi l g m ffi event => cases hcalm
+  | _ =>
+    simp only [CallOutcome] at hout
+    exact Or.inl hout
+
+/-- The body of a halving loop: halve `x`, adjust `y`. -/
+def halveBody (x y : VarName) : Prog Word :=
+  .seq (.call (some (some (.local, x), none)) "bls_fp_shr1" [.var .local x])
+    (.call (some (some (.local, y), none)) "bls_fp_half_can" [.var .local y])
+
+/-- One halving step: `x` halves, and only `x` and `y` change. -/
+theorem halveBody_runs (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") {x y : VarName}
+    (hxy : x ≠ y) {n : Nat} {s : St σ} {r : Result σ} (hx : SixVal x n s.locals)
+    (h : Runs E s (halveBody x y) r) :
+    r.isError = true ∨ ∃ l g m f, r = .normal l g m f ∧ SixVal x (n / 2) l ∧
+      ∀ z, z ≠ x → z ≠ y → l z = s.locals z := by
+  obtain ⟨r₁, h₁, hrest⟩ := runs_seq.mp h
+  rcases call_shr1 hE hx h₁ with herr | ⟨l1, rfl, hsix, hframe⟩
+  · cases r₁ with
+    | error l g m f =>
+      simp only at hrest
+      subst hrest
+      exact Or.inl rfl
+    | _ => cases herr
+  simp only at hrest
+  rcases call_calm_local hcalm hrest with herr | ⟨l, g, m, f, rfl, hframe'⟩
+  · exact Or.inl herr
+  refine Or.inr ⟨l, g, m, f, rfl, ?_, ?_⟩
+  · obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := hsix
+    exact ⟨w0, w1, w2, w3, w4, w5, by rw [hframe' x hxy]; exact hl, hn⟩
+  · intro z hzx hzy
+    rw [hframe' z hzy]
+    exact hframe z hzx
+
+theorem limbs_parity (w0 w1 w2 w3 w4 w5 : Word) :
+    limbsVal [w0, w1, w2, w3, w4, w5] % 2 = w0.toNat % 2 := by
+  simp only [limbsVal]
+  omega
+
+/-- A halving loop: from a nonzero value it stops within 384 iterations at an
+odd value no larger; from zero it never returns. -/
+theorem halve_loop (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") {x y : VarName}
+    (hxy : x ≠ y) (F : (VarName → Option (PanValue Word)) → Prop)
+    (hF : ∀ l l', (∀ z, z ≠ x → z ≠ y → l' z = l z) → F l → F l') (n b : Nat)
+    (hb : Costs E (halveBody x y) b) :
+    Triple E (fun s => SixVal x n s.locals ∧ F s.locals)
+      (.while (evenGuard x) (halveBody x y))
+      (384 * (panValueExpStepCost (evenGuard x) + b + 1))
+      (fun r => match r with
+        | .normal l _ _ _ => ∃ n', n' ≤ n ∧ n' % 2 = 1 ∧ SixVal x n' l ∧ F l
+        | _ => True) := by
+  by_cases hn : n = 0
+  · subst hn
+    intro fuel s r m hP hrun hne
+    have herr := while_never (E := E) (Z := fun s => SixVal x 0 s.locals) (c := evenGuard x)
+      (body := halveBody x y)
+      (by
+        intro s hZ v k hcond
+        obtain ⟨w0, w1, w2, w3, w4, w5, hl, hval⟩ := hZ
+        have hpar := limbs_parity w0 w1 w2 w3 w4 w5
+        have hiff := evenGuard_eval hE hl (cond_of_eval hcond)
+        have hv : v ≠ 0 := by
+          intro hv0
+          have := hiff.mp hv0
+          omega
+        simpa using hv)
+      (by
+        intro fuel s r n hZ hrun
+        rcases halveBody_runs hE hcalm hxy hZ (Runs.of_run hrun) with herr |
+          ⟨l, g, m, f, rfl, hsix, -⟩
+        · exact Or.inl herr
+        · exact Or.inr ⟨l, g, m, f, rfl, hsix⟩)
+      fuel s r m hP.1 hrun
+    rw [herr] at hne
+    cases hne
+  · refine (Triple.while_exit
+      (I := fun s => ∃ n', n' ≤ n ∧ n' ≠ 0 ∧ SixVal x n' s.locals ∧ F s.locals)
+      (μ := fun s => Nat.log2 (sixNat x s.locals))
+      (Q := fun r => match r with
+        | .normal l _ _ _ => ∃ n', n' ≤ n ∧ n' % 2 = 1 ∧ SixVal x n' l ∧ F l
+        | _ => True)
+      (e := panValueExpStepCost (evenGuard x)) (b := b) 383 (condCost _ _) ?_ ?_).consequence
+      ?_ (Nat.le_refl _) (fun _ h => h)
+    · intro s hI hexit
+      obtain ⟨n', hle, -, hsix, hFs⟩ := hI
+      obtain ⟨k, hcond⟩ := hexit
+      obtain ⟨w0, w1, w2, w3, w4, w5, hl, hval⟩ := hsix
+      have hodd := (evenGuard_eval hE hl (cond_of_eval hcond)).mp rfl
+      have hpar := limbs_parity w0 w1 w2 w3 w4 w5
+      exact ⟨n', hle, by omega, ⟨w0, w1, w2, w3, w4, w5, hl, hval⟩, hFs⟩
+    · intro k
+      refine Triple.of_costs hb ?_
+      intro fuel s r m hP hrun hner
+      obtain ⟨⟨n', hle, hne0, hsix, hFs⟩, hμ, v, kc, hcond, hv⟩ := hP
+      have hnat := hsix.sixNat_eq
+      have heven : n' % 2 = 0 := by
+        obtain ⟨w0, w1, w2, w3, w4, w5, hl, hval⟩ := hsix
+        have hiff := evenGuard_eval hE hl (cond_of_eval hcond)
+        have hpar := limbs_parity w0 w1 w2 w3 w4 w5
+        have hv0 : v ≠ 0 := by simpa using hv
+        have : ¬ w0.toNat % 2 = 1 := fun h1 => hv0 (hiff.mpr h1)
+        omega
+      rcases halveBody_runs hE hcalm hxy hsix (Runs.of_run hrun) with herr |
+        ⟨l, g, m', f, rfl, hsix', hframe⟩
+      · rw [herr] at hner
+        cases hner
+      · have hnat' := hsix'.sixNat_eq
+        refine ⟨⟨n' / 2, by omega, by omega, hsix', hF _ _ hframe hFs⟩, ?_⟩
+        show Nat.log2 (sixNat x l) < k
+        rw [hnat', ← hμ, hnat]
+        have h2 : 2 ≤ n' := by omega
+        rw [Nat.log2_def n', if_pos h2]
+        omega
+    · intro s hP
+      obtain ⟨hsix, hFs⟩ := hP
+      refine ⟨⟨n, Nat.le_refl _, hn, hsix, hFs⟩, ?_⟩
+      show Nat.log2 (sixNat x s.locals) ≤ 383
+      rw [hsix.sixNat_eq]
+      have := (Nat.log2_lt hn (k := 384)).mpr hsix.lt
+      omega
 
 end InitECandidate.Solver.GuestBound
