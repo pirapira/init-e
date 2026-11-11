@@ -121,10 +121,10 @@ theorem «ecp_set_inf» (hE : GuestEnv E) : FunCost E "ecp_set_inf" 730491065318
 theorem «ecp_is_inf» (hE : GuestEnv E) : FunCost E "ecp_is_inf" 332041393326771929107 := by
   guest_cost 672
 
+theorem «fq_poly_submul» (hE : GuestEnv E) : FunCost E "fq_poly_submul" 62460675433580541771781 := by
+  guest_cost 681
+
 theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448 := by
   guest_cost 696
-
-theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
-  guest_cost 705
 
 end InitECandidate.Solver.GuestBound.Fn

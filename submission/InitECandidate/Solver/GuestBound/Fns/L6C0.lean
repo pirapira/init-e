@@ -85,6 +85,9 @@ theorem «op_calldatacopy» (hE : GuestEnv E) : FunCost E "op_calldatacopy" 1069
 theorem «op_codecopy» (hE : GuestEnv E) : FunCost E "op_codecopy" 10699111562751539938310 := by
   guest_cost 541
 
+theorem «fe_sqr» (hE : GuestEnv E) : FunCost E "fe_sqr" 2929831179189280170520909548208116029472838 := by
+  guest_cost 662
+
 theorem «fp12_exp_x» (hE : GuestEnv E) : FunCost E "fp12_exp_x" 375671733080716087165916554875431985087986 := by
   guest_cost 756
 

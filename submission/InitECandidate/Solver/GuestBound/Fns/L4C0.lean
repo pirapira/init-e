@@ -121,10 +121,10 @@ theorem «op_slotnum» (hE : GuestEnv E) : FunCost E "op_slotnum" 33942009095625
 theorem «emit_transfer_log» (hE : GuestEnv E) : FunCost E "emit_transfer_log" 18446744073709551617306 := by
   guest_cost 567
 
+theorem «fq12_mul» (hE : GuestEnv E) : FunCost E "fq12_mul" 1464575307227719146763925610744501875245189 := by
+  guest_cost 659
+
 theorem «fq12_sqr» (hE : GuestEnv E) : FunCost E "fq12_sqr" 1465255871961561023756983937463614154211461 := by
   guest_cost 660
-
-theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
-  guest_cost 737
 
 end InitECandidate.Solver.GuestBound.Fn

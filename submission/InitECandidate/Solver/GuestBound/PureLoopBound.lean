@@ -20,6 +20,7 @@ def findStep : Prog Word → Option (VarName × Word)
       | some found => some found
       | none => findStep elseBranch
   | .dec _ _ _ body => findStep body
+  | .decCall _ _ _ _ body => findStep body
   | _ => none
 
 /-- The body changes only one local, by a constant step on every way back to the loop head. -/

@@ -28,4 +28,10 @@ theorem «signing_hash_7702» (hE : GuestEnv E) : FunCost E "signing_hash_7702" 
 theorem «modify_state_commit» (hE : GuestEnv E) : FunCost E "modify_state_commit" 445674223212454335262035491350504106162482896624901966274000 := by
   guest_cost 391
 
+theorem «ecp_mul» (hE : GuestEnv E) : FunCost E "ecp_mul" 1280591525036236742659866808085176130666605872067166339407545118 := by
+  guest_cost 675
+
+theorem «bn254_miller_raw» (hE : GuestEnv E) : FunCost E "bn254_miller_raw" 3587828147301906671081342561556420556467067004250122997692451133 := by
+  guest_cost 684
+
 end InitECandidate.Solver.GuestBound.Fn

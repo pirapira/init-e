@@ -22,4 +22,7 @@ theorem «destroy_account» (hE : GuestEnv E) : FunCost E "destroy_account" 4456
 theorem «op_tstore» (hE : GuestEnv E) : FunCost E "op_tstore" 24160048051386630981549694573938414195602 := by
   guest_cost 530
 
+theorem «ecp_add» (hE : GuestEnv E) : FunCost E "ecp_add" 46506391087084659802583696226456532886636341 := by
+  guest_cost 674
+
 end InitECandidate.Solver.GuestBound.Fn

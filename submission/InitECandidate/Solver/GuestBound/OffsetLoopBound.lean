@@ -384,4 +384,56 @@ theorem lowerLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
     · cases hg
   · cases hcheck
 
+/-! ### `while i <=+ n` with a constant step -/
+
+/-- The counter and the limit of a guard `i <=+ n` between two locals. -/
+def leGuard : Exp Word → Option (VarName × VarName)
+  | .cmp .notLower (.var .local n) (.var .local i) => some (i, n)
+  | _ => none
+
+/-- The loop is `while i <=+ n { straight-line body that adds k to i and keeps n }`. -/
+def leLoop (callee : FunName → Bool) (step : Option (VarName × Word)) (c : Exp Word)
+    (body : Prog Word) : Bool :=
+  match step with
+  | some (j, k) =>
+      match leGuard c with
+      | some (i, n) =>
+          i == j && straight callee body && (effect (.upBy k) i body).normal == .step &&
+            (effect .up n body).normal == .keep
+      | none => false
+  | none => false
+
+/-- A `while i <=+ n` loop with a constant step costs at most `2^64` iterations. -/
+theorem leLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunCalm E f) (step : Option (VarName × Word))
+    (c : Exp Word) (body : Prog Word) (b : Nat)
+    (hcheck : leLoop callee step c body = true) (hbody : Costs E body b) :
+    Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) := by
+  unfold leLoop at hcheck
+  split at hcheck
+  · rename_i j k
+    split at hcheck
+    case h_2 => cases hcheck
+    rename_i i n hg
+    simp only [Bool.and_eq_true, beq_iff_eq] at hcheck
+    obtain ⟨⟨⟨rfl, hstraight⟩, hstep⟩, hkeep⟩ := hcheck
+    unfold leGuard at hg
+    split at hg
+    · rename_i nv iv
+      simp only [Option.some.injEq, Prod.mk.injEq] at hg
+      obtain ⟨rfl, rfl⟩ := hg
+      refine stepLoop_costs hE callee hcallee _ body b iv nv k (fun w N => ¬ N < w) ?_
+        hstraight hstep hkeep hbody
+      intro s v m h
+      obtain ⟨a, b', hl, hr, hx⟩ := cmp_eval hE (cond_eval h)
+      simp only [evalPanValueExp] at hl hr
+      simp only [PanValue.word.injEq] at hx
+      subst hx
+      refine ⟨b', a, hr, hl, ?_⟩
+      by_cases hlt : a < b'
+      · simp [evalPanCmp, hlt]
+      · simp [evalPanCmp, hlt]
+    · cases hg
+  · cases hcheck
+
 end InitECandidate.Solver.GuestBound

@@ -70,6 +70,12 @@ theorem «op_return» (hE : GuestEnv E) : FunCost E "op_return" 4869940435459321
 theorem «op_revert» (hE : GuestEnv E) : FunCost E "op_revert" 4869940435459321627453 := by
   guest_cost 569
 
+theorem «fe_mul» (hE : GuestEnv E) : FunCost E "fe_mul" 1464575307227719146763925610744501875261358 := by
+  guest_cost 661
+
+theorem «fq12_pow_words» (hE : GuestEnv E) : FunCost E "fq12_pow_words" 54045845941679321378493956845847039068599878611164818780979243 := by
+  guest_cost 683
+
 theorem «fp12_sqr» (hE : GuestEnv E) : FunCost E "fp12_sqr" 10182602728687673128578 := by
   guest_cost 751
 

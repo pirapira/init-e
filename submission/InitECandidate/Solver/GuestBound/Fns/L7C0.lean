@@ -49,6 +49,12 @@ theorem «frame_epilogue» (hE : GuestEnv E) : FunCost E "frame_epilogue" 445674
 theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
   guest_cost 592
 
+theorem «ecp_double» (hE : GuestEnv E) : FunCost E "ecp_double" 22914614588455996130190883444721840071819831 := by
+  guest_cost 673
+
+theorem «ecp_linefunc» (hE : GuestEnv E) : FunCost E "ecp_linefunc" 22283731080184576218720766865444138878467695 := by
+  guest_cost 676
+
 theorem «kzg_load_g1» (hE : GuestEnv E) : FunCost E "kzg_load_g1" 125223911026905359762351302192350185427770 := by
   guest_cost 798
 
