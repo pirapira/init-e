@@ -1,5 +1,6 @@
 import InitECandidate.Solver.GuestBound.LocalsFrame
 import InitECandidate.Solver.GuestBound.Manual.Taylor
+import InitECandidate.Solver.GuestBound.AndGuard
 
 /-!
 # `sort_elems`: the merge loop
@@ -266,5 +267,109 @@ theorem mergeBody_runs (hE : GuestEnv E) {ea eb : Exp Word} {argsA argsB : List 
     subst hout
     simp only [restorePanValueFfiLocal, MergePost]
   | _ => exact hout.elim
+
+/-- If `a && b` holds then `b` holds. -/
+theorem and_second (hE : WordEnv E) {first second : Exp Word} {s : St σ}
+    (h : CondTrue E s (.op .and [first, .cmp .notEqual (.const 0) second])) :
+    CondTrue E s second := by
+  obtain ⟨v, n, hcond, hv⟩ := h
+  obtain ⟨va, vb, w, -, hb, hop, hw⟩ := eval_op2_inv hE (cond_of_eval hcond)
+  simp only [PanValue.word.injEq] at hw
+  subst hw
+  obtain ⟨z, x, hz, hx, hcmp⟩ := cmp_eval hE hb
+  simp only [PanValue.word.injEq] at hcmp
+  change E.eval s (.const 0) = some (.word z) at hz
+  change E.eval s second = some (.word x) at hx
+  simp only [eval_const, Option.some.injEq, PanValue.word.injEq] at hz
+  subst hz
+  simp only [wordOp, Option.some.injEq, List.foldr] at hop
+  subst hop
+  have hxne : x ≠ 0 := by
+    intro hx0
+    subst hx0
+    subst hcmp
+    simp [evalPanCmp] at hv
+    exact hv (by show (va &&& (0#64 &&& _)) = 0#64; simp)
+  refine ⟨x, panValueExpStepCost second, ?_, by simpa using hxne⟩
+  simp only [Env.cond, panValueIteCondition, evalPanValueExpCounted]
+  rw [show evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+    E.bytesInWord second E.memoryAccess = some (.word x) from hx]
+  rfl
+
+/-- A true signed comparison of two locals: both are words, in signed order. -/
+theorem less_true (hE : WordEnv E) {x y : VarName} {s : St σ}
+    (h : CondTrue E s (.cmp .less (.var .local x) (.var .local y))) :
+    ∃ xv yv, s.locals x = some (.word xv) ∧ s.locals y = some (.word yv) ∧ bias xv < bias yv := by
+  obtain ⟨v, n, hcond, hv⟩ := h
+  obtain ⟨xv, yv, hx, hy, hcmp⟩ := cmp_eval hE (cond_of_eval hcond)
+  simp only [PanValue.word.injEq] at hcmp
+  change E.eval s (.var .local x) = some (.word xv) at hx
+  change E.eval s (.var .local y) = some (.word yv) at hy
+  rw [evalF_local] at hx hy
+  refine ⟨xv, yv, hx, hy, (signedLess_iff xv yv).mp ?_⟩
+  by_cases hlt : RiscV.signedLess xv yv = true
+  · exact hlt
+  · subst hcmp
+    simp [evalPanCmp, hlt] at hv
+
+/-- The guard `(i < mid) && (j < right)`. -/
+def mergeGuard : Exp Word :=
+  .op .and [.cmp .notEqual (.const (BitVec.ofNat 64 0))
+      (.cmp .less (.var .local "i") (.var .local "mid")),
+    .cmp .notEqual (.const (BitVec.ofNat 64 0))
+      (.cmp .less (.var .local "j") (.var .local "right"))]
+
+/-- Remaining merge steps: the signed distances of `i` to `mid` and `j` to `right`. -/
+def mergeMu (s : St σ) : Nat :=
+  match s.locals "i", s.locals "mid", s.locals "j", s.locals "right" with
+  | some (.word i), some (.word m), some (.word j), some (.word r) =>
+      (bias m - bias i) + (bias r - bias j)
+  | _, _, _, _ => 0
+
+/-- The merge loop takes at most `2^65 + 1` iterations from any state. -/
+theorem merge_loop (hE : GuestEnv E) {ea eb : Exp Word} {argsA argsB : List (Exp Word)}
+    {b : Nat} (hb : Costs E (mergeBody ea eb argsA argsB) b) :
+    Costs E (.while mergeGuard (mergeBody ea eb argsA argsB))
+      ((36893488147419103232 + 1) * (panValueExpStepCost mergeGuard + b + 1)) := by
+  refine (Triple.while (I := fun _ => True) (μ := mergeMu) (Q := fun _ => True)
+    (e := panValueExpStepCost mergeGuard) (b := b) 36893488147419103232 (condCost _ _)
+    (fun _ _ => trivial) ?_).consequence ?_ (Nat.le_refl _) (fun _ h => h)
+  · intro k
+    refine Triple.of_costs hb ?_
+    intro fuel s r n hP hrun hne
+    obtain ⟨-, hμ, hct⟩ := hP
+    obtain ⟨iv, mv, hi, hmid, hlt1⟩ := less_true hE.word
+      (and_first hE.word (c := mergeGuard) rfl hct)
+    obtain ⟨jv, rv, hj, hright, hlt2⟩ := less_true hE.word (and_second hE.word hct)
+    have hμs : mergeMu s = (bias mv - bias iv) + (bias rv - bias jv) := by
+      simp [mergeMu, hi, hmid, hj, hright]
+    have hbm := bias_lt mv
+    have hbr := bias_lt rv
+    have hp := mergeBody_runs hE hi hj (Runs.of_run hrun)
+    cases r with
+    | normal l g m f =>
+      obtain ⟨hmid', hright', hcase⟩ := hp
+      refine ⟨trivial, ?_⟩
+      show mergeMu ⟨l, g, m, f⟩ < k
+      rw [← hμ, hμs]
+      rcases hcase with ⟨hi', hj'⟩ | ⟨hi', hj'⟩
+      · have hb1 := bias_succ (w := iv) (by omega)
+        simp only [mergeMu, hi', hj', hmid', hright', hmid, hright, hb1]
+        omega
+      · have hb1 := bias_succ (w := jv) (by omega)
+        simp only [mergeMu, hi', hj', hmid', hright', hmid, hright, hb1]
+        omega
+    | continued l g m f => exact hp.elim
+    | broke l g m f => exact hp.elim
+    | _ => trivial
+  · intro s _
+    refine ⟨trivial, ?_⟩
+    unfold mergeMu
+    split
+    · rename_i i m j r _ _ _ _
+      have := bias_lt m
+      have := bias_lt r
+      omega
+    · omega
 
 end InitECandidate.Solver.GuestBound
