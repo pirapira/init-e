@@ -255,4 +255,112 @@ theorem htabHeader_frame (m : Word → Option (PanValue Word)) (t kl cp keys nod
     hne 24#64 (by decide), hne 32#64 (by decide), hne 40#64 (by decide), hne 48#64 (by decide),
     hne 56#64 (by decide), hne 64#64 (by decide), hne 72#64 (by decide), hne 80#64 (by decide)]
 
+/-! ### The table invariant -/
+
+/-- Ghost classification of the node indices handed out so far. -/
+inductive NodeKind where
+  | internal
+  | leaf
+  | free
+  deriving DecidableEq
+
+/-- Address of field `off` of node `i`. -/
+def nodeField (v : HtabV) (i off : Nat) : Word := v.nodes + BitVec.ofNat 64 (i * 32 + off)
+
+/-- Address of entry `pos` of the insertion-order array. -/
+def orderSlot (v : HtabV) (pos : Nat) : Word := v.order + BitVec.ofNat 64 (pos * 8)
+
+/-- The four blocks of a table lie one after another inside the heap, with
+sizes that do not wrap. -/
+def HtabLayout (t : Word) (v : HtabV) : Prop :=
+  t.toNat + 88 ≤ v.keys.toNat ∧
+    v.keys.toNat + (v.nc.toNat + 1) * v.st.toNat ≤ v.nodes.toNat ∧
+    v.nodes.toNat + (v.nc.toNat + 1) * 32 ≤ v.order.toNat ∧
+    v.order.toNat + (v.nc.toNat + 1) * 8 ≤ 2952790016
+
+/-- `p` is the parent recorded for a live node `i`: none for the root, or an
+internal node that has `i` as a child. -/
+def ParentOk (m : Word → Option (PanValue Word)) (v : HtabV) (kind : Nat → NodeKind)
+    (i : Nat) (p : Word) : Prop :=
+  (p = 0 ∧ v.root.toNat = i) ∨
+    (1 ≤ p.toNat ∧ p.toNat < v.next.toNat ∧ kind p.toNat = .internal ∧
+      (Rd m (nodeField v p.toNat 8) (BitVec.ofNat 64 i) ∨
+        Rd m (nodeField v p.toNat 16) (BitVec.ofNat 64 i)))
+
+/-- A live child link: an index handed out, not free, whose parent field is `i`. -/
+def ChildOk (m : Word → Option (PanValue Word)) (v : HtabV) (kind : Nat → NodeKind)
+    (i : Nat) (c : Word) : Prop :=
+  1 ≤ c.toNat ∧ c.toNat < v.next.toNat ∧ kind c.toNat ≠ .free ∧
+    Rd m (nodeField v c.toNat 0) (BitVec.ofNat 64 i)
+
+/-- The table at `t` is well formed in memory `m`, with header fields `v` and
+node classification `kind`. -/
+structure HtabWF (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
+    (kind : Nat → NodeKind) : Prop where
+  hdr : HtabHdr m t v
+  layout : HtabLayout t v
+  next_pos : 1 ≤ v.next.toNat
+  next_le : v.next.toNat ≤ v.nc.toNat + 1
+  cnt_le : v.cnt.toNat ≤ v.nc.toNat
+  /-- The root is absent or a live node without a parent. -/
+  root_ok : v.root = 0 ∨ (1 ≤ v.root.toNat ∧ v.root.toNat < v.next.toNat ∧
+    kind v.root.toNat ≠ .free ∧ Rd m (nodeField v v.root.toNat 0) 0)
+  /-- The free list head is absent or a free node. -/
+  free_ok : v.free = 0 ∨ (1 ≤ v.free.toNat ∧ v.free.toNat < v.next.toNat ∧
+    kind v.free.toNat = .free)
+  /-- A free node's parent field is the next free node. -/
+  free_next : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .free →
+    ∃ f : Word, Rd m (nodeField v i 0) f ∧
+      (f = 0 ∨ (1 ≤ f.toNat ∧ f.toNat < v.next.toNat ∧ kind f.toNat = .free))
+  /-- An internal node: bit index below the key length, two distinct live children. -/
+  internal_ok : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .internal →
+    ∃ p l r b : Word, Rd m (nodeField v i 0) p ∧ Rd m (nodeField v i 8) l ∧
+      Rd m (nodeField v i 16) r ∧ Rd m (nodeField v i 24) b ∧ b ≠ v.kl * 8#64 ∧
+      ParentOk m v kind i p ∧ ChildOk m v kind i l ∧ ChildOk m v kind i r ∧ l ≠ r
+  /-- A leaf: kind field is the key length in bits, and its order position names it. -/
+  leaf_ok : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .leaf →
+    ∃ p value pos : Word, Rd m (nodeField v i 0) p ∧ Rd m (nodeField v i 8) value ∧
+      Rd m (nodeField v i 16) pos ∧ Rd m (nodeField v i 24) (v.kl * 8#64) ∧
+      ParentOk m v kind i p ∧ pos.toNat < v.cnt.toNat ∧
+      Rd m (orderSlot v pos.toNat) (BitVec.ofNat 64 i)
+  /-- Every order entry below the count is a leaf that records that position. -/
+  order_ok : ∀ pos, pos < v.cnt.toNat →
+    ∃ i : Word, Rd m (orderSlot v pos) i ∧ 1 ≤ i.toNat ∧ i.toNat < v.next.toNat ∧
+      kind i.toNat = .leaf ∧ Rd m (nodeField v i.toNat 16) (BitVec.ofNat 64 pos)
+
+/-- A fresh table is well formed, given sizes that do not wrap. -/
+theorem htabWF_new (m : Word → Option (PanValue Word)) (t kl cp keys nodes order : Word)
+    (hlay : HtabLayout t
+      ⟨kl, strideOf kl, cp, ncapOf cp, 0#64, keys, nodes, order, 0#64, 1#64, 0#64⟩) :
+    HtabWF (htabHeader m t kl cp keys nodes order) t
+      ⟨kl, strideOf kl, cp, ncapOf cp, 0#64, keys, nodes, order, 0#64, 1#64, 0#64⟩
+      (fun _ => .free) where
+  hdr := htabHeader_hdr m t kl cp keys nodes order
+  layout := hlay
+  next_pos := by
+    show 1 ≤ (1#64).toNat
+    decide
+  next_le := by
+    show (1#64).toNat ≤ _
+    have : (1#64).toNat = 1 := by decide
+    omega
+  cnt_le := by
+    show (0#64).toNat ≤ _
+    have : (0#64).toNat = 0 := by decide
+    omega
+  root_ok := Or.inl rfl
+  free_ok := Or.inl rfl
+  free_next := by
+    intro i h1 h2
+    have : (1#64).toNat = 1 := by decide
+    simp only at h2
+    omega
+  internal_ok := by intro i _ _ h; cases h
+  leaf_ok := by intro i _ _ h; cases h
+  order_ok := by
+    intro pos h
+    have : (0#64).toNat = 0 := by decide
+    simp only at h
+    omega
+
 end InitECandidate.Solver.GuestBound
