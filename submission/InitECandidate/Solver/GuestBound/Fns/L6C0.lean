@@ -28,6 +28,9 @@ theorem «tx_encode_bound» (hE : GuestEnv E) : FunCost E "tx_encode_bound" 4080
 theorem «jset» (hE : GuestEnv E) : FunCost E "jset" 24160048051386630960926234699531135486796 := by
   guest_cost 356
 
+theorem «state_restore» (hE : GuestEnv E) : FunCost E "state_restore" 445674223212454335088491484220825489660965659518482874630147 := by
+  guest_cost 359
+
 theorem «record_pre_state_read» (hE : GuestEnv E) : FunCost E "record_pre_state_read" 24160048051386630952311605217108774881582 := by
   guest_cost 364
 

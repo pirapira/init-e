@@ -43,6 +43,9 @@ theorem «add_touched_account» (hE : GuestEnv E) : FunCost E "add_touched_accou
 theorem «warm_after_charge» (hE : GuestEnv E) : FunCost E "warm_after_charge" 24160048051386630952311605217108774881591 := by
   guest_cost 474
 
+theorem «frame_epilogue» (hE : GuestEnv E) : FunCost E "frame_epilogue" 445674223212454335088491484220825489660965659518482874630162 := by
+  guest_cost 582
+
 theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
   guest_cost 592
 
