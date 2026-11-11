@@ -477,12 +477,13 @@ theorem cmpTail_runs (hE : GuestEnv E) {U V : Nat} {s : St σ} {r : Result σ}
     | _ => simp only [restorePanValueFfiLocal]
 
 /-- `if c { if c2 { return e; } }` either leaves the state alone or does not end normally. -/
-theorem retIte_runs {c c2 e : Exp Word} {s : St σ} {r : Result σ}
-    (h : Runs E s (.ite c (.ite c2 (.return e) .skip) .skip) r) :
+theorem retIte_runs {c c2 e : Exp Word} {s : St σ} {r : Result σ} :
+    Runs E s (.ite c (.ite c2 (.return e) .skip) .skip) r →
     match r with
     | .normal l g m f => l = s.locals ∧ g = s.globals ∧ m = s.memory ∧ f = s.ffi
     | .continued _ _ _ _ | .broke _ _ _ _ => False
     | _ => True := by
+  intro h
   rw [runs_ite] at h
   split at h
   · split at h
@@ -509,5 +510,124 @@ theorem retIte_runs {c c2 e : Exp Word} {s : St σ} {r : Result σ}
         simp [St.err]
   · subst h
     simp [St.err]
+
+/-- `if (x.1 | … | x.5) == 0 { if x.0 == 1 { return y; } }`. -/
+abbrev retCheck (x y : VarName) : Prog Word :=
+  .ite (.cmp .equal (.op .or [.rField 1 (.var .local x), .rField 2 (.var .local x),
+      .rField 3 (.var .local x), .rField 4 (.var .local x), .rField 5 (.var .local x)])
+      (.const (BitVec.ofNat 64 0)))
+    (.ite (.cmp .equal (.rField 0 (.var .local x)) (.const (BitVec.ofNat 64 1)))
+      (.return (.var .local y)) .skip)
+    .skip
+
+/-- The body of the outer loop of `bls_fp_inv_raw`. -/
+def outerBody : Prog Word :=
+  .seq (retCheck "u" "x1")
+    (.seq (retCheck "v" "x2")
+      (.seq (.while (evenGuard "u") (halveBody "u" "x1"))
+        (.seq (.while (evenGuard "v") (halveBody "v" "x2")) cmpTail)))
+
+/-- Loop-head states of the outer loop: `u` and `v` hold six words. -/
+def OuterInv (s : St σ) : Prop := ∃ U V, SixVal "u" U s.locals ∧ SixVal "v" V s.locals
+
+/-- The outer measure: the sum of the two numbers. -/
+def outerMu (s : St σ) : Nat := sixNat "u" s.locals + sixNat "v" s.locals
+
+theorem sixVal_frame {x : VarName} {n : Nat} {l l' : VarName → Option (PanValue Word)}
+    (h : SixVal x n l) (hx : l' x = l x) : SixVal x n l' := by
+  obtain ⟨w0, w1, w2, w3, w4, w5, hl, hn⟩ := h
+  exact ⟨w0, w1, w2, w3, w4, w5, by rw [hx]; exact hl, hn⟩
+
+/-- One outer iteration decreases `u + v`. -/
+theorem outerBody_triple (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") (k : Nat)
+    {br bh bt : Nat} (hr1 : Costs E (retCheck "u" "x1") br) (hr2 : Costs E (retCheck "v" "x2") br)
+    (hh1 : Costs E (halveBody "u" "x1") bh) (hh2 : Costs E (halveBody "v" "x2") bh)
+    (ht : Costs E cmpTail bt) :
+    Triple E (fun s => OuterInv s ∧ outerMu s = k) outerBody
+      (br + (br + (384 * (panValueExpStepCost (evenGuard "u") + bh + 1) +
+        (384 * (panValueExpStepCost (evenGuard "v") + bh + 1) + bt + 1) + 1) + 1) + 1)
+      (loopBodyPost OuterInv outerMu k (fun _ => True)) := by
+  have key : ∀ U V, U + V = k →
+      Triple E (fun s => SixVal "u" U s.locals ∧ SixVal "v" V s.locals) outerBody
+        (br + (br + (384 * (panValueExpStepCost (evenGuard "u") + bh + 1) +
+          (384 * (panValueExpStepCost (evenGuard "v") + bh + 1) + bt + 1) + 1) + 1) + 1)
+        (loopBodyPost OuterInv outerMu k (fun _ => True)) := by
+    intro U V hk
+    have keep : ∀ (c : Nat) (p : Prog Word), Costs E p c →
+        (∀ (s : St σ) (r : Result σ), Runs E s p r →
+          match r with
+          | .normal l g m f => l = s.locals ∧ g = s.globals ∧ m = s.memory ∧ f = s.ffi
+          | .continued _ _ _ _ | .broke _ _ _ _ => False
+          | _ => True) →
+        Triple E (fun s => SixVal "u" U s.locals ∧ SixVal "v" V s.locals) p c
+          (fun r => match r with
+            | .normal l g m f => SixVal "u" U l ∧ SixVal "v" V l
+            | r => loopBodyPost OuterInv outerMu k (fun _ => True) r) := by
+      intro c p hc hruns
+      refine Triple.of_costs hc ?_
+      intro fuel s r n hP hrun hne
+      have := hruns s r (Runs.of_run hrun)
+      cases r with
+      | normal l g m f =>
+        obtain ⟨rfl, -, -, -⟩ := this
+        exact hP
+      | continued l g m f => exact this.elim
+      | broke l g m f => exact this.elim
+      | _ => trivial
+    refine Triple.seq (Mid := fun s => SixVal "u" U s.locals ∧ SixVal "v" V s.locals)
+      (keep br _ hr1 (fun s r h => retIte_runs h))
+      (Triple.seq (Mid := fun s => SixVal "u" U s.locals ∧ SixVal "v" V s.locals)
+        (keep br _ hr2 (fun s r h => retIte_runs h)) (Triple.seq
+        (Mid := fun s => ∃ U1, U1 ≤ U ∧ U1 % 2 = 1 ∧ SixVal "u" U1 s.locals ∧
+          SixVal "v" V s.locals) ?_ (Triple.seq
+        (Mid := fun s => ∃ U1 V1, U1 ≤ U ∧ U1 % 2 = 1 ∧ V1 ≤ V ∧ V1 % 2 = 1 ∧
+          SixVal "u" U1 s.locals ∧ SixVal "v" V1 s.locals) ?_ ?_)))
+    · refine (halve_loop hE hcalm (x := "u") (y := "x1") (by decide)
+        (fun l => SixVal "v" V l)
+        (fun l l' hframe h => sixVal_frame h (hframe "v" (by decide) (by decide))) U bh
+        hh1).consequence (fun _ h => h) (Nat.le_refl _) ?_
+      intro r hr
+      cases r with
+      | normal l g m f =>
+        obtain ⟨U1, hle, hodd, hsix, hv⟩ := hr
+        exact ⟨U1, hle, hodd, hsix, hv⟩
+      | continued l g m f => exact hr.elim
+      | broke l g m f => exact hr.elim
+      | _ => trivial
+    · refine (halve_loop hE hcalm (x := "v") (y := "x2") (by decide)
+        (fun l => ∃ U1, U1 ≤ U ∧ U1 % 2 = 1 ∧ SixVal "u" U1 l)
+        (fun l l' hframe h => by
+          obtain ⟨U1, hle, hodd, hsix⟩ := h
+          exact ⟨U1, hle, hodd, sixVal_frame hsix (hframe "u" (by decide) (by decide))⟩) V bh
+        hh2).consequence ?_ (Nat.le_refl _) ?_
+      · intro s h
+        obtain ⟨U1, hle, hodd, hsix, hv⟩ := h
+        exact ⟨hv, U1, hle, hodd, hsix⟩
+      · intro r hr
+        cases r with
+        | normal l g m f =>
+          obtain ⟨V1, hle, hodd, hsix, U1, hle', hodd', hsix'⟩ := hr
+          exact ⟨U1, V1, hle', hodd', hle, hodd, hsix', hsix⟩
+        | continued l g m f => exact hr.elim
+        | broke l g m f => exact hr.elim
+        | _ => trivial
+    · refine Triple.of_costs ht ?_
+      intro fuel s r n hP hrun hne
+      obtain ⟨U1, V1, hle, hodd, hle', hodd', hu, hv⟩ := hP
+      have := cmpTail_runs hE hu hv (by omega) (by omega) (Runs.of_run hrun)
+      cases r with
+      | normal l g m f =>
+        obtain ⟨U', V', hu', hv', hlt⟩ := this
+        refine ⟨⟨U', V', hu', hv'⟩, ?_⟩
+        show sixNat "u" l + sixNat "v" l < k
+        rw [hu'.sixNat_eq, hv'.sixNat_eq]
+        omega
+      | continued l g m f => exact this.elim
+      | broke l g m f => exact this.elim
+      | _ => trivial
+  intro fuel s r n hP hrun hne
+  obtain ⟨⟨U, V, hu, hv⟩, hμ⟩ := hP
+  exact key U V (by rw [← hμ]; show U + V = sixNat "u" s.locals + sixNat "v" s.locals
+                    rw [hu.sixNat_eq, hv.sixNat_eq]) fuel s r n ⟨hu, hv⟩ hrun hne
 
 end InitECandidate.Solver.GuestBound
