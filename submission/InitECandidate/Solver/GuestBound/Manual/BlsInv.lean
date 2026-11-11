@@ -224,6 +224,7 @@ theorem halve_loop (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") {x y 
       (384 * (panValueExpStepCost (evenGuard x) + b + 1))
       (fun r => match r with
         | .normal l _ _ _ => ∃ n', n' ≤ n ∧ n' % 2 = 1 ∧ SixVal x n' l ∧ F l
+        | .continued _ _ _ _ | .broke _ _ _ _ => False
         | _ => True) := by
   by_cases hn : n = 0
   · subst hn
@@ -254,6 +255,7 @@ theorem halve_loop (hE : GuestEnv E) (hcalm : FunCalm E "bls_fp_half_can") {x y 
       (μ := fun s => Nat.log2 (sixNat x s.locals))
       (Q := fun r => match r with
         | .normal l _ _ _ => ∃ n', n' ≤ n ∧ n' % 2 = 1 ∧ SixVal x n' l ∧ F l
+        | .continued _ _ _ _ | .broke _ _ _ _ => False
         | _ => True)
       (e := panValueExpStepCost (evenGuard x)) (b := b) 383 (condCost _ _) ?_ ?_).consequence
       ?_ (Nat.le_refl _) (fun _ h => h)
@@ -473,5 +475,39 @@ theorem cmpTail_runs (hE : GuestEnv E) {U V : Nat} {s : St σ} {r : Result σ}
     | continued l g m f => exact hbr.elim
     | broke l g m f => exact hbr.elim
     | _ => simp only [restorePanValueFfiLocal]
+
+/-- `if c { if c2 { return e; } }` either leaves the state alone or does not end normally. -/
+theorem retIte_runs {c c2 e : Exp Word} {s : St σ} {r : Result σ}
+    (h : Runs E s (.ite c (.ite c2 (.return e) .skip) .skip) r) :
+    match r with
+    | .normal l g m f => l = s.locals ∧ g = s.globals ∧ m = s.memory ∧ f = s.ffi
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  rw [runs_ite] at h
+  split at h
+  · split at h
+    · rw [runs_skip] at h
+      subst h
+      exact ⟨rfl, rfl, rfl, rfl⟩
+    · rw [runs_ite] at h
+      split at h
+      · split at h
+        · rw [runs_skip] at h
+          subst h
+          exact ⟨rfl, rfl, rfl, rfl⟩
+        · rw [runs_return] at h
+          cases he : E.eval s e with
+          | none =>
+            rw [he] at h
+            subst h
+            simp [St.err]
+          | some v =>
+            rw [he] at h
+            simp only at h
+            split at h <;> (subst h; simp [St.err])
+      · subst h
+        simp [St.err]
+  · subst h
+    simp [St.err]
 
 end InitECandidate.Solver.GuestBound
