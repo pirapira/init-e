@@ -187,4 +187,82 @@ theorem while_never {Z : St σ → Prop} {c : Exp Word} {body : Prog Word}
             obtain ⟨rfl, -⟩ := hrun
             exact ih ⟨l, g, m, f⟩ rl nl hZ' hloop
 
+/-- The result is neither `continued` nor `broke`. -/
+def NoEsc : Result σ → Prop
+  | .continued _ _ _ _ | .broke _ _ _ _ => False
+  | _ => True
+
+/-- A loop never ends in `continued` or `broke`. -/
+theorem while_not_escape {c : Exp Word} {body : Prog Word} :
+    ∀ (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat),
+      E.run fuel s (.while c body) = some (r, n) →
+      NoEsc r := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro s r n hrun
+    simp [Env.run, evalPanValueFfiProgSteps] at hrun
+  | succ fuel ih =>
+    intro s r n hrun
+    simp only [Env.run] at hrun
+    rw [evalPanValueFfiProgSteps] at hrun
+    cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
+        s.locals s.globals s.memory c E.memoryAccess with
+    | none =>
+      rw [hcond] at hrun
+      simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+      obtain ⟨rfl, -⟩ := hrun
+      trivial
+    | some pair =>
+      obtain ⟨v, k⟩ := pair
+      rw [hcond] at hrun
+      simp only [Option.elim_some] at hrun
+      by_cases hv : (v == 0) = true
+      · rw [if_pos hv] at hrun
+        simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        trivial
+      · rw [if_neg hv] at hrun
+        cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+            E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals
+            s.memory s.ffi body (memoryAccess := E.memoryAccess)
+            (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
+        | none => rw [hb] at hrun; simp at hrun
+        | some bodyPair =>
+          obtain ⟨rb, nb⟩ := bodyPair
+          rw [hb] at hrun
+          have again : ∀ l g m f, (do
+                let (loopResult, loopSteps) ← evalPanValueFfiProgSteps E.context E.primitive
+                  E.handler E.structs E.functions E.baseAddress E.topAddress E.bytesInWord fuel
+                  l g m f (.while c body) (memoryAccess := E.memoryAccess)
+                  (contracts := E.contracts) (memoryHandler := E.memoryHandler)
+                pure (loopResult, k + nb + loopSteps + 1)) = some (r, n) →
+              NoEsc r := by
+            intro l g m f hrun
+            cases hloop : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
+                (.while c body) (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                (memoryHandler := E.memoryHandler) with
+            | none => rw [hloop] at hrun; simp at hrun
+            | some loopPair =>
+              obtain ⟨rl, nl⟩ := loopPair
+              rw [hloop] at hrun
+              simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+                Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              exact ih ⟨l, g, m, f⟩ rl nl hloop
+          cases rb with
+          | normal l g m f => exact again l g m f hrun
+          | continued l g m f => exact again l g m f hrun
+          | broke l g m f =>
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            trivial
+          | _ =>
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            trivial
+
 end InitECandidate.Solver.GuestBound
