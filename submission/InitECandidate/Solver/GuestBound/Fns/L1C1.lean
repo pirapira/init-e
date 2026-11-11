@@ -13,6 +13,9 @@ theorem «ssz_check_offsets» (hE : GuestEnv E) : FunCost E "ssz_check_offsets" 
 theorem «common_prefix_length» (hE : GuestEnv E) : FunCost E "common_prefix_length" 387381625547900583953 := by
   guest_cost 251
 
+theorem «trie_walk» (hE : GuestEnv E) : FunCost E "trie_walk" 3013008832985606767528295053702566454064257616253432480402116 := by
+  guest_cost 266 [1]
+
 theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
   guest_cost 287
 
@@ -123,8 +126,5 @@ theorem «fe_set_one» (hE : GuestEnv E) : FunCost E "fe_set_one" 24349702177296
 
 theorem «fq12_cast» (hE : GuestEnv E) : FunCost E "fq12_cast" 2434970217729660813357 := by
   guest_cost 678
-
-theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
-  guest_cost 680
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -23,13 +23,15 @@ def assignedInto : Prog Word → List VarName → List VarName
   | .seq first second, acc => assignedInto second (assignedInto first acc)
   | .ite _ thenBranch elseBranch, acc => assignedInto elseBranch (assignedInto thenBranch acc)
   | .dec _ _ _ body, acc => assignedInto body acc
+  | .decCall _ _ _ _ body, acc => assignedInto body acc
   | _, acc => acc
 
 /-- The locals a loop body assigns. -/
 def assignedLocals (body : Prog Word) : List VarName := assignedInto body []
 
 /-- The loop body changes only the locals it assigns, by word expressions or each other. -/
-def walkMLoop (body : Prog Word) : Bool := walkOkM (assignedLocals body) body
+def walkMLoop (callee : FunName → Bool) (body : Prog Word) : Bool :=
+  walkOkM callee (assignedLocals body) body
 
 /-- Iteration bound for `m` tracked locals. -/
 def walkIters (m : Nat) : Nat := (2 ^ 64 + m) ^ m
@@ -133,9 +135,10 @@ theorem enc_inj {s s' : St σ} (hs : OkM M base s) (hs' : OkM M base s')
       rw [hlocals, hg, hm, hf, hg', hm', hf']
 
 variable (hE : WordEnv E) {c : Exp Word} {body : Prog Word} {b : Nat}
-  (hw : walkOkM M body = true) (hbody : Costs E body b)
+  {callee : FunName → Bool} (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f)
+  (hw : walkOkM callee M body = true) (hbody : Costs E body b)
 
-include hE hw hbody in
+include hE hcallee hw hbody in
 /-- With the codes in `V` already visited by longer runs, the loop has at most
 `walkIters m - |V|` iterations left. -/
 theorem walkM_core (r : Result σ) (hne : r.isError = false) :
@@ -228,7 +231,7 @@ theorem walkM_core (r : Result σ) (hne : r.isError = false) :
               have hih := ih (insert (enc M base s) V) ⟨l, g, mem, f⟩ nl hok' hloop hV'
               rw [Finset.card_insert_of_notMem hnotV, Nat.succ_mul] at hih
               omega
-          have walk := walkM_sound hE M fuel body s rb nb hw hb
+          have walk := walkM_sound hE callee hcallee M fuel body s rb nb hw hb
           have step : ∀ l g mem f, WalkM M s (.normal l g mem f : Result σ) →
               OkM M base ⟨l, g, mem, f⟩ := by
             intro l g mem f hwalk
@@ -265,8 +268,10 @@ end core
 
 /-- A loop that changes only `m` locals, by word expressions or each other,
 costs at most `(2^64 + m)^m` iterations of its guard and body. -/
-theorem walkMLoop_costs (hE : WordEnv E) (c : Exp Word) (body : Prog Word) (b : Nat)
-    (hcheck : walkMLoop body = true) (hbody : Costs E body b) :
+theorem walkMLoop_costs (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f) (c : Exp Word)
+    (body : Prog Word) (b : Nat)
+    (hcheck : walkMLoop callee body = true) (hbody : Costs E body b) :
     Costs E (.while c body)
       (walkIters (assignedLocals body).length * (expCost c + b + 1)) := by
   unfold Costs Triple
@@ -275,7 +280,7 @@ theorem walkMLoop_costs (hE : WordEnv E) (c : Exp Word) (body : Prog Word) (b : 
   rw [← stepCost_eq]
   have hok : OkM (assignedLocals body) s s :=
     ⟨rfl, rfl, rfl, fun _ _ => rfl, fun x hx => Or.inr ⟨x, hx, rfl⟩⟩
-  have h := walkM_core (assignedLocals body) s hE hcheck hbody r hne fuel ∅ s m hok hrun
+  have h := walkM_core (assignedLocals body) s hE hcallee hcheck hbody r hne fuel ∅ s m hok hrun
     (by intro code hcode; simp at hcode)
   simpa using h
 

@@ -91,6 +91,9 @@ theorem «state_fresh_tx» (hE : GuestEnv E) : FunCost E "state_fresh_tx" 3705 :
 theorem «acct_empty» (hE : GuestEnv E) : FunCost E "acct_empty" 122 := by
   guest_cost 362
 
+theorem «ws_account_leaf» (hE : GuestEnv E) : FunCost E "ws_account_leaf" 3013008832985606767726339391250552639830895274334406207081693 := by
+  guest_cost 365
+
 theorem «ws_get_code» (hE : GuestEnv E) : FunCost E "ws_get_code" 9647647150550095495873 := by
   guest_cost 370
 
@@ -123,8 +126,5 @@ theorem «op_mul» (hE : GuestEnv E) : FunCost E "op_mul" 3394200909562557498364
 
 theorem «op_sub» (hE : GuestEnv E) : FunCost E "op_sub" 3394200909562557497730 := by
   guest_cost 477
-
-theorem «op_exp» (hE : GuestEnv E) : FunCost E "op_exp" 30972083299758337164506 := by
-  guest_cost 484
 
 end InitECandidate.Solver.GuestBound.Fn

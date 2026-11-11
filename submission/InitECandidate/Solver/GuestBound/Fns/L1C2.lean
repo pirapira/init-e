@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
+  guest_cost 680
+
 theorem «bls_fp_add» (hE : GuestEnv E) : FunCost E "bls_fp_add" 246 := by
   guest_cost 702
 

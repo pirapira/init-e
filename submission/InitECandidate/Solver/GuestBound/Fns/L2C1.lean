@@ -10,6 +10,9 @@ variable {σ : Type} {E : Env σ}
 theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434970217729660813424 := by
   guest_cost 258
 
+theorem «trie_lookup» (hE : GuestEnv E) : FunCost E "trie_lookup" 3013008832985606767528295053702566454067098414840783751350995 := by
+  guest_cost 267
+
 theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
   guest_cost 268
 
@@ -123,8 +126,5 @@ theorem «bls_consts_init» (hE : GuestEnv E) : FunCost E "bls_consts_init" 5448
 
 theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
   guest_cost 705
-
-theorem «bls_fp_sqr» (hE : GuestEnv E) : FunCost E "bls_fp_sqr" 7159 := by
-  guest_cost 707
 
 end InitECandidate.Solver.GuestBound.Fn

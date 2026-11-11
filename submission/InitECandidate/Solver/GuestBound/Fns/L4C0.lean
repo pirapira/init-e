@@ -37,6 +37,9 @@ theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_statele
 theorem «rlp_put_u256» (hE : GuestEnv E) : FunCost E "rlp_put_u256" 4423670769972200030963721488347462369995 := by
   guest_cost 228
 
+theorem «mpt_get» (hE : GuestEnv E) : FunCost E "mpt_get" 3013008832985606767726339391250552639833736072921757478030677 := by
+  guest_cost 271
+
 theorem «_insert_into_leaf» (hE : GuestEnv E) : FunCost E "_insert_into_leaf" 7249570420967853786029 := by
   guest_cost 273
 
@@ -123,8 +126,5 @@ theorem «fq12_sqr» (hE : GuestEnv E) : FunCost E "fq12_sqr" 146525587196156102
 
 theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
   guest_cost 737
-
-theorem «fp12_is_one» (hE : GuestEnv E) : FunCost E "fp12_is_one" 11732129230879274828276 := by
-  guest_cost 749
 
 end InitECandidate.Solver.GuestBound.Fn

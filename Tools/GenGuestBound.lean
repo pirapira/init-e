@@ -46,7 +46,7 @@ partial def loops : Prog (BitVec 64) → List (Exp (BitVec 64) × Prog (BitVec 6
 /-- The rule used for a loop: `some 0` for `loopOk`, `some 1` for `walkMLoop`. -/
 def loopHint (c : Exp (BitVec 64)) (body : Prog (BitVec 64)) : Option Nat :=
   if loopOk Guest.Software.guestAst c body then some 0
-  else if walkMLoop body then some 1
+  else if walkMLoop (quietFn Guest.Software.guestAst) body then some 1
   else none
 
 /-- Cost of a loop, matching `X.whileCounter` and `X.whileWalk`. -/

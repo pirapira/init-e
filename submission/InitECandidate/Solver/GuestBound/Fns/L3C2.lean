@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp2_dbl» (hE : GuestEnv E) : FunCost E "fp2_dbl" 530 := by
+  guest_cost 729
+
 theorem «fp2_pow» (hE : GuestEnv E) : FunCost E "fp2_pow" 705569514075316639760657 := by
   guest_cost 736
 

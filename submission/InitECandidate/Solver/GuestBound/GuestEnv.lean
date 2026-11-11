@@ -48,6 +48,9 @@ theorem Costs.callHandler {f : FunName} {B H : Nat} (destination : Option (VarKi
   Costs.call (info := some (destination, some (exception, handlerVar, handlerProgram)))
     arguments hf hh
 
+/-- Read-only functions: nothing in the call tree changes globals, memory or the FFI state. -/
+def quietFn (decls : List (Decl Word)) : FunName → Bool := keepFn quietLeaf decls calmDepth
+
 /-! Rules with every argument explicit and costs in the kernel-reducible
 `expCost`; `cost_derive` assembles proof terms from them without elaboration. -/
 namespace X
@@ -153,9 +156,11 @@ theorem whileCounter (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word)
   loop_costs hE.word hE.functions c body b hcheck hbody
 
 theorem whileWalk (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word) (body : Prog Word)
-    (b : Nat) (hcheck : walkMLoop body = true) (hbody : Costs E body b) :
+    (b : Nat) (hcheck : walkMLoop (quietFn Guest.Software.guestAst) body = true)
+    (hbody : Costs E body b) :
     Costs E (.while c body) (walkIters (assignedLocals body).length * (expCost c + b + 1)) :=
-  walkMLoop_costs hE.word c body b hcheck hbody
+  walkMLoop_costs hE.word _ (keepFn_sound (quietKeeper E) hE.functions calmDepth) c body b
+    hcheck hbody
 
 end X
 

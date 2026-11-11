@@ -1,9 +1,10 @@
 import InitECandidate.Solver.GuestBound.WordExp
+import InitECandidate.Solver.GuestBound.Keepers
 
 /-!
 # Frame analysis for several walked locals
 
-`walkOkM M` accepts statements that assign only locals in `M`, and only word
+`walkOkM callee M` accepts statements that assign only locals in `M`, and only word
 expressions or each other's values. The values of `M` then stay within words
 and the values `M` had at entry, which is what bounds the number of distinct
 loop-head states.
@@ -26,13 +27,115 @@ def walkRhs (M : List VarName) (value : Exp Word) : Bool :=
 
 /-- Statements that change nothing but the locals in `M`, assigning them only
 word expressions or each other. -/
-def walkOkM (M : List VarName) : Prog Word → Bool
+def walkOkM (callee : FunName → Bool) (M : List VarName) : Prog Word → Bool
   | .skip | .tick | .annot _ _ | .break | .continue | .return _ | .raise _ _ => true
   | .assign .local name value => M.contains name && walkRhs M value
-  | .seq first second => walkOkM M first && walkOkM M second
-  | .ite _ thenBranch elseBranch => walkOkM M thenBranch && walkOkM M elseBranch
-  | .dec name _ _ body => !M.contains name && walkOkM M body
+  | .seq first second => walkOkM callee M first && walkOkM callee M second
+  | .ite _ thenBranch elseBranch => walkOkM callee M thenBranch && walkOkM callee M elseBranch
+  | .dec name _ _ body => !M.contains name && walkOkM callee M body
+  | .call none f _ => callee f
+  | .call (some (none, none)) f _ => callee f
+  | .decCall name _ f _ body => !M.contains name && callee f && walkOkM callee M body
   | _ => false
+
+/-- A call without a destination leaves the caller's locals alone. -/
+theorem callSteps_nodest_locals {f : FunName}
+    {info : Option (Option (VarKind × VarName) × Option (ExceptionId × VarName × Prog Word))}
+    (hinfo : info = none ∨ info = some (none, none)) (fuel : Nat) (s : St σ)
+    (arguments : List (Exp Word)) (r : Result σ) (n : Nat)
+    (hrun : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs E.functions
+      E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi info f
+      arguments (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+      (memoryHandler := E.memoryHandler) = some (r, n)) :
+    match r with
+    | .normal l _ _ _ => l = s.locals
+    | .continued _ _ _ _ | .broke _ _ _ _ => False
+    | _ => True := by
+  cases fuel with
+  | zero => simp [evalPanValueFfiCallSteps] at hrun
+  | succ fuel =>
+    rw [evalPanValueFfiCallSteps] at hrun
+    cases hargs : panValueCallArguments E.structs E.baseAddress E.topAddress E.bytesInWord
+        s.locals s.globals s.memory arguments E.memoryAccess with
+    | none =>
+      rw [hargs] at hrun
+      simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+      obtain ⟨rfl, -⟩ := hrun
+      trivial
+    | some argumentPair =>
+      obtain ⟨values, argumentSteps⟩ := argumentPair
+      rw [hargs] at hrun
+      simp only [Option.elim_some] at hrun
+      cases htarget : panValueCallTarget E.structs E.contracts f E.functions values with
+      | none =>
+        rw [htarget] at hrun
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        trivial
+      | some callTarget =>
+        obtain ⟨body, calleeLocals⟩ := callTarget
+        rw [htarget] at hrun
+        simp only [Option.elim_some] at hrun
+        cases hbody : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+            E.functions E.baseAddress E.topAddress E.bytesInWord fuel calleeLocals s.globals
+            s.memory s.ffi body (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+            (memoryHandler := E.memoryHandler) with
+        | none => rw [hbody] at hrun; simp at hrun
+        | some bodyPair =>
+          obtain ⟨rb, nb⟩ := bodyPair
+          rw [hbody] at hrun
+          simp only [Option.bind_eq_bind, Option.bind_some] at hrun
+          rcases hinfo with rfl | rfl
+          · cases rb with
+            | returned l g m ffi returned =>
+              simp only at hrun
+              split at hrun
+              · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                trivial
+              · simp only [Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                trivial
+            | raised l g m ffi exception value =>
+              simp only at hrun
+              split at hrun
+              · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                trivial
+              · simp at hrun
+            | _ =>
+              simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              trivial
+          · cases rb with
+            | returned l g m ffi returned =>
+              simp only at hrun
+              split at hrun
+              · cases hassign : assignPanValueCallResult s.locals g none returned
+                    (structs := E.structs) with
+                | none => rw [hassign] at hrun; simp at hrun
+                | some assigned =>
+                  obtain ⟨locals', globals'⟩ := assigned
+                  rw [hassign] at hrun
+                  simp only [Option.bind_some, Option.pure_def, Option.some.injEq,
+                    Prod.mk.injEq] at hrun
+                  obtain ⟨rfl, -⟩ := hrun
+                  unfold assignPanValueCallResult at hassign
+                  split at hassign <;> simp_all
+              · simp only [Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                trivial
+            | raised l g m ffi exception value =>
+              simp only at hrun
+              split at hrun
+              · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                trivial
+              · simp at hrun
+            | _ =>
+              simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              trivial
 
 /-- On exits that keep running, everything outside `M` is as in `s`, and each
 local in `M` holds a word or the value some local in `M` had in `s`. -/
@@ -102,9 +205,10 @@ local macro "walk_same" : tactic => `(tactic| (
   exact ⟨rfl, rfl, rfl, fun _ _ => rfl, fun x hx => Or.inr ⟨x, hx, rfl⟩⟩))
 
 /-- `walkOkM` statements leave everything outside `M` alone and keep `M` within words and entry values. -/
-theorem walkM_sound (hE : WordEnv E) (M : List VarName) :
+theorem walkM_sound (hE : WordEnv E) (callee : FunName → Bool)
+    (hcallee : ∀ f, callee f = true → FunKeeps (quietKeeper E) f) (M : List VarName) :
     ∀ (fuel : Nat) (p : Prog Word) (s : St σ) (r : Result σ) (n : Nat),
-      walkOkM M p = true → E.run fuel s p = some (r, n) → WalkM M s r := by
+      walkOkM callee M p = true → E.run fuel s p = some (r, n) → WalkM M s r := by
   intro fuel
   induction fuel with
   | zero =>
@@ -283,6 +387,103 @@ theorem walkM_sound (hE : WordEnv E) (M : List VarName) :
           obtain ⟨rfl, -⟩ := hrun
           exact WalkM.restore hs.1 (ih body ⟨updatePanValueMap s.locals name accepted.1,
             s.globals, s.memory, s.ffi⟩ rb nb hs.2 hb)
+    | call info f arguments =>
+      have hparts : callee f = true ∧ (info = none ∨ info = some (none, none)) := by
+        cases info with
+        | none => exact ⟨by simpa only [walkOkM] using hs, Or.inl rfl⟩
+        | some pair =>
+          obtain ⟨destination, handlerInfo⟩ := pair
+          cases destination with
+          | some d => simp [walkOkM] at hs
+          | none =>
+            cases handlerInfo with
+            | some h => simp [walkOkM] at hs
+            | none => exact ⟨by simpa only [walkOkM] using hs, Or.inr rfl⟩
+      obtain ⟨hf, hinfo⟩ := hparts
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcall : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs
+          E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory
+          s.ffi info f arguments (memoryAccess := E.memoryAccess)
+          (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
+      | none => rw [hcall] at hrun; simp at hrun
+      | some pair =>
+        obtain ⟨rc, nc⟩ := pair
+        rw [hcall] at hrun
+        simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
+          Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        have hq := callSteps_keeps (quietKeeper E) (hcallee f hf)
+          (fun destination handlerInfo h => by
+            rcases hinfo with h' | h'
+            · rw [h'] at h; cases h
+            · rw [h'] at h
+              simp only [Option.some.injEq, Prod.mk.injEq] at h
+              rw [← h.1]; rfl)
+          fuel
+          (fun destination exception handlerVar handlerProgram h => by
+            rcases hinfo with h' | h'
+            · rw [h'] at h; cases h
+            · rw [h'] at h; simp at h)
+          s arguments false rc nc hcall
+        have hl := callSteps_nodest_locals hinfo fuel s arguments rc nc hcall
+        cases rc with
+        | normal l g m f' =>
+          simp only at hl
+          subst hl
+          exact ⟨hq.1, hq.2.1, hq.2.2, fun _ _ => rfl, fun x hx => Or.inr ⟨x, hx, rfl⟩⟩
+        | continued l g m f' => exact hl.elim
+        | broke l g m f' => exact hl.elim
+        | _ => simp only [WalkM]
+    | decCall name shape f arguments body =>
+      simp only [walkOkM, Bool.and_eq_true] at hs
+      obtain ⟨⟨hname, hf⟩, hbodyOk⟩ := hs
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcall : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs
+          E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory
+          s.ffi none f arguments (memoryAccess := E.memoryAccess)
+          (contracts := E.contracts) (memoryHandler := E.memoryHandler)
+          (preserveReturnLocals := true) with
+      | none => rw [hcall] at hrun; simp at hrun
+      | some pair =>
+        obtain ⟨rc, nc⟩ := pair
+        rw [hcall] at hrun
+        have hq := callSteps_keeps (quietKeeper E) (info := none) (hcallee f hf)
+          (fun _ _ h => (by cases h)) fuel (fun _ _ _ _ h => (by cases h)) s arguments true
+          rc nc hcall
+        simp only [Option.bind_eq_bind, Option.bind_some] at hrun
+        split at hrun
+        · split at hrun
+          · rename_i returnedLocals g m ffi value _
+            obtain ⟨hg, hm, hffi⟩ := hq
+            simp only [PanValueFfiControlResult.st] at hg hm hffi
+            subst hg hm hffi
+            cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                E.functions E.baseAddress E.topAddress E.bytesInWord fuel
+                (updatePanValueMap s.locals name value) s.globals s.memory s.ffi body
+                (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                (memoryHandler := E.memoryHandler) with
+            | none => rw [hb] at hrun; simp at hrun
+            | some pair =>
+              obtain ⟨rb, nb⟩ := pair
+              rw [hb] at hrun
+              simp only [Option.bind_some, Option.pure_def, Option.some.injEq,
+                Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              exact WalkM.restore hname (ih body ⟨updatePanValueMap s.locals name value,
+                s.globals, s.memory, s.ffi⟩ rb nb hbodyOk hb)
+          · simp only [Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            simp only [WalkM]
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          simp only [WalkM]
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          simp only [WalkM]
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          simp only [WalkM]
+        · simp at hrun
     | _ => simp [walkOkM] at hs
 
 end InitECandidate.Solver.GuestBound
