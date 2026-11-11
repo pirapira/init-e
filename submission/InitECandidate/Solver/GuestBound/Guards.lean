@@ -69,6 +69,12 @@ theorem guard_fail_inv {f : FunName} (hf : FunNoReturn E f) {fuel : Nat} {s : St
       subst hz
       exact Or.inr ⟨hc, fuel₁, n₂, h₂⟩
 
+/-- After `A` ended in `rA`: `rest` ran if `rA` is normal, otherwise `rA` is the result. -/
+def Continues (E : Env σ) (rA r : Result σ) (rest : Prog Word) : Prop :=
+  match rA with
+  | .normal l g m f => ∃ fuel n, E.run fuel ⟨l, g, m, f⟩ rest = some (r, n)
+  | _ => r = rA
+
 /-- `if c { A } rest`: an error; or the guard was true, `A` ran, and `rest`
 followed if `A` finished normally; or the guard was false and `rest` ran. -/
 theorem ite_then_inv {fuel : Nat} {s : St σ} {c : Exp Word} {thenBranch rest : Prog Word}
@@ -76,10 +82,7 @@ theorem ite_then_inv {fuel : Nat} {s : St σ} {c : Exp Word} {thenBranch rest : 
     (h : E.run fuel s (.seq (.ite c thenBranch .skip) rest) = some (r, n)) :
     r.isError = true ∨
       (∃ v fuel' rA nA, E.eval s c = some (.word v) ∧ v ≠ 0 ∧
-        E.run fuel' s thenBranch = some (rA, nA) ∧
-        match rA with
-        | .normal l g m f => ∃ fuel'' n', E.run fuel'' ⟨l, g, m, f⟩ rest = some (r, n')
-        | _ => r = rA) ∨
+        E.run fuel' s thenBranch = some (rA, nA) ∧ Continues E rA r rest) ∨
       (E.eval s c = some (.word 0) ∧ ∃ fuel' n', E.run fuel' s rest = some (r, n')) := by
   obtain ⟨fuel₁, r₁, n₁, h₁, h₂⟩ := seq_run_inv h
   rcases ite_run_inv h₁ with herr | ⟨fuel₂, v, n', hc, hbranch⟩
@@ -93,7 +96,7 @@ theorem ite_then_inv {fuel : Nat} {s : St σ} {c : Exp Word} {thenBranch rest : 
     · refine Or.inr (Or.inl ⟨v, fuel₂, r₁, n', hc, hne, hrun, ?_⟩)
       cases r₁ with
       | normal l g m ffi =>
-        simp only at h₂ ⊢
+        simp only [Continues] at h₂ ⊢
         obtain ⟨n₂, h₂⟩ := h₂
         exact ⟨fuel₁, n₂, h₂⟩
       | _ => exact h₂

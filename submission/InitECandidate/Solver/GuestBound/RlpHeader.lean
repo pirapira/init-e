@@ -232,4 +232,183 @@ theorem short_block_extra (hE : GuestEnv E) (k flag : Word) {c₁ c₂ : Exp Wor
     exact short_return (s := ⟨updatePanValueMap s.locals "n" (PanValue.word (va - vb)), s.globals, s.memory, s.ffi⟩)
       flag hn2 (len_guard (s := ⟨updatePanValueMap s.locals "n" (PanValue.word (va - vb)), s.globals, s.memory, s.ffi⟩) hE.word hn2 hlen2 hlen1 hc) hrun3
 
+/-- A long header block: the length of the length is `ll = b - k`, the length
+`n` is read by `rlp_read_length`, and both are checked against `len`. -/
+theorem long_block (hE : GuestEnv E) (k flag : Word) {fuel : Nat} {s : St σ} {r : Result σ}
+    {n : Nat} {lenv : Word}
+    (hlen : s.locals "len" = some (.word lenv)) (hlen1 : 1 ≤ lenv.toNat)
+    (h : E.run fuel s (.dec "ll" .one (.op .sub [.var .local "b", .const k])
+      (.seq (.ite (.cmp .lower (.op .sub [.var .local "len", .const 1]) (.var .local "ll"))
+          (.call (some (none, none)) "rlp_fail" [.const 3]) .skip)
+        (.decCall "n" .one "rlp_read_length"
+          [.op .add [.var .local "p", .const 1], .var .local "ll"]
+          (.seq (.ite (.cmp .notLower (.const 55) (.var .local "n"))
+              (.call (some (none, none)) "rlp_fail" [.const 5]) .skip)
+            (.seq (.ite (.cmp .lower
+                (.op .sub [.op .sub [.var .local "len", .const 1], .var .local "ll"])
+                (.var .local "n"))
+                (.call (some (none, none)) "rlp_fail" [.const 3]) .skip)
+              (.return (.rStruct [.op .add [.const 1, .var .local "ll"], .var .local "n",
+                .const flag]))))))) = some (r, n)) :
+    BlockPost lenv r := by
+  rcases dec_run_inv h with herr | ⟨f1, v, r1, n1, hv, -, hrun1, rfl⟩
+  · exact BlockPost.of_error herr
+  refine BlockPost.restore ?_
+  obtain ⟨va, vb, -, -, rfl⟩ := eval_sub hE.word hv
+  have hll2 : (updatePanValueMap s.locals "ll" (PanValue.word (va - vb))) "ll" =
+      some (.word (va - vb)) := by simp [updatePanValueMap]
+  have hlen2 : (updatePanValueMap s.locals "ll" (PanValue.word (va - vb))) "len" =
+      some (.word lenv) := by simp [updatePanValueMap, hlen]
+  rcases guard_fail_inv (rlp_fail_noReturn hE) hrun1 with hstop | ⟨hc, f2, n2, hrun2⟩
+  · exact BlockPost.of_stops hstop
+  have hlw := len_guard
+    (s := ⟨updatePanValueMap s.locals "ll" (PanValue.word (va - vb)), s.globals, s.memory, s.ffi⟩)
+    hE.word hll2 hlen2 hlen1 hc
+  rcases decCall_run_inv hrun2 with herr | ⟨f3, parameters, calleeBody, values, calleeLocals,
+    rb, nb, -, -, -, -, hout⟩
+  · exact BlockPost.of_error herr
+  cases rb with
+  | returned l g m ffi values' =>
+    cases values' with
+    | nil => exact hout.elim
+    | cons value rest =>
+      cases rest with
+      | cons value' rest' => exact hout.elim
+      | nil =>
+        obtain ⟨f4, r', n', hshape, hrun3, rfl⟩ := hout
+        refine BlockPost.restore ?_
+        obtain ⟨nw, rfl⟩ := word_of_shape_one hshape
+        have hn3 : (updatePanValueMap (updatePanValueMap s.locals "ll"
+            (PanValue.word (va - vb))) "n" (PanValue.word nw)) "n" = some (.word nw) := by
+          simp [updatePanValueMap]
+        have hll3 : (updatePanValueMap (updatePanValueMap s.locals "ll"
+            (PanValue.word (va - vb))) "n" (PanValue.word nw)) "ll" =
+            some (.word (va - vb)) := by simp [updatePanValueMap]
+        have hlen3 : (updatePanValueMap (updatePanValueMap s.locals "ll"
+            (PanValue.word (va - vb))) "n" (PanValue.word nw)) "len" = some (.word lenv) := by
+          simp [updatePanValueMap, hlen]
+        rcases guard_fail_inv (rlp_fail_noReturn hE) hrun3 with hstop | ⟨-, f5, n5, hrun4⟩
+        · exact BlockPost.of_stops hstop
+        rcases guard_fail_inv (rlp_fail_noReturn hE) hrun4 with hstop | ⟨hc3, f6, n6, hrun5⟩
+        · exact BlockPost.of_stops hstop
+        -- n ≤ len - 1 - ll
+        have hnw : nw.toNat + (va - vb).toNat + 1 ≤ lenv.toNat := by
+          obtain ⟨ca, cb, hca, hcb, hz⟩ := cmp_inv hE.word hc3
+          obtain ⟨xa, xb, hxa, hxb, hsub⟩ := eval_sub hE.word hca
+          obtain ⟨ya, yb, hya, hyb, hsub2⟩ := eval_sub hE.word hxa
+          simp only [eval_local, eval_const, Option.some.injEq, PanValue.word.injEq]
+            at hya hyb hxb hcb
+          rw [hlen3] at hya
+          rw [hll3] at hxb
+          rw [hn3] at hcb
+          simp only [Option.some.injEq, PanValue.word.injEq] at hya hxb hcb hsub hsub2
+          subst hya hyb hxb hcb hsub2 hsub
+          have hnot := cmp_lower_zero hz.symm
+          have hle := BitVec.le_def.mp (BitVec.not_lt.mp hnot)
+          have hlt := lenv.isLt
+          have h1 : (lenv - 1).toNat = lenv.toNat - 1 := by
+            rw [BitVec.toNat_sub]
+            simp only [show (1 : Word).toNat = 1 from rfl]
+            omega
+          have h2 : (lenv - 1 - (va - vb)).toNat = lenv.toNat - 1 - (va - vb).toNat := by
+            rw [BitVec.toNat_sub, h1]
+            have := (va - vb).isLt
+            omega
+          omega
+        rcases return3_inv hrun5 with herr | ⟨v₁, v₂, v₃, h₁, h₂, h₃, rfl⟩
+        · exact BlockPost.of_error herr
+        obtain ⟨a1, a2, ha1, ha2, rfl⟩ := eval_add hE.word h₁
+        simp only [eval_const, eval_local, Option.some.injEq, PanValue.word.injEq] at ha1 ha2 h₂ h₃
+        rw [hll3] at ha2
+        rw [hn3] at h₂
+        simp only [Option.some.injEq, PanValue.word.injEq] at ha2 h₂
+        subst ha1 ha2 h₂ h₃
+        refine ⟨rfl, ?_⟩
+        show 1 ≤ (1 + (va - vb)).toNat + nw.toNat ∧ (1 + (va - vb)).toNat + nw.toNat ≤ lenv.toNat
+        have hlt := lenv.isLt
+        have hadd : (1 + (va - vb)).toNat = 1 + (va - vb).toNat := by
+          rw [BitVec.toNat_add]
+          simp only [show (1 : Word).toNat = 1 from rfl]
+          omega
+        omega
+  | raised l g m ffi exception value =>
+    simp only at hout
+    subst hout
+    exact ⟨rfl, trivial⟩
+  | finalFfi l g m ffi event =>
+    simp only at hout
+    subst hout
+    exact ⟨rfl, trivial⟩
+  | _ => exact hout.elim
+
+theorem HeaderPost.of_block {len : Word} {rA r : Result σ} {rest : Prog Word}
+    (hpost : BlockPost len rA)
+    (hmatch : Continues E rA r rest) : HeaderPost len r := by
+  obtain ⟨hn, hp⟩ := hpost
+  cases rA with
+  | normal l g m f => cases hn
+  | _ =>
+    simp only [Continues] at hmatch
+    subst hmatch
+    exact hp
+
+/-- `rlp_item_header(p, len)` returns `<a, b, _>` with `1 ≤ a + b ≤ len`. -/
+theorem rlp_item_header_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "rlp_item_header" E.functions = some (parameters, body))
+    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat) (lenv : Word)
+    (hrun : E.run fuel s body = some (r, n)) (hlen : s.locals "len" = some (.word lenv)) :
+    HeaderPost lenv r := by
+  have hbody := (fun_of_index 109 hE.functions (by guest_decl_at 109) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  -- if len == 0 { fail }
+  rcases guard_fail_inv (rlp_fail_noReturn hE) hrun with hstop | ⟨hc, f1, n1, hrun1⟩
+  · exact HeaderPost.of_stops hstop
+  have hlen1 : 1 ≤ lenv.toNat := by
+    obtain ⟨ca, cb, hca, hcb, hz⟩ := cmp_inv hE.word hc
+    simp only [eval_local, eval_const, Option.some.injEq, PanValue.word.injEq] at hca hcb
+    rw [hlen] at hca
+    simp only [Option.some.injEq, PanValue.word.injEq] at hca
+    subst hca hcb
+    have hne := cmp_equal_zero hz.symm
+    rcases Nat.eq_zero_or_pos lenv.toNat with h0 | h0
+    · exact absurd (BitVec.eq_of_toNat_eq (by simpa using h0)) hne
+    · exact h0
+  -- var b = ld8 p
+  rcases dec_run_inv hrun1 with herr | ⟨f2, vb, r2, n2, -, -, hrun2, rfl⟩
+  · exact HeaderPost.of_error herr
+  refine HeaderPost.restore ?_
+  have hlen2 : (updatePanValueMap s.locals "b" vb) "len" = some (.word lenv) := by
+    simp [updatePanValueMap, hlen]
+  -- if b <+ 128 { return <0, 1, 0> }
+  rcases ite_then_inv hrun2 with herr | ⟨v, f3, rA, nA, -, -, hA, hmatch⟩ | ⟨-, f3, n3, hrun3⟩
+  · exact HeaderPost.of_error herr
+  · refine HeaderPost.of_block ?_ hmatch
+    rcases return3_inv hA with herr | ⟨v₁, v₂, v₃, h₁, h₂, h₃, rfl⟩
+    · exact BlockPost.of_error herr
+    simp only [eval_const, Option.some.injEq] at h₁ h₂ h₃
+    subst h₁ h₂ h₃
+    refine ⟨rfl, ?_⟩
+    show 1 ≤ (0 : Word).toNat + (1 : Word).toNat ∧ (0 : Word).toNat + (1 : Word).toNat ≤ lenv.toNat
+    simp only [show (0 : Word).toNat = 0 from rfl, show (1 : Word).toNat = 1 from rfl]
+    omega
+  -- if b <=+ 183 { short string }
+  rcases ite_then_inv hrun3 with herr | ⟨v, f4, rA, nA, -, -, hA, hmatch⟩ | ⟨-, f4, n4, hrun4⟩
+  · exact HeaderPost.of_error herr
+  · exact HeaderPost.of_block (short_block_extra (s := ⟨updatePanValueMap s.locals "b" vb, s.globals, s.memory, s.ffi⟩)
+      hE 128 0 hlen2 hlen1 hA) hmatch
+  -- if b <=+ 191 { long string }
+  rcases ite_then_inv hrun4 with herr | ⟨v, f5, rA, nA, -, -, hA, hmatch⟩ | ⟨-, f5, n5, hrun5⟩
+  · exact HeaderPost.of_error herr
+  · exact HeaderPost.of_block (long_block (s := ⟨updatePanValueMap s.locals "b" vb, s.globals, s.memory, s.ffi⟩)
+      hE 183 0 hlen2 hlen1 hA) hmatch
+  -- if b <=+ 247 { short list }
+  rcases ite_then_inv hrun5 with herr | ⟨v, f6, rA, nA, -, -, hA, hmatch⟩ | ⟨-, f6, n6, hrun6⟩
+  · exact HeaderPost.of_error herr
+  · exact HeaderPost.of_block (short_block (s := ⟨updatePanValueMap s.locals "b" vb, s.globals, s.memory, s.ffi⟩)
+      hE 192 1 hlen2 hlen1 hA) hmatch
+  -- long list
+  exact (long_block (s := ⟨updatePanValueMap s.locals "b" vb, s.globals, s.memory, s.ffi⟩)
+    hE 247 1 hlen2 hlen1 hrun6).2
+
 end InitECandidate.Solver.GuestBound
