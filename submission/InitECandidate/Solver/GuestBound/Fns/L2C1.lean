@@ -7,6 +7,21 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434970217729660813424 := by
+  guest_cost 258
+
+theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
+  guest_cost 268
+
+theorem «validate_transaction» (hE : GuestEnv E) : FunCost E "validate_transaction" 5460236245818027278892 := by
+  guest_cost 346
+
+theorem «jdel» (hE : GuestEnv E) : FunCost E "jdel" 13835058055282163713076 := by
+  guest_cost 357
+
+theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
+  guest_cost 361
+
 theorem «acct_copy» (hE : GuestEnv E) : FunCost E "acct_copy" 3394200909562557497453 := by
   guest_cost 363
 
@@ -70,6 +85,9 @@ theorem «ripemd160» (hE : GuestEnv E) : FunCost E "ripemd160" 1514256532798176
 theorem «blake2_init» (hE : GuestEnv E) : FunCost E "blake2_init" 378 := by
   guest_cost 621
 
+theorem «bn_mod» (hE : GuestEnv E) : FunCost E "bn_mod" 3821138944831434450842141720696545146376477132127326556329825582218789859098899 := by
+  guest_cost 628
+
 theorem «bn254_init» (hE : GuestEnv E) : FunCost E "bn254_init" 567 := by
   guest_cost 648
 
@@ -108,23 +126,5 @@ theorem «bls_fp_dbl» (hE : GuestEnv E) : FunCost E "bls_fp_dbl" 249 := by
 
 theorem «bls_fp_sqr» (hE : GuestEnv E) : FunCost E "bls_fp_sqr" 7159 := by
   guest_cost 707
-
-theorem «bls_fp_to_mont» (hE : GuestEnv E) : FunCost E "bls_fp_to_mont" 7165 := by
-  guest_cost 708
-
-theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
-  guest_cost 709
-
-theorem «bls_fp_pow» (hE : GuestEnv E) : FunCost E "bls_fp_pow" 264784564434026903896081 := by
-  guest_cost 714
-
-theorem «bls_fp_to_be48» (hE : GuestEnv E) : FunCost E "bls_fp_to_be48" 780 := by
-  guest_cost 718
-
-theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
-  guest_cost 726
-
-theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
-  guest_cost 727
 
 end InitECandidate.Solver.GuestBound.Fn

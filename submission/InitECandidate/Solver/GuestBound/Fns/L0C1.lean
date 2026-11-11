@@ -43,6 +43,9 @@ theorem «keccak_f1600» (hE : GuestEnv E) : FunCost E "keccak_f1600" 9334052501
 theorem «rlp_fail» (hE : GuestEnv E) : FunCost E "rlp_fail" 5 := by
   guest_cost 105
 
+theorem «rlp_be_len» (hE : GuestEnv E) : FunCost E "rlp_be_len" 4423670769972200025983100588445883433017 := by
+  guest_cost 118 [1]
+
 theorem «rlp_put_be» (hE : GuestEnv E) : FunCost E "rlp_put_be" 350488137400481480709 := by
   guest_cost 119
 
@@ -123,8 +126,5 @@ theorem «calculate_total_blob_gas» (hE : GuestEnv E) : FunCost E "calculate_to
 
 theorem «count_tokens_in_data» (hE : GuestEnv E) : FunCost E "count_tokens_in_data" 368934881474191032333 := by
   guest_cost 344
-
-theorem «state_snapshot» (hE : GuestEnv E) : FunCost E "state_snapshot" 2 := by
-  guest_cost 358
 
 end InitECandidate.Solver.GuestBound.Fn

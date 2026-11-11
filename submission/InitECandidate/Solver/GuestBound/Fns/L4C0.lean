@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «u256_div» (hE : GuestEnv E) : FunCost E "u256_div" 3821138944831434450842141720696545146376477132127326556325638171314057790882573 := by
+  guest_cost 70
+
+theorem «u256_mod» (hE : GuestEnv E) : FunCost E "u256_mod" 3821138944831434450842141720696545146376477132127326556325638171314057790882573 := by
+  guest_cost 71
+
 theorem «htab_new_leaf» (hE : GuestEnv E) : FunCost E "htab_new_leaf" 13576803638250229989951 := by
   guest_cost 135
 
@@ -28,11 +34,26 @@ theorem «ec_add» (hE : GuestEnv E) : FunCost E "ec_add" 54203 := by
 theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_stateless_input" 19977823831827444403211 := by
   guest_cost 207
 
+theorem «rlp_put_u256» (hE : GuestEnv E) : FunCost E "rlp_put_u256" 4423670769972200030963721488347462369995 := by
+  guest_cost 228
+
 theorem «_insert_into_leaf» (hE : GuestEnv E) : FunCost E "_insert_into_leaf" 7249570420967853786029 := by
   guest_cost 273
 
+theorem «_node_rlp_begin» (hE : GuestEnv E) : FunCost E "_node_rlp_begin" 8847341539944400052519603499103053414800 := by
+  guest_cost 281
+
 theorem «node_write_ref» (hE : GuestEnv E) : FunCost E "node_write_ref" 198044337547986185773979462222310128222887 := by
   guest_cost 289
+
+theorem «tx_put_u256» (hE : GuestEnv E) : FunCost E "tx_put_u256" 4423670769972200030963721488347462369995 := by
+  guest_cost 318
+
+theorem «tx_put_access_list» (hE : GuestEnv E) : FunCost E "tx_put_access_list" 1505297160085110542596697682996707496698914371167607204343670844179182772027515 := by
+  guest_cost 322
+
+theorem «auth_payload_len» (hE : GuestEnv E) : FunCost E "auth_payload_len" 8847341539944400051966201176891766867542 := by
+  guest_cost 324
 
 theorem «extend_memory_cost1» (hE : GuestEnv E) : FunCost E "extend_memory_cost1" 470 := by
   guest_cost 458
@@ -105,26 +126,5 @@ theorem «fp2_sgn0» (hE : GuestEnv E) : FunCost E "fp2_sgn0" 14393 := by
 
 theorem «fp12_is_one» (hE : GuestEnv E) : FunCost E "fp12_is_one" 11732129230879274828276 := by
   guest_cost 749
-
-theorem «fp12_mul» (hE : GuestEnv E) : FunCost E "fp12_mul" 10182602728687673128574 := by
-  guest_cost 750
-
-theorem «fp12_conj» (hE : GuestEnv E) : FunCost E "fp12_conj" 3394200909562557498495 := by
-  guest_cost 752
-
-theorem «g1_add» (hE : GuestEnv E) : FunCost E "g1_add" 6788401819125115179502 := by
-  guest_cost 763
-
-theorem «g1_decode» (hE : GuestEnv E) : FunCost E "g1_decode" 664082786653543895387 := by
-  guest_cost 767
-
-theorem «g2_add» (hE : GuestEnv E) : FunCost E "g2_add" 29588577494230121327637 := by
-  guest_cost 775
-
-theorem «g2_decode» (hE : GuestEnv E) : FunCost E "g2_decode" 3763135791036748614271 := by
-  guest_cost 779
-
-theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 264784564434026904084006 := by
-  guest_cost 788
 
 end InitECandidate.Solver.GuestBound.Fn

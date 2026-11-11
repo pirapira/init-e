@@ -7,6 +7,45 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fn_pow» (hE : GuestEnv E) : FunCost E "fn_pow" 422925433112340196520555800842468778975910707307509109566293100491215423188545766908379548073590797 := by
+  guest_cost 164
+
+theorem «tx_encode_generic» (hE : GuestEnv E) : FunCost E "tx_encode_generic" 1505297160085110544065539489077190796263375247816081612142582222933901006871683 := by
+  guest_cost 328
+
+theorem «set_account» (hE : GuestEnv E) : FunCost E "set_account" 24160048051386630960926234699531135486806 := by
+  guest_cost 387
+
+theorem «set_transient_storage» (hE : GuestEnv E) : FunCost E "set_transient_storage" 24160048051386630981549694573938414194742 := by
+  guest_cost 394
+
+theorem «merge_tx_into_block» (hE : GuestEnv E) : FunCost E "merge_tx_into_block" 8221238335849449893540773241124456270842386113695534600588121014585157071405176 := by
+  guest_cost 401
+
+theorem «add_storage_write» (hE : GuestEnv E) : FunCost E "add_storage_write" 48320096102773261918900990347268742716684 := by
+  guest_cost 414
+
+theorem «add_storage_read» (hE : GuestEnv E) : FunCost E "add_storage_read" 48320096102773261909843639007077352872463 := by
+  guest_cost 415
+
+theorem «add_balance_change» (hE : GuestEnv E) : FunCost E "add_balance_change" 24160048051386630961368956557300164727207 := by
+  guest_cost 416
+
+theorem «add_nonce_change» (hE : GuestEnv E) : FunCost E "add_nonce_change" 24160048051386630961645657718405808001443 := by
+  guest_cost 417
+
+theorem «add_code_change» (hE : GuestEnv E) : FunCost E "add_code_change" 24160048051386630961368956557300164727213 := by
+  guest_cost 418
+
+theorem «add_touched_account» (hE : GuestEnv E) : FunCost E "add_touched_account" 24160048051386630957532033789968577990884 := by
+  guest_cost 419
+
+theorem «warm_after_charge» (hE : GuestEnv E) : FunCost E "warm_after_charge" 24160048051386630952311605217108774881591 := by
+  guest_cost 474
+
+theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
+  guest_cost 592
+
 theorem «kzg_load_g1» (hE : GuestEnv E) : FunCost E "kzg_load_g1" 125223911026905359762351302192350185427770 := by
   guest_cost 798
 

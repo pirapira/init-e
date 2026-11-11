@@ -46,6 +46,9 @@ theorem «u256_mul» (hE : GuestEnv E) : FunCost E "u256_mul" 707 := by
 theorem «u256_mul_full» (hE : GuestEnv E) : FunCost E "u256_mul_full" 1694 := by
   guest_cost 61
 
+theorem «divmnu» (hE : GuestEnv E) : FunCost E "divmnu" 3821138944831434450842141720696545146376477132127326556323590582721876030652625 := by
+  guest_cost 67 [0, 0, 0, 0, 1, 0, 0, 0, 0]
+
 theorem «u256_abs» (hE : GuestEnv E) : FunCost E "u256_abs" 81 := by
   guest_cost 72
 
@@ -75,6 +78,18 @@ theorem «rlp_bytes_to_word» (hE : GuestEnv E) : FunCost E "rlp_bytes_to_word" 
 
 theorem «rlp_check_uint_bytes» (hE : GuestEnv E) : FunCost E "rlp_check_uint_bytes" 43 := by
   guest_cost 117
+
+theorem «rlp_write_header» (hE : GuestEnv E) : FunCost E "rlp_write_header" 4423670769972200026333588725846364913759 := by
+  guest_cost 120
+
+theorem «rlp_header_len» (hE : GuestEnv E) : FunCost E "rlp_header_len" 4423670769972200025983100588445883433030 := by
+  guest_cost 121
+
+theorem «rlp_encode_word» (hE : GuestEnv E) : FunCost E "rlp_encode_word" 4423670769972200026333588725846364913767 := by
+  guest_cost 123
+
+theorem «rlp_word_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_word_encoded_len" 4423670769972200025983100588445883433030 := by
+  guest_cost 127
 
 theorem «htab_get» (hE : GuestEnv E) : FunCost E "htab_get" 5220428572859803107690 := by
   guest_cost 132
@@ -111,20 +126,5 @@ theorem «htr_u64_at» (hE : GuestEnv E) : FunCost E "htr_u64_at" 58291711272922
 
 theorem «host_input_le32» (hE : GuestEnv E) : FunCost E "host_input_le32" 110 := by
   guest_cost 198
-
-theorem «ssz_check_offsets» (hE : GuestEnv E) : FunCost E "ssz_check_offsets" 1033017668127734890521 := by
-  guest_cost 201
-
-theorem «common_prefix_length» (hE : GuestEnv E) : FunCost E "common_prefix_length" 387381625547900583953 := by
-  guest_cost 251
-
-theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
-  guest_cost 287
-
-theorem «tx_chain_id» (hE : GuestEnv E) : FunCost E "tx_chain_id" 306 := by
-  guest_cost 338
-
-theorem «calculate_intrinsic_cost» (hE : GuestEnv E) : FunCost E "calculate_intrinsic_cost" 5460236245818027278784 := by
-  guest_cost 345
 
 end InitECandidate.Solver.GuestBound.Fn

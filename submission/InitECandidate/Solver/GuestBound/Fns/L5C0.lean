@@ -7,17 +7,50 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «u256_sdiv» (hE : GuestEnv E) : FunCost E "u256_sdiv" 3821138944831434450842141720696545146376477132127326556325638171314057790882845 := by
+  guest_cost 73
+
+theorem «u256_smod» (hE : GuestEnv E) : FunCost E "u256_smod" 3821138944831434450842141720696545146376477132127326556325638171314057790882842 := by
+  guest_cost 74
+
+theorem «u256_addmod» (hE : GuestEnv E) : FunCost E "u256_addmod" 7642277889662868901684283441393090292752954264254653112650630706585535747458422 := by
+  guest_cost 75
+
+theorem «u256_mulmod» (hE : GuestEnv E) : FunCost E "u256_mulmod" 11463416834494303352526425162089635439129431396381979668975623241857013704035962 := by
+  guest_cost 76
+
+theorem «htab_set» (hE : GuestEnv E) : FunCost E "htab_set" 24160048051386630952311605217108774881572 := by
+  guest_cost 138 [1]
+
 theorem «ec_mul» (hE : GuestEnv E) : FunCost E "ec_mul" 1132980574263166950703594 := by
   guest_cost 173
 
 theorem «secp256k1_decompress_r» (hE : GuestEnv E) : FunCost E "secp256k1_decompress_r" 77347197901064149932625 := by
   guest_cost 177
 
+theorem «encode_header» (hE : GuestEnv E) : FunCost E "encode_header" 110591769249305000714768308267636641239695 := by
+  guest_cost 229
+
+theorem «calculate_base_fee_per_gas» (hE : GuestEnv E) : FunCost E "calculate_base_fee_per_gas" 15284555779325737803368566882786180585505908528509306225303198321298810997838607 := by
+  guest_cost 236
+
+theorem «_node_rlp_finish» (hE : GuestEnv E) : FunCost E "_node_rlp_finish" 3653273209995048205276550321114618904443768126181322302423694 := by
+  guest_cost 282
+
+theorem «auth_list_payload_len» (hE : GuestEnv E) : FunCost E "auth_list_payload_len" 244806967680080549842679836744765390559932913923938777563143 := by
+  guest_cost 325
+
 theorem «extend_memory_cost2» (hE : GuestEnv E) : FunCost E "extend_memory_cost2" 994 := by
   guest_cost 459
 
 theorem «charge_with_memory» (hE : GuestEnv E) : FunCost E "charge_with_memory" 4869940435459321627345 := by
   guest_cost 461
+
+theorem «op_div» (hE : GuestEnv E) : FunCost E "op_div" 3821138944831434450842141720696545146376477132127326556329032372223620348380230 := by
+  guest_cost 478
+
+theorem «op_mod» (hE : GuestEnv E) : FunCost E "op_mod" 3821138944831434450842141720696545146376477132127326556329032372223620348380230 := by
+  guest_cost 480
 
 theorem «op_keccak» (hE : GuestEnv E) : FunCost E "op_keccak" 198044337547986185773260039203435455710981 := by
   guest_cost 501
@@ -54,5 +87,8 @@ theorem «pair_ell» (hE : GuestEnv E) : FunCost E "pair_ell" 160117738559798914
 
 theorem «swu_g2» (hE : GuestEnv E) : FunCost E "swu_g2" 125223911026905357956193696447300568104571 := by
   guest_cost 793
+
+theorem «encode_receipt» (hE : GuestEnv E) : FunCost E "encode_receipt" 68896293096203136292648442299546753595068464516772566919907487714043646921671660 := by
+  guest_cost 836
 
 end InitECandidate.Solver.GuestBound.Fn

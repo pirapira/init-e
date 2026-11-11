@@ -7,6 +7,24 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_signextend» (hE : GuestEnv E) : FunCost E "op_signextend" 3394200909562557497972 := by
+  guest_cost 485
+
+theorem «op_and» (hE : GuestEnv E) : FunCost E "op_and" 3394200909562557497674 := by
+  guest_cost 492
+
+theorem «op_or» (hE : GuestEnv E) : FunCost E "op_or" 3394200909562557497674 := by
+  guest_cost 493
+
+theorem «op_xor» (hE : GuestEnv E) : FunCost E "op_xor" 3394200909562557497674 := by
+  guest_cost 494
+
+theorem «op_not» (hE : GuestEnv E) : FunCost E "op_not" 3394200909562557497636 := by
+  guest_cost 495
+
+theorem «op_shl» (hE : GuestEnv E) : FunCost E "op_shl" 3394200909562557497802 := by
+  guest_cost 497
+
 theorem «op_shr» (hE : GuestEnv E) : FunCost E "op_shr" 3394200909562557497802 := by
   guest_cost 498
 
@@ -67,8 +85,14 @@ theorem «evm_init» (hE : GuestEnv E) : FunCost E "evm_init" 198044337547986185
 theorem «child_message» (hE : GuestEnv E) : FunCost E "child_message" 2434970217729660813568 := by
   guest_cost 594
 
+theorem «compute_contract_address» (hE : GuestEnv E) : FunCost E "compute_contract_address" 215739020627874985875569128078732548899903 := by
+  guest_cost 596
+
 theorem «compute_create2_contract_address» (hE : GuestEnv E) : FunCost E "compute_create2_contract_address" 396088675095972371537776321715932583953478 := by
   guest_cost 597
+
+theorem «modexp» (hE : GuestEnv E) : FunCost E "modexp" 140975144370780065510673072558987694109981212295363849463120131187587275056684490636824402764760206 := by
+  guest_cost 630
 
 theorem «fq12_reduce» (hE : GuestEnv E) : FunCost E "fq12_reduce" 314420907034947140253532026720393252306949 := by
   guest_cost 658
@@ -102,29 +126,5 @@ theorem «bls_fp_encode64» (hE : GuestEnv E) : FunCost E "bls_fp_encode64" 2434
 
 theorem «fp2_dbl» (hE : GuestEnv E) : FunCost E "fp2_dbl" 530 := by
   guest_cost 729
-
-theorem «fp2_pow» (hE : GuestEnv E) : FunCost E "fp2_pow" 705569514075316639760657 := by
-  guest_cost 736
-
-theorem «fp6_add» (hE : GuestEnv E) : FunCost E "fp6_add" 1607 := by
-  guest_cost 741
-
-theorem «fp6_sub» (hE : GuestEnv E) : FunCost E "fp6_sub" 1607 := by
-  guest_cost 742
-
-theorem «fp6_neg» (hE : GuestEnv E) : FunCost E "fp6_neg" 1114 := by
-  guest_cost 743
-
-theorem «fp6_mul» (hE : GuestEnv E) : FunCost E "fp6_mul" 209208 := by
-  guest_cost 744
-
-theorem «fp6_mul_v» (hE : GuestEnv E) : FunCost E "fp6_mul_v" 10182602728687672492742 := by
-  guest_cost 745
-
-theorem «fp12_set_one» (hE : GuestEnv E) : FunCost E "fp12_set_one" 7304910653188982440045 := by
-  guest_cost 748
-
-theorem «fp12_frob» (hE : GuestEnv E) : FunCost E "fp12_frob" 115013 := by
-  guest_cost 754
 
 end InitECandidate.Solver.GuestBound.Fn

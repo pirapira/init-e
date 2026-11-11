@@ -7,6 +7,27 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp12_mul» (hE : GuestEnv E) : FunCost E "fp12_mul" 10182602728687673128574 := by
+  guest_cost 750
+
+theorem «fp12_conj» (hE : GuestEnv E) : FunCost E "fp12_conj" 3394200909562557498495 := by
+  guest_cost 752
+
+theorem «g1_add» (hE : GuestEnv E) : FunCost E "g1_add" 6788401819125115179502 := by
+  guest_cost 763
+
+theorem «g1_decode» (hE : GuestEnv E) : FunCost E "g1_decode" 664082786653543895387 := by
+  guest_cost 767
+
+theorem «g2_add» (hE : GuestEnv E) : FunCost E "g2_add" 29588577494230121327637 := by
+  guest_cost 775
+
+theorem «g2_decode» (hE : GuestEnv E) : FunCost E "g2_decode" 3763135791036748614271 := by
+  guest_cost 779
+
+theorem «swu_g1» (hE : GuestEnv E) : FunCost E "swu_g1" 264784564434026904084006 := by
+  guest_cost 788
+
 theorem «swu_sqrt_division_fp2» (hE : GuestEnv E) : FunCost E "swu_sqrt_division_fp2" 62611955513452679539108452365342022395239 := by
   guest_cost 792
 
@@ -19,7 +40,16 @@ theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 
 theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
   guest_cost 811
 
+theorem «pre_modexp» (hE : GuestEnv E) : FunCost E "pre_modexp" 140975144370780065510673072558987694109981212295363849463120131187587275056718432645920028339736011 := by
+  guest_cost 829
+
 theorem «logs_bloom» (hE : GuestEnv E) : FunCost E "logs_bloom" 67390995936118025750051744616550046098152109713142480037391683455831496005255201 := by
   guest_cost 832
+
+theorem «encode_logs» (hE : GuestEnv E) : FunCost E "encode_logs" 1505297160085110542596697682996707496898660120550198082403478587304829536698602 := by
+  guest_cost 835
+
+theorem «encode_withdrawal_rlp» (hE : GuestEnv E) : FunCost E "encode_withdrawal_rlp" 26542024619833200164439446036802822996930 := by
+  guest_cost 838
 
 end InitECandidate.Solver.GuestBound.Fn

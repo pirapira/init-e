@@ -16,6 +16,9 @@ theorem «umod» (hE : GuestEnv E) : FunCost E "umod" 645636042579834306619 := b
 theorem «u256_ws_init» (hE : GuestEnv E) : FunCost E "u256_ws_init" 93 := by
   guest_cost 38
 
+theorem «digits_divmod» (hE : GuestEnv E) : FunCost E "digits_divmod" 3821138944831434450842141720696545146376477132127326556324992535271477956575653 := by
+  guest_cost 68
+
 theorem «u256_byte_length» (hE : GuestEnv E) : FunCost E "u256_byte_length" 458 := by
   guest_cost 79
 
@@ -45,6 +48,18 @@ theorem «rlp_item_header» (hE : GuestEnv E) : FunCost E "rlp_item_header" 6640
 
 theorem «rlp_item_total_unchecked» (hE : GuestEnv E) : FunCost E "rlp_item_total_unchecked" 664082786653543858297 := by
   guest_cost 114
+
+theorem «rlp_encode_bytes» (hE : GuestEnv E) : FunCost E "rlp_encode_bytes" 4423670769972200029727789635408922411152 := by
+  guest_cost 122
+
+theorem «rlp_encode_list_header» (hE : GuestEnv E) : FunCost E "rlp_encode_list_header" 4423670769972200026333588725846364913763 := by
+  guest_cost 124
+
+theorem «rlp_bytes_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_bytes_encoded_len" 4423670769972200025983100588445883433051 := by
+  guest_cost 125
+
+theorem «rlp_list_header_len» (hE : GuestEnv E) : FunCost E "rlp_list_header_len" 4423670769972200025983100588445883433032 := by
+  guest_cost 126
 
 theorem «htab_new» (hE : GuestEnv E) : FunCost E "htab_new" 441 := by
   guest_cost 128
@@ -111,20 +126,5 @@ theorem «node_new_leaf» (hE : GuestEnv E) : FunCost E "node_new_leaf" 136 := b
 
 theorem «node_new_ext» (hE : GuestEnv E) : FunCost E "node_new_ext" 130 := by
   guest_cost 257
-
-theorem «node_new_branch» (hE : GuestEnv E) : FunCost E "node_new_branch" 2434970217729660813424 := by
-  guest_cost 258
-
-theorem «mpt_new» (hE : GuestEnv E) : FunCost E "mpt_new" 100 := by
-  guest_cost 268
-
-theorem «validate_transaction» (hE : GuestEnv E) : FunCost E "validate_transaction" 5460236245818027278892 := by
-  guest_cost 346
-
-theorem «jdel» (hE : GuestEnv E) : FunCost E "jdel" 13835058055282163713076 := by
-  guest_cost 357
-
-theorem «acct_new» (hE : GuestEnv E) : FunCost E "acct_new" 112 := by
-  guest_cost 361
 
 end InitECandidate.Solver.GuestBound.Fn

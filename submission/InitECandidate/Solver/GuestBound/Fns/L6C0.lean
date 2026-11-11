@@ -7,6 +7,60 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fn_mul» (hE : GuestEnv E) : FunCost E "fn_mul" 11463416834494303352526425162089635439129431396381979668975623241857013704035970 := by
+  guest_cost 162
+
+theorem «fn_add» (hE : GuestEnv E) : FunCost E "fn_add" 7642277889662868901684283441393090292752954264254653112650630706585535747458430 := by
+  guest_cost 163
+
+theorem «header_hash» (hE : GuestEnv E) : FunCost E "header_hash" 308636106797291186478565167761259096970305 := by
+  guest_cost 230
+
+theorem «nodedb_build» (hE : GuestEnv E) : FunCost E "nodedb_build" 4098947433207502540159511255715197562158467062433523727073732 := by
+  guest_cost 253
+
+theorem «tx_put_authorizations» (hE : GuestEnv E) : FunCost E "tx_put_authorizations" 979227870720322199739245150354437918156491489816119695376507 := by
+  guest_cost 326
+
+theorem «tx_encode_bound» (hE : GuestEnv E) : FunCost E "tx_encode_bound" 408011612800134249737799727907942317582050188353954159525941 := by
+  guest_cost 327
+
+theorem «jset» (hE : GuestEnv E) : FunCost E "jset" 24160048051386630960926234699531135486796 := by
+  guest_cost 356
+
+theorem «record_pre_state_read» (hE : GuestEnv E) : FunCost E "record_pre_state_read" 24160048051386630952311605217108774881582 := by
+  guest_cost 364
+
+theorem «get_code» (hE : GuestEnv E) : FunCost E "get_code" 24160048051386630983615729910193883975757 := by
+  guest_cost 376
+
+theorem «destroy_storage» (hE : GuestEnv E) : FunCost E "destroy_storage" 445674223212454335213715395247730844236203208648149402912191 := by
+  guest_cost 389
+
+theorem «mark_account_created» (hE : GuestEnv E) : FunCost E "mark_account_created" 24160048051386630952311605217108774881582 := by
+  guest_cost 393
+
+theorem «htab_union_into» (hE : GuestEnv E) : FunCost E "htab_union_into" 445674223212454335088491484220825489661685082537357547143178 := by
+  guest_cost 400
+
+theorem «bal_ensure_account» (hE : GuestEnv E) : FunCost E "bal_ensure_account" 24160048051386630957532033789968577990879 := by
+  guest_cost 412
+
+theorem «warm_address» (hE : GuestEnv E) : FunCost E "warm_address" 24160048051386630952311605217108774881582 := by
+  guest_cost 472
+
+theorem «op_sdiv» (hE : GuestEnv E) : FunCost E "op_sdiv" 3821138944831434450842141720696545146376477132127326556329032372223620348380502 := by
+  guest_cost 479
+
+theorem «op_smod» (hE : GuestEnv E) : FunCost E "op_smod" 3821138944831434450842141720696545146376477132127326556329032372223620348380499 := by
+  guest_cost 481
+
+theorem «op_addmod» (hE : GuestEnv E) : FunCost E "op_addmod" 7642277889662868901684283441393090292752954264254653112654024907495098304956114 := by
+  guest_cost 482
+
+theorem «op_mulmod» (hE : GuestEnv E) : FunCost E "op_mulmod" 11463416834494303352526425162089635439129431396381979668979017442766576261533654 := by
+  guest_cost 483
+
 theorem «op_mstore» (hE : GuestEnv E) : FunCost E "op_mstore" 4869940435459321628169 := by
   guest_cost 508
 
@@ -18,6 +72,9 @@ theorem «op_mload» (hE : GuestEnv E) : FunCost E "op_mload" 946317970981299998
 
 theorem «op_mcopy» (hE : GuestEnv E) : FunCost E "op_mcopy" 11658342254584436622927 := by
   guest_cost 512
+
+theorem «warm_storage_key» (hE : GuestEnv E) : FunCost E "warm_storage_key" 24160048051386630959100007036233889876319 := by
+  guest_cost 526
 
 theorem «op_calldatacopy» (hE : GuestEnv E) : FunCost E "op_calldatacopy" 10699111562751539938315 := by
   guest_cost 539
@@ -42,5 +99,8 @@ theorem «map_fp_to_g1» (hE : GuestEnv E) : FunCost E "map_fp_to_g1" 1252239110
 
 theorem «map_fp2_to_g2» (hE : GuestEnv E) : FunCost E "map_fp2_to_g2" 858872694108448702705607078246158816679228 := by
   guest_cost 796
+
+theorem «block_rlp_length» (hE : GuestEnv E) : FunCost E "block_rlp_length" 408011612800134249861662509467163918351414220389612158718894 := by
+  guest_cost 862
 
 end InitECandidate.Solver.GuestBound.Fn

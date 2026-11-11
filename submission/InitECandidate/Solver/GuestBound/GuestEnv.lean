@@ -1,6 +1,7 @@
 import InitECandidate.Solver.GuestBound.Decls
 import InitECandidate.Solver.GuestBound.ExpCostEval
 import InitECandidate.Solver.GuestBound.Loops
+import InitECandidate.Solver.GuestBound.WalkMBound
 import Guest.SoftwareAst
 import Lean.Elab.Tactic
 
@@ -151,6 +152,11 @@ theorem whileCounter (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word)
     Costs E (.while c body) (2 ^ 64 * (expCost c + b + 1)) :=
   loop_costs hE.word hE.functions c body b hcheck hbody
 
+theorem whileWalk (σ : Type) (E : Env σ) (hE : GuestEnv E) (c : Exp Word) (body : Prog Word)
+    (b : Nat) (hcheck : walkMLoop body = true) (hbody : Costs E body b) :
+    Costs E (.while c body) (walkIters (assignedLocals body).length * (expCost c + b + 1)) :=
+  walkMLoop_costs hE.word c body b hcheck hbody
+
 end X
 
 /-- Namespace of the per-function cost theorems `Fn.<name>`. -/
@@ -200,11 +206,11 @@ def rule (name : Name) : Expr := mkConst (`InitECandidate.Solver.GuestBound.X ++
 
 /-- Build a proof of `Costs E p ?B` by recursion on the constructor form of `p`.
 No unification is performed; the kernel checks the assembled term. -/
-partial def derive (σ E hE : Expr) (p : Expr) : MetaM Expr := do
+partial def derive (σ E hE : Expr) (p : Expr) : StateRefT (List Nat) MetaM Expr := do
   let fn := p.getAppFn
   let args := p.getAppArgs
   let some ctor := fn.constName? | throwError "cost_derive: not a constructor: {p}"
-  let callee (f : Expr) : MetaM Expr := do
+  let callee (f : Expr) : StateRefT (List Nat) MetaM Expr := do
     let .lit (.strVal function) := f | throwError "cost_derive: callee is not a literal: {f}"
     return mkApp3 (mkConst (fnNamespace ++ Name.mkSimple function)) σ E hE
   match ctor with
@@ -264,17 +270,19 @@ partial def derive (σ E hE : Expr) (p : Expr) : MetaM Expr := do
         #[σ, E, destination, exception, handlerVar, handlerProgram, args[2]!, args[3]!,
           ← boundOf hf, ← boundOf hh, hf, hh]
   | ``Flapjack.Prog.while => do
+      -- hints are consumed in pre-order: 0 (default) uses `loopOk`, 1 uses `walkMLoop`
+      let hint ← modifyGet fun hints => (hints.headD 0, hints.tail)
       let h ← derive σ E hE args[2]!
       let check := mkApp2 (mkConst ``Eq.refl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true)
-      return mkAppN (rule `whileCounter)
-        #[σ, E, hE, args[1]!, args[2]!, ← boundOf h, check, h]
+      let name := if hint == 1 then `whileWalk else `whileCounter
+      return mkAppN (rule name) #[σ, E, hE, args[1]!, args[2]!, ← boundOf h, check, h]
   | _ => throwError "cost_derive: unsupported statement {ctor}"
 
 end Derive
 
 open Lean Elab Tactic Meta in
 /-- Prove `Costs E body ?B` for a loop-free body in constructor form, assigning `?B`. -/
-elab "cost_derive" : tactic => do
+elab "cost_derive" "[" hints:num,* "]" : tactic => do
   let goal ← getMainGoal
   let target ← instantiateMVars (← goal.getType)
   let arguments := target.getAppArgs
@@ -286,7 +294,8 @@ elab "cost_derive" : tactic => do
         return some declaration.toExpr
       else return none
     | throwError "cost_derive: no GuestEnv hypothesis"
-  let proof ← Derive.derive σ E hE body
+  let hintList := hints.getElems.toList.map (·.getNat)
+  let (proof, _) ← (Derive.derive σ E hE body).run hintList
   let bound ← Derive.boundOf proof
   let hole := arguments[3]!
   if hole.isMVar then hole.mvarId!.assign bound
@@ -303,13 +312,17 @@ elab "reduce_body" : tactic => do
   let newTarget := mkAppN target.getAppFn (arguments.set! 2 body)
   replaceMainGoal [← goal.replaceTargetDefEq newTarget]
 
-/-- Prove `FunCost E "f" N` for the guest function at position `i` of the AST. -/
-macro "guest_cost" i:num : tactic => `(tactic| (
+/-- Prove `FunCost E "f" N` for the guest function at position `i` of the AST.
+`guest_cost i [h₀, h₁, …]` gives one hint per loop of the function, in
+pre-order: `0` for a loop accepted by `loopOk`, `1` for one accepted by `walkMLoop`. -/
+macro "guest_cost" i:num "[" hints:num,* "]" : tactic => `(tactic| (
   apply FunCost.mono
   · apply funCost_of_index $i (GuestEnv.functions ‹GuestEnv _›)
       (by guest_decl_at $i) (by decide +kernel)
     reduce_body
-    cost_derive
+    cost_derive [$hints,*]
   · decide +kernel))
+
+macro "guest_cost" i:num : tactic => `(tactic| guest_cost $i [])
 
 end InitECandidate.Solver.GuestBound

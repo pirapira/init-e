@@ -7,6 +7,30 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp2_pow» (hE : GuestEnv E) : FunCost E "fp2_pow" 705569514075316639760657 := by
+  guest_cost 736
+
+theorem «fp6_add» (hE : GuestEnv E) : FunCost E "fp6_add" 1607 := by
+  guest_cost 741
+
+theorem «fp6_sub» (hE : GuestEnv E) : FunCost E "fp6_sub" 1607 := by
+  guest_cost 742
+
+theorem «fp6_neg» (hE : GuestEnv E) : FunCost E "fp6_neg" 1114 := by
+  guest_cost 743
+
+theorem «fp6_mul» (hE : GuestEnv E) : FunCost E "fp6_mul" 209208 := by
+  guest_cost 744
+
+theorem «fp6_mul_v» (hE : GuestEnv E) : FunCost E "fp6_mul_v" 10182602728687672492742 := by
+  guest_cost 745
+
+theorem «fp12_set_one» (hE : GuestEnv E) : FunCost E "fp12_set_one" 7304910653188982440045 := by
+  guest_cost 748
+
+theorem «fp12_frob» (hE : GuestEnv E) : FunCost E "fp12_frob" 115013 := by
+  guest_cost 754
+
 theorem «g1_double» (hE : GuestEnv E) : FunCost E "g1_double" 82536 := by
   guest_cost 762
 
@@ -51,6 +75,12 @@ theorem «pre_ripemd160» (hE : GuestEnv E) : FunCost E "pre_ripemd160" 15142565
 
 theorem «add_to_bloom» (hE : GuestEnv E) : FunCost E "add_to_bloom" 198044337547986185764719196697307933311495 := by
   guest_cost 831
+
+theorem «rlp_finish_list» (hE : GuestEnv E) : FunCost E "rlp_finish_list" 8847341539944400055710890223854805844180 := by
+  guest_cost 833
+
+theorem «withdrawal_rlp_len» (hE : GuestEnv E) : FunCost E "withdrawal_rlp_len" 17694683079888800103932402353783533732302 := by
+  guest_cost 837
 
 theorem «compute_requests_hash» (hE : GuestEnv E) : FunCost E "compute_requests_hash" 2875726282848850955188099820656430185201803 := by
   guest_cost 840

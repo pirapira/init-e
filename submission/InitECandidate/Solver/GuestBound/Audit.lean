@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.Fns.L7
+import InitECandidate.Solver.GuestBound.Fns.L10
 import InitECandidate.Solver.GuestBound.GuestInstance
 
 /-! Axiom audit for the guest-bound modules: each line must report only
@@ -59,3 +59,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms lowerLoop_costs
 #print axioms guest_guestEnv
 #print axioms guest_steps_le_of_main
+#print axioms walkMLoop_costs
+#print axioms wordExp_eval
+#print axioms Fn.divmnu
+#print axioms Fn.htab_set

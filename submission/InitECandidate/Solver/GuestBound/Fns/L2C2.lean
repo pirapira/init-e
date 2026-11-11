@@ -7,6 +7,24 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_fp_to_mont» (hE : GuestEnv E) : FunCost E "bls_fp_to_mont" 7165 := by
+  guest_cost 708
+
+theorem «bls_fp_from_mont» (hE : GuestEnv E) : FunCost E "bls_fp_from_mont" 7165 := by
+  guest_cost 709
+
+theorem «bls_fp_pow» (hE : GuestEnv E) : FunCost E "bls_fp_pow" 264784564434026903896081 := by
+  guest_cost 714
+
+theorem «bls_fp_to_be48» (hE : GuestEnv E) : FunCost E "bls_fp_to_be48" 780 := by
+  guest_cost 718
+
+theorem «fp2_add» (hE : GuestEnv E) : FunCost E "fp2_add" 526 := by
+  guest_cost 726
+
+theorem «fp2_sub» (hE : GuestEnv E) : FunCost E "fp2_sub" 526 := by
+  guest_cost 727
+
 theorem «fp2_neg» (hE : GuestEnv E) : FunCost E "fp2_neg" 364 := by
   guest_cost 728
 

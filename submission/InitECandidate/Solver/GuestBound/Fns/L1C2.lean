@@ -7,6 +7,24 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «bls_fp_add» (hE : GuestEnv E) : FunCost E "bls_fp_add" 246 := by
+  guest_cost 702
+
+theorem «bls_fp_sub» (hE : GuestEnv E) : FunCost E "bls_fp_sub" 246 := by
+  guest_cost 703
+
+theorem «bls_fp_neg» (hE : GuestEnv E) : FunCost E "bls_fp_neg" 170 := by
+  guest_cost 704
+
+theorem «bls_fp_mul» (hE : GuestEnv E) : FunCost E "bls_fp_mul" 7156 := by
+  guest_cost 706
+
+theorem «bls_fp_half_can» (hE : GuestEnv E) : FunCost E "bls_fp_half_can" 213 := by
+  guest_cost 711
+
+theorem «fp2_copy» (hE : GuestEnv E) : FunCost E "fp2_copy" 3394200909562557497367 := by
+  guest_cost 721
+
 theorem «fp2_set_zero» (hE : GuestEnv E) : FunCost E "fp2_set_zero" 2434970217729660813332 := by
   guest_cost 722
 

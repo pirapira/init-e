@@ -7,6 +7,21 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «ssz_check_offsets» (hE : GuestEnv E) : FunCost E "ssz_check_offsets" 1033017668127734890521 := by
+  guest_cost 201
+
+theorem «common_prefix_length» (hE : GuestEnv E) : FunCost E "common_prefix_length" 387381625547900583953 := by
+  guest_cost 251
+
+theorem «node_ref_len» (hE : GuestEnv E) : FunCost E "node_ref_len" 46 := by
+  guest_cost 287
+
+theorem «tx_chain_id» (hE : GuestEnv E) : FunCost E "tx_chain_id" 306 := by
+  guest_cost 338
+
+theorem «calculate_intrinsic_cost» (hE : GuestEnv E) : FunCost E "calculate_intrinsic_cost" 5460236245818027278784 := by
+  guest_cost 345
+
 theorem «sk_make» (hE : GuestEnv E) : FunCost E "sk_make" 6788401819125114994734 := by
   guest_cost 360
 
@@ -67,6 +82,9 @@ theorem «ripemd160_block» (hE : GuestEnv E) : FunCost E "ripemd160_block" 8208
 theorem «blake2b_f» (hE : GuestEnv E) : FunCost E "blake2b_f" 29072068660166253346915 := by
   guest_cost 623
 
+theorem «bn_divmnu» (hE : GuestEnv E) : FunCost E "bn_divmnu" 3821138944831434450842141720696545146376477132127326556323590582721876030652617 := by
+  guest_cost 627 [0, 0, 0, 0, 1, 0, 0, 0, 0]
+
 theorem «be_top_bit» (hE : GuestEnv E) : FunCost E "be_top_bit" 2471863705877079916551 := by
   guest_cost 629
 
@@ -108,23 +126,5 @@ theorem «fq12_cast» (hE : GuestEnv E) : FunCost E "fq12_cast" 2434970217729660
 
 theorem «fq_poly_deg» (hE : GuestEnv E) : FunCost E "fq_poly_deg" 6125082604576892342838805023761985699847 := by
   guest_cost 680
-
-theorem «bls_fp_add» (hE : GuestEnv E) : FunCost E "bls_fp_add" 246 := by
-  guest_cost 702
-
-theorem «bls_fp_sub» (hE : GuestEnv E) : FunCost E "bls_fp_sub" 246 := by
-  guest_cost 703
-
-theorem «bls_fp_neg» (hE : GuestEnv E) : FunCost E "bls_fp_neg" 170 := by
-  guest_cost 704
-
-theorem «bls_fp_mul» (hE : GuestEnv E) : FunCost E "bls_fp_mul" 7156 := by
-  guest_cost 706
-
-theorem «bls_fp_half_can» (hE : GuestEnv E) : FunCost E "bls_fp_half_can" 213 := by
-  guest_cost 711
-
-theorem «fp2_copy» (hE : GuestEnv E) : FunCost E "fp2_copy" 3394200909562557497367 := by
-  guest_cost 721
 
 end InitECandidate.Solver.GuestBound.Fn

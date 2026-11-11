@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «state_snapshot» (hE : GuestEnv E) : FunCost E "state_snapshot" 2 := by
+  guest_cost 358
+
 theorem «track_ancestor_access» (hE : GuestEnv E) : FunCost E "track_ancestor_access" 22 := by
   guest_cost 402
 
@@ -123,8 +126,5 @@ theorem «fp2_is_zero» (hE : GuestEnv E) : FunCost E "fp2_is_zero" 41 := by
 
 theorem «g1_set_inf» (hE : GuestEnv E) : FunCost E "g1_set_inf" 36 := by
   guest_cost 758
-
-theorem «bls_g1_msm_discount» (hE : GuestEnv E) : FunCost E "bls_g1_msm_discount" 16 := by
-  guest_cost 812
 
 end InitECandidate.Solver.GuestBound.Fn

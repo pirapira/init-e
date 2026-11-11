@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «u256_divmod» (hE : GuestEnv E) : FunCost E "u256_divmod" 3821138944831434450842141720696545146376477132127326556325638171314057790882560 := by
+  guest_cost 69
+
 theorem «u256_to_be_min» (hE : GuestEnv E) : FunCost E "u256_to_be_min" 1235931852938539958737 := by
   guest_cost 88
 
@@ -55,11 +58,26 @@ theorem «_collapse_branch» (hE : GuestEnv E) : FunCost E "_collapse_branch" 72
 theorem «_delete_ext_finish» (hE : GuestEnv E) : FunCost E "_delete_ext_finish" 6788401819125114995166 := by
   guest_cost 277
 
+theorem «rlp_value_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_value_encoded_len" 4423670769972200025983100588445883433064 := by
+  guest_cost 286
+
 theorem «node_hash_cached» (hE : GuestEnv E) : FunCost E "node_hash_cached" 198044337547986185763796859493622455730720 := by
   guest_cost 288
 
+theorem «encode_account» (hE : GuestEnv E) : FunCost E "encode_account" 17694683079888800115830552281326194525279 := by
+  guest_cost 294
+
 theorem «tx_u256_encoded_len» (hE : GuestEnv E) : FunCost E "tx_u256_encoded_len" 483 := by
   guest_cost 319
+
+theorem «tx_put_to» (hE : GuestEnv E) : FunCost E "tx_put_to" 4423670769972200029727789635408922411167 := by
+  guest_cost 320
+
+theorem «access_list_payload_len» (hE : GuestEnv E) : FunCost E "access_list_payload_len" 163204645120053699895119891163176927022117274430015381962759 := by
+  guest_cost 321
+
+theorem «tx_put_blob_hashes» (hE : GuestEnv E) : FunCost E "tx_put_blob_hashes" 81602322560026850021060936836511171621886893915215493070963 := by
+  guest_cost 323
 
 theorem «get_transaction_hash» (hE : GuestEnv E) : FunCost E "get_transaction_hash" 198044337547986185763796859493622455730601 := by
   guest_cost 330
@@ -108,23 +126,5 @@ theorem «op_sub» (hE : GuestEnv E) : FunCost E "op_sub" 3394200909562557497730
 
 theorem «op_exp» (hE : GuestEnv E) : FunCost E "op_exp" 30972083299758337164506 := by
   guest_cost 484
-
-theorem «op_signextend» (hE : GuestEnv E) : FunCost E "op_signextend" 3394200909562557497972 := by
-  guest_cost 485
-
-theorem «op_and» (hE : GuestEnv E) : FunCost E "op_and" 3394200909562557497674 := by
-  guest_cost 492
-
-theorem «op_or» (hE : GuestEnv E) : FunCost E "op_or" 3394200909562557497674 := by
-  guest_cost 493
-
-theorem «op_xor» (hE : GuestEnv E) : FunCost E "op_xor" 3394200909562557497674 := by
-  guest_cost 494
-
-theorem «op_not» (hE : GuestEnv E) : FunCost E "op_not" 3394200909562557497636 := by
-  guest_cost 495
-
-theorem «op_shl» (hE : GuestEnv E) : FunCost E "op_shl" 3394200909562557497802 := by
-  guest_cost 497
 
 end InitECandidate.Solver.GuestBound.Fn
