@@ -112,13 +112,14 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
       pv.toNat + 88 ≤ keys.toNat ∧
       keys.toNat + ((ncapOf cp + 1#64) * strideOf kl).toNat ≤ nodes.toNat ∧
       nodes.toNat + ((ncapOf cp + 1#64) * 32#64).toNat ≤ order.toNat ∧
-      order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat ∧ q4.toNat ≤ 2952790016 := by
+      order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat ∧ q4.toNat ≤ 2952790016 ∧
+      keys.toNat % 8 = 0 := by
   have hbody := (fun_of_index 128 hE.functions (by guest_decl_at 128) (by decide +kernel)
     hlookup).1
   subst hbody
   dsimp only at h
   rcases decCall_alloc hE (nv := 88#64) (by simp) hp hpH h with hst |
-    ⟨q1, r1, hq1, hq1H, -, h1, rfl⟩
+    ⟨q1, r1, hq1, hq1H, hq18, h1, rfl⟩
   · exact Or.inl hst
   have key : Stopped r1 ∨ ∃ (l : VarName → Option (PanValue Word)) (nodes order q4 : Word),
       r1 = .returned l
@@ -196,7 +197,7 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   rcases key with hst | ⟨l, nodes, order, q4, rfl, hb1, hb2, hb3, hb4⟩
   · exact Or.inl hst.restore
   · have h88 : (88#64).toNat = 88 := by decide
-    exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4⟩
+    exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4, hq18⟩
 
 theorem add_beq (t a b : Word) : (t + a == t + b) = (a == b) := by
   by_cases hab : a = b
