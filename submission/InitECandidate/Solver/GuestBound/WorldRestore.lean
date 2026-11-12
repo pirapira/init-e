@@ -14,12 +14,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- What the rest of the proof may rely on about the heap: `D` table addresses
-known to be live (frames name their tables through it), `B` ranges known to
+/-- What the rest of the proof may rely on about the heap: `D t kl` tables
+known to be live, with their key length (frames name their tables through it), `B` ranges known to
 be free blocks (buffers), `Cn` cells known to hold a given word inside a free
 block (fields of container records such as `ts`). -/
 structure Reg where
-  D : Word → Prop
+  D : Word → Word → Prop
   B : Word → Word → Prop
   Cn : Word → Word → Prop
 
@@ -29,7 +29,7 @@ def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
   ∃ (pv : Word) (T : Word → Option HtabV) (N : Word → Option Word) (J C n : Word),
     g "heap_ptr" = some (.word pv) ∧ InHeap pv ∧ g "journal" = some (.word J) ∧
     g "journal_cap" = some (.word C) ∧ g "journal_n" = some (.word n) ∧
-    HeapW m pv T N J C n ∧ (∀ t, Rg.D t → ∃ v, T t = some v) ∧
+    HeapW m pv T N J C n ∧ (∀ t kl, Rg.D t kl → ∃ v, T t = some v ∧ v.kl = kl) ∧
     (∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi) ∧
     ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
       ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi
@@ -128,15 +128,23 @@ theorem HeapW.shrink {m : Word → Option (PanValue Word)} {pv : Word} {T : Word
     (hn : n'.toNat ≤ n.toNat) : HeapW m pv T N J C n' :=
   ⟨h.pvH, h.tabs, h.jrn.shrink hn, h.nodes, h.tn, h.jn⟩
 
-theorem stepT_dom {D : Word → Prop} {T : Word → Option HtabV} (hD : ∀ t, D t → ∃ v, T t = some v)
-    (t0 : Word) (v' : HtabV) : ∀ t, D t → ∃ v, stepT T t0 v' t = some v := by
+theorem stepT_dom {D : Word → Word → Prop} {T : Word → Option HtabV}
+    (hD : ∀ t kl, D t kl → ∃ v, T t = some v ∧ v.kl = kl) {t0 : Word} {v0 v' : HtabV}
+    (hT0 : T t0 = some v0) (hkl : v'.kl = v0.kl) :
+    ∀ t kl, D t kl → ∃ v, stepT T t0 v' t = some v ∧ v.kl = kl := by
   classical
-  intro t ht
+  intro t kl ht
+  obtain ⟨v, hv, hk⟩ := hD t kl ht
   unfold stepT
   by_cases e : t = t0
-  · exact ⟨v', by simp [e]⟩
-  · obtain ⟨v, hv⟩ := hD t ht
-    exact ⟨v, by simp [e, hv]⟩
+  · subst e
+    have : v = v0 := Option.some.inj (hv.symm.trans hT0)
+    subst this
+    exact ⟨v', by simp, hkl.trans hk⟩
+  · exact ⟨v, by simp [e, hv], hk⟩
+
+/-- The live tables of a registry, without key lengths. -/
+def Reg.live (Rg : Reg) : Word → Prop := fun t => ∃ kl, Rg.D t kl
 
 theorem worldTJ_step {Rg : Reg}
     {g g' : VarName → Option (PanValue Word)}
@@ -145,7 +153,7 @@ theorem worldTJ_step {Rg : Reg}
     (hp' : g' "heap_ptr" = some (.word pv')) (hpH' : InHeap pv')
     (hg : ∀ x, x ≠ "heap_ptr" → g' x = g x) (hJg : g "journal" = some (.word J))
     (hCg : g "journal_cap" = some (.word C)) (hng : g "journal_n" = some (.word n'))
-    (hW : HeapW m pv T N J C n) (hD : ∀ t, Rg.D t → ∃ v, T t = some v)
+    (hW : HeapW m pv T N J C n) (hD : ∀ t kl, Rg.D t kl → ∃ v, T t = some v ∧ v.kl = kl)
     (hB : ∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi)
     (hCn : ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
       ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi)
@@ -153,7 +161,7 @@ theorem worldTJ_step {Rg : Reg}
     (hs : TabStep m pv T t v m' pv' v') : WorldTJ Rg g' m' := by
   refine ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
-    hW.tab_step hs hn hpH'.1, stepT_dom hD t v', fun lo hi h => (hB lo hi h).tab_step hs,
+    hW.tab_step hs hn hpH'.1, stepT_dom hD hs.hT hs.kl, fun lo hi h => (hB lo hi h).tab_step hs,
     fun x w h => ?_⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w h
   refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩

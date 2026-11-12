@@ -81,11 +81,11 @@ theorem WorldTJ.release {pv : Word} (h : WorldTJ Rg g m)
   exact hr
 
 /-- A smaller registry. -/
-theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t, Rg'.D t → Rg.D t)
+theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t kl → Rg.D t kl)
     (hB : ∀ lo hi, Rg'.B lo hi → Rg.B lo hi) (hC : ∀ x w, Rg'.Cn x w → Rg.Cn x w) :
     WorldTJ Rg' g m := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hDT, hBT, hCT⟩ := h
-  exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, fun t ht => hDT t (hD t ht),
+  exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, fun t kl ht => hDT t kl (hD t kl ht),
     fun lo hi hb => hBT lo hi (hB lo hi hb), fun x w hc => hCT x w (hC x w hc)⟩
 
 /-- A protected cell can be read. -/

@@ -21,13 +21,13 @@ variable {σ : Type} {E : Env σ}
 theorem run_frames_bound_A (Rg : Reg) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (hC : ChildSpec E (WorldA Rg) Rg.D)
+    (hC : ChildSpec E (WorldA Rg) Rg.live)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
-    (s : St σ) (k : Nat) (hI : chainInv (WorldA Rg) Rg.D k s.globals s.memory) (fuel : Nat)
+    (s : St σ) (k : Nat) (hI : chainInv (WorldA Rg) Rg.live k s.globals s.memory) (fuel : Nat)
     (r : Result σ) (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_world (WorldA Rg) Rg.D hE hrest BD BF costD costF (restore_spec hE Rg) hC
+  run_frames_bound_world (WorldA Rg) Rg.live hE hrest BD BF costD costF (restore_spec hE Rg) hC
     parameters body hlookup s k hI fuel r n hrun hne
 
 theorem rollback_raises (hE : GuestEnv E) :
@@ -42,7 +42,7 @@ theorem rollback_framed (hE : GuestEnv E) (Rg : Reg) (parameters : List VarName)
     (hlookup : lookupPanFunction "rollback_child_access" E.functions = some (parameters, body))
     (s : St σ) (child : Word) (A : AccSt) (R : Assn)
     (hc : s.locals "child" = some (.word child)) (hlo : 2952790016 ≤ child.toNat)
-    (hhi : child.toNat + 280 ≤ 2 ^ 62) (hD : Rg.D A.t1 ∧ Rg.D A.t2)
+    (hhi : child.toNat + 280 ≤ 2 ^ 62) (hD : Rg.live A.t1 ∧ Rg.live A.t2)
     (h : (AccCells child A ⋆ WorldA Rg ⋆ R).holds s) :
     WPr E s body (fun r => Trap r ∨ ∃ l g m, r = .returned l g m s.ffi [.word 0#64] ∧
       (AccCells child A ⋆ WorldA Rg ⋆ R).holds (⟨l, g, m, s.ffi⟩ : St σ)) := by

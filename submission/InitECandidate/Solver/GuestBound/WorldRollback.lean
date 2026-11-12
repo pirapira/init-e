@@ -43,14 +43,15 @@ theorem TabStep.of_truncate {m m' : Word → Option (PanValue Word)} {pv t : Wor
 unchanged, memory outside the heap is unchanged. -/
 theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Word}
     {Rg : Reg} (h1 : ∀ y, E.eval s e1 = some y → y = .word t)
-    (h2 : ∀ y, E.eval s e2 = some y → y = .word nv) (hD : Rg.D t)
+    (h2 : ∀ y, E.eval s e2 = some y → y = .word nv) (hD : Rg.live t)
     (hW : WorldTJ Rg s.globals s.memory)
     (h : ∀ m', WorldTJ Rg s.globals m' →
       (∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a) →
       Q (.normal s.locals s.globals m' s.ffi)) :
     WPs E s (.call (some (none, none)) "htab_truncate" [e1, e2]) Q := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT⟩ := hW
-  obtain ⟨v, hTt⟩ := hDT t hD
+  obtain ⟨kl0, hD0⟩ := hD
+  obtain ⟨v, hTt, -⟩ := hDT t kl0 hD0
   have hat := hHW.tabs.at_ t v hTt
   obtain ⟨kind, rep, hok⟩ := hat.ok
   refine WPs.call_runs (fun rb => ∃ l m' v' kind', rb = .returned l s.globals m' s.ffi
@@ -79,7 +80,7 @@ theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Wor
     subst g m ffi
     have hs := TabStep.of_truncate hHW.tabs hTt hok hok' hsb hfr
     exact h m' ⟨pv, stepT T t v', N, J, C, n, hp, hpH, hJg, hCg, hng,
-      hHW.tab_step hs (Nat.le_refl _) hpH.1, stepT_dom hDT t v',
+      hHW.tab_step hs (Nat.le_refl _) hpH.1, stepT_dom hDT hs.hT hs.kl,
       fun lo hi hb => (hBT lo hi hb).tab_step hs, fun x w hcn => by
         obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hcn
         refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩
@@ -98,7 +99,7 @@ theorem rollback_world (hE : GuestEnv E) (parameters : List VarName) (body : Pro
     (hhi : child.toNat + 280 ≤ 2 ^ 62)
     (r1 : Rd s.memory (child + 168#64) t1) (r2 : Rd s.memory (child + 264#64) n1)
     (r3 : Rd s.memory (child + 176#64) t2) (r4 : Rd s.memory (child + 272#64) n2)
-    (hD1 : Rg.D t1) (hD2 : Rg.D t2) (hW : WorldTJ Rg s.globals s.memory) (h : Runs E s body r) :
+    (hD1 : Rg.live t1) (hD2 : Rg.live t2) (hW : WorldTJ Rg s.globals s.memory) (h : Runs E s body r) :
     Stopped r ∨ ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
       WorldTJ Rg s.globals m' ∧
       ∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a := by
