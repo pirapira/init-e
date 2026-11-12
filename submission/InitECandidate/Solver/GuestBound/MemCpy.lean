@@ -342,4 +342,73 @@ theorem cp_loop_b1 (hE : GuestEnv E) (P : CpPre dst src nW)
     subst hjn
     exact ⟨_, _, _, _, rfl, hS⟩
 
+theorem or_and7 (a b : Word) (h : (a ||| b) &&& 7#64 = 0#64) :
+    a.toNat % 8 = 0 ∧ b.toNat % 8 = 0 := by
+  have := congrArg BitVec.toNat h
+  rw [BitVec.toNat_and, BitVec.toNat_or] at this
+  have h7 : (7#64 : Word).toNat = 2 ^ 3 - 1 := by decide
+  have h0 : (0#64 : Word).toNat = 0 := by decide
+  rw [h7, Nat.and_two_pow_sub_one_eq_mod, h0, Nat.or_mod_two_pow] at this
+  exact Nat.or_eq_zero_iff.mp this
+
+theorem and7_mod (x : Word) (h : x &&& 7#64 = 0#64) : x.toNat % 8 = 0 := by
+  have := congrArg BitVec.toNat h
+  rw [BitVec.toNat_and] at this
+  have h7 : (7#64 : Word).toNat = 2 ^ 3 - 1 := by decide
+  have h0 : (0#64 : Word).toNat = 0 := by decide
+  rw [h7, Nat.and_two_pow_sub_one_eq_mod, h0] at this
+  exact this
+
+set_option maxHeartbeats 2000000 in
+/-- `memcpy(dst, src, n)` on disjoint ranges returns 0 after copying `n` bytes. -/
+theorem memcpy_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "memcpy" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (dst src nW : Word) (hdst : s.locals "dst" = some (.word dst))
+    (hsrc : s.locals "src" = some (.word src)) (hn : s.locals "n" = some (.word nW))
+    (P : CpPre dst src nW) (h : Runs E s body r) :
+    Stopped r ∨ ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
+      CopyInv s.memory dst src nW.toNat m' := by
+  have hbody := (fun_of_index 16 hE.functions (by guest_decl_at 16) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (fun r => ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
+    CopyInv s.memory dst src nW.toNat m')) r h
+  refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
+  have hS0 : CpS s.memory dst src nW s.globals s.ffi 0 0
+      ⟨updatePanValueMap s.locals "i" (.word 0#64), s.globals, s.memory, s.ffi⟩ :=
+    ⟨rfl, rfl, by lk [hdst], by lk [hsrc], by lk [hn], by lk [], CopyInv.start _ _ _⟩
+  refine WPs.seq (fun a => ∃ j, CpS s.memory dst src nW s.globals s.ffi j j a ∧ j ≤ nW.toNat)
+    ?_ ?_
+  · refine WPs.ite_both ?_
+    intro w hw
+    split
+    · exact WPs.skip ⟨_, _, _, _, rfl, 0, hS0, Nat.zero_le _⟩
+    · rename_i hw0
+      have hal : dst.toNat % 8 = 0 ∧ src.toNat % 8 = 0 := by
+        have hand : ∀ a b : Word, AndOp.and a b = a &&& b := fun _ _ => rfl
+        have hor : ∀ a b : Word, OrOp.or a b = a ||| b := fun _ _ => rfl
+        have hones : ∀ a : Word, a &&& 18446744073709551615#64 = a := by intro a; bv_decide
+        simp [evalF_cmp hE.word, evalF_op hE.word, evalArgs_cons, evalArgs_nil,
+          update_lookup, hdst, hsrc, wordOp, hand, hor, hones, evalPanCmp] at hw
+        have hz : (dst ||| src) &&& 7#64 = 0#64 := by
+          by_contra hne
+          rw [if_neg hne] at hw
+          exact hw0 hw.symm
+        exact or_and7 dst src hz
+      refine WPs.seq (fun a => ∃ j, CpS s.memory dst src nW s.globals s.ffi j j a ∧
+          j ≤ nW.toNat ∧ j % 8 = 0)
+        (cp_loop_w32 hE P hal.1 hal.2 ⟨0, hS0, Nat.zero_le _, rfl⟩) ?_
+      intro a hI
+      exact cp_loop_w8 hE P hal.1 hal.2 hI
+  · intro a hI
+    refine WPs.seq (fun a => ∃ j, CpS s.memory dst src nW s.globals s.ffi j j a ∧ j ≤ nW.toNat)
+      (cp_loop_b8 hE P hI) ?_
+    intro a' hI'
+    refine WPs.seq (fun a => CpS s.memory dst src nW s.globals s.ffi nW.toNat nW.toNat a)
+      (cp_loop_b1 hE P hI') ?_
+    rintro a'' ⟨hg, hf, -, -, -, -, hci⟩
+    refine WPs.ret (of_eval (eval_const _ _)) ?_
+    exact ⟨_, _, by rw [hg, hf]; rfl, hci⟩
+
 end InitECandidate.Solver.GuestBound
