@@ -287,4 +287,91 @@ theorem HeapW.node_add (h : HeapW m pv T N J C n) {a k : Word}
     · simp only [if_neg e] at hb
       exact h.jn b j hb
 
+/-- The range `[lo, hi)` is in the heap below the heap pointer and off every
+table, node and the journal: a block that was allocated and belongs to no
+structure (a buffer, a key copy). -/
+structure FreeOK (pv : Word) (T : Word → Option HtabV) (N : Word → Option Word) (J C : Word)
+    (lo hi : Word) : Prop where
+  lo_ : HBASE ≤ lo.toNat
+  hi_ : hi.toNat ≤ pv.toNat
+  tab : ∀ t v, T t = some v → ∀ x, TabFoot t v x → x.toNat < lo.toNat ∨ hi.toNat ≤ x.toNat
+  node : ∀ a k, N a = some k → a.toNat + nodeSize k ≤ lo.toNat ∨ hi.toNat ≤ a.toNat
+  jrn : J.toNat + 32 * C.toNat ≤ lo.toNat ∨ hi.toNat ≤ J.toNat
+
+/-- A block allocated at the heap pointer is free. -/
+theorem FreeOK.fresh (h : HeapW m pv T N J C n) {lo hi : Word} (hlo : pv.toNat ≤ lo.toNat)
+    (hhi : hi.toNat ≤ pv'.toNat) (hb : HBASE ≤ lo.toNat) : FreeOK pv' T N J C lo hi := by
+  refine ⟨hb, hhi, fun t v ht x hx => ?_, fun a k hN => ?_, ?_⟩
+  · have := ((h.tabs.at_ t v ht).foot_lt hx).2
+    exact Or.inl (by omega)
+  · have := (h.nodes.at_ a k hN).hi
+    exact Or.inl (by omega)
+  · have := h.jrn.hi
+    exact Or.inl (by omega)
+
+theorem FreeOK.tab_step {t : Word} {v v' : HtabV} {lo hi : Word}
+    (hf : FreeOK pv T N J C lo hi) (hs : TabStep m pv T t v m' pv' v') :
+    FreeOK pv' (stepT T t v') N J C lo hi := by
+  classical
+  have := hs.pv_le
+  have := hf.hi_
+  refine ⟨hf.lo_, by omega, fun u w hu x hx => ?_, hf.node, hf.jrn⟩
+  unfold stepT at hu
+  by_cases e : u = t
+  · subst e
+    simp only [if_true, Option.some.injEq] at hu
+    subst hu
+    rcases hs.foot x hx with hold | hge
+    · exact hf.tab u v hs.hT x hold
+    · exact Or.inr (by omega)
+  · simp only [if_neg e] at hu
+    exact hf.tab u w hu x hx
+
+theorem FreeOK.node_add {a k lo hi : Word} (hf : FreeOK pv T N J C lo hi)
+    (hlo : pv.toNat ≤ a.toNat) (hpv : pv.toNat ≤ pv'.toNat) :
+    FreeOK pv' T (addN N a k) J C lo hi := by
+  classical
+  have := hf.hi_
+  refine ⟨hf.lo_, by omega, hf.tab, fun b j hb => ?_, hf.jrn⟩
+  unfold addN at hb
+  by_cases e : b = a
+  · subst e
+    exact Or.inr (by omega)
+  · simp only [if_neg e] at hb
+    exact hf.node b j hb
+
+theorem FreeOK.mono {lo hi : Word} (hf : FreeOK pv T N J C lo hi) (hpv : pv.toNat ≤ pv'.toNat) :
+    FreeOK pv' T N J C lo hi :=
+  ⟨hf.lo_, by have := hf.hi_; omega, hf.tab, hf.node, hf.jrn⟩
+
+/-- Any change confined to a free range keeps the heap structures. -/
+theorem HeapW.change_free (h : HeapW m pv T N J C n) {lo hi : Word}
+    (hf : FreeOK pv T N J C lo hi)
+    (hm : ∀ a : Word, a.toNat % 8 = 0 → ¬ (lo.toNat ≤ a.toNat ∧ a.toNat < hi.toNat) →
+      a.toNat < pv.toNat → m' a = m a)
+    (hout : ∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = m a) :
+    HeapW m' pv T N J C n := by
+  have hstep : HeapStep m pv m' pv (fun a => lo.toNat ≤ a.toNat ∧ a.toNat < hi.toNat) :=
+    ⟨Nat.le_refl _, hm, hout⟩
+  refine ⟨h.pvH, h.tabs.persist hstep (fun t v ht x hx hF => ?_),
+    h.jrn.persist hstep (fun x h1 h2 hF => ?_),
+    h.nodes.persist hstep (fun a k x hN hx hF => ?_), h.tn, h.jn⟩
+  · rcases hf.tab t v ht x hx with h1 | h1 <;> omega
+  · rcases hf.jrn with h3 | h3 <;> omega
+  · have hin := hx.inside (h.nodes.at_ a k hN)
+    rcases hf.node a k hN with h1 | h1 <;> omega
+
+/-- The heap structures with a higher heap pointer. -/
+theorem HeapW.mono (h : HeapW m pv T N J C n) (hpv : pv.toNat ≤ pv'.toNat)
+    (hpH' : pv'.toNat ≤ 2952790016) : HeapW m pv' T N J C n := by
+  refine ⟨hpH', ⟨fun t v ht => ?_, h.tabs.disj⟩,
+    ⟨h.jrn.n_le, h.jrn.al, h.jrn.lo, by have := h.jrn.hi; omega, h.jrn.off, fun i hi => ?_⟩,
+    ⟨fun a k hN => ?_, h.nodes.disj⟩, h.tn, h.jn⟩
+  · have hat := h.tabs.at_ t v ht
+    exact ⟨hat.ok, hat.t8, hat.lo, by have := hat.fin; omega⟩
+  · obtain ⟨t0, kc, fl, val, v0, r0, r1, r2, r3, hT0, hkf⟩ := h.jrn.entry i hi
+    exact ⟨t0, kc, fl, val, v0, r0, r1, r2, r3, hT0, hkf.mono hpv⟩
+  · have hat := h.nodes.at_ a k hN
+    exact ⟨hat.al, hat.lo, hat.top, by have := hat.hi; omega, hat.k3, hat.kind, hat.ext, hat.br⟩
+
 end InitECandidate.Solver.GuestBound

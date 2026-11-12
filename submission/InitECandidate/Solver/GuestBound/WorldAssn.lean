@@ -92,11 +92,12 @@ def HeapKeys : Key → Prop
   | .glob x => x ∈ worldGlobals
 
 /-- The world invariant on a view. -/
-def WorldP (D : Word → Prop) (V : View) : Prop :=
-  WorldTJ D (fun x => V (.glob x)) (fun a => V (.mem a))
+def WorldP (D : Word → Prop) (B : Word → Word → Prop) (V : View) : Prop :=
+  WorldTJ D B (fun x => V (.glob x)) (fun a => V (.mem a))
 
-theorem worldP_local (D : Word → Prop) : Local HeapKeys (WorldP D) := by
-  rintro V V' hV ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD⟩
+theorem worldP_local (D : Word → Prop) (B : Word → Word → Prop) :
+    Local HeapKeys (WorldP D B) := by
+  rintro V V' hV ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB⟩
   have hg : ∀ x, x ∈ worldGlobals → V' (.glob x) = V (.glob x) := fun x hx => hV (.glob x) hx
   have hm : ∀ a : Word, a.toNat % 8 = 0 → HBASE ≤ a.toNat → a.toNat < pv.toNat →
       V' (.mem a) = V (.mem a) := by
@@ -105,10 +106,11 @@ theorem worldP_local (D : Word → Prop) : Local HeapKeys (WorldP D) := by
     exact hV (.mem a) ⟨by omega, by omega⟩
   exact ⟨pv, T, N, J, C, n, (hg _ (by simp [worldGlobals])).trans hp, hpH,
     (hg _ (by simp [worldGlobals])).trans hJg, (hg _ (by simp [worldGlobals])).trans hCg,
-    (hg _ (by simp [worldGlobals])).trans hng, hW.frame hm, hD⟩
+    (hg _ (by simp [worldGlobals])).trans hng, hW.frame hm, hD, hB⟩
 
 /-- The world state: owns the heap and its globals, with tables and journal well formed. -/
-def WorldA (D : Word → Prop) : Assn := Assn.Region HeapKeys (WorldP D)
+def WorldA (D : Word → Prop) (B : Word → Word → Prop) : Assn :=
+  Assn.Region HeapKeys (WorldP D B)
 
 theorem state_restore_raises (hE : GuestEnv E) :
     FunRaises E (fun x => x == "TrapErr") "state_restore" :=
@@ -117,12 +119,13 @@ theorem state_restore_raises (hE : GuestEnv E) :
       decide +kernel)
 
 /-- `state_restore` keeps the world assertion and its frame. -/
-theorem restore_spec (hE : GuestEnv E) (D : Word → Prop) : RestoreSpec E (WorldA D) := by
+theorem restore_spec (hE : GuestEnv E) (D : Word → Prop) (B : Word → Word → Prop) :
+    RestoreSpec E (WorldA D B) := by
   intro parameters body hlookup s R hh r hr
-  have hW : WorldTJ D s.globals s.memory := Assn.region_elim hh
+  have hW : WorldTJ D B s.globals s.memory := Assn.region_elim hh
   rcases state_restore_raises hE parameters body hlookup s r hr with he | hra
   · exact Or.inl he
-  rcases state_restore_world hE parameters body hlookup D s r hW hr with hst | ⟨l, g', m', rfl, hW',
+  rcases state_restore_world hE parameters body hlookup D B s r hW hr with hst | ⟨l, g', m', rfl, hW',
     hg, hm⟩
   · cases r with
     | error l g m f => exact Or.inl rfl
@@ -132,7 +135,7 @@ theorem restore_spec (hE : GuestEnv E) (D : Word → Prop) : RestoreSpec E (Worl
     | finalFfi l g m f ev => exact Or.inr (Or.inl trivial)
     | _ => exact absurd hst (fun h => h)
   · refine Or.inr (Or.inr ⟨l, g', m', rfl, ?_⟩)
-    refine Assn.region_change (s' := (⟨l, g', m', s.ffi⟩ : St σ)) hh (worldP_local D)
+    refine Assn.region_change (s' := (⟨l, g', m', s.ffi⟩ : St σ)) hh (worldP_local D B)
       (fun k hk => ?_)
       hW'
     cases k with
