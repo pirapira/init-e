@@ -158,4 +158,43 @@ theorem WPc.while {I : St σ → Prop} {μ : St σ → Nat} {c : Exp Word} {body
     | continued l g m f => exact hr.1
     | _ => exact hr
 
+/-! Budget forms: the bound `N` of the whole statement is given, and each rule
+hands what is left to the rest. -/
+
+theorem WPc.of_costs_le {p : Prog Word} {B N : Nat} (hc : Costs E p B) (hle : B ≤ N)
+    (h : WPs E s p Q) : WPc E s p N Q :=
+  (WPc.of_costs hc h).mono hle (fun _ h => h)
+
+theorem WPc.dec_sub {x : VarName} {sh : Shape} {e : Exp Word} {body : Prog Word} {N : Nat}
+    (hle : panValueExpStepCost e + 1 ≤ N)
+    (h : ∀ v, E.eval s e = some v →
+      WPc E ⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ body
+        (N - (panValueExpStepCost e + 1))
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPc E s (.dec x sh e body) N Q :=
+  (WPc.dec h).mono (by omega) (fun _ h => h)
+
+theorem WPc.decCall_sub {x : VarName} {sh : Shape} {f : FunName} {args : List (Exp Word)}
+    {body : Prog Word} {B N : Nat} (hf : FunCost E f B)
+    (hle : panValueExpsStepCost args + B + 1 ≤ N)
+    (h : ∀ v g m ffi, CalleeReturned E s f args v g m ffi →
+      WPc E ⟨updatePanValueMap s.locals x v, g, m, ffi⟩ body
+        (N - (panValueExpsStepCost args + B + 1))
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPc E s (.decCall x sh f args body) N Q :=
+  (WPc.decCall hf h).mono (by omega) (fun _ h => h)
+
+theorem WPc.seq_sub {p q : Prog Word} {B₁ N : Nat} (R : St σ → Prop)
+    (hp : WPc E s p B₁ (fun r1 => match r1 with
+      | .normal l g m f => R ⟨l, g, m, f⟩
+      | r1 => Q r1))
+    (hle : B₁ + 1 ≤ N)
+    (hq : ∀ s', R s' → WPc E s' q (N - (B₁ + 1)) Q) : WPc E s (.seq p q) N Q :=
+  (WPc.seq R hp hq).mono (by omega) (fun _ h => h)
+
+/-- Close a budget side condition between literal costs. -/
+macro "budget" : tactic => `(tactic| (
+  simp only [stepCost_eq, stepsCost_eq]
+  decide +kernel))
+
 end InitECandidate.Solver.GuestBound
