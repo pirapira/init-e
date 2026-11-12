@@ -22,7 +22,7 @@ def WorldTJ (g : VarName → Option (PanValue Word)) (m : Word → Option (PanVa
     JournalOK m pv T J C n
 
 /-- A comparison that evaluated to a word: both sides are words. -/
-theorem cmp_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
+theorem cmp_word_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
     (h : E.eval s (.cmp op a b) = some (.word w)) :
     ∃ x y, E.eval s a = some (.word x) ∧ E.eval s b = some (.word y) ∧
       w = evalPanCmp op x y := by
@@ -150,7 +150,7 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
   dsimp only at hf hp hJg hCg hng hT hJ hga hma
   subst hf
   obtain ⟨w, cc, hcond, hw⟩ := hct
-  obtain ⟨x, y, -, hy, hwv⟩ := cmp_inv hE (cond_of_eval hcond)
+  obtain ⟨x, y, -, hy, hwv⟩ := cmp_word_inv hE (cond_of_eval hcond)
   rw [eval_global] at hy
   dsimp only at hy
   rw [hng] at hy
