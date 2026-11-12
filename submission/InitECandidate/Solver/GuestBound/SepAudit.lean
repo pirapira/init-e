@@ -40,3 +40,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms «op_lt_framed»
 #print axioms «op_sgt_framed»
 #print axioms «op_slt_framed»
+#print axioms «op_timestamp_framed»
+#print axioms «op_number_framed»
+#print axioms «op_gaslimit_framed»
+#print axioms «op_chainid_framed»
+#print axioms «op_slotnum_framed»

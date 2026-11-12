@@ -163,4 +163,89 @@ theorem «op_eq_framed» (hE : GuestEnv E) (parameters : List VarName) (body : P
         decide +kernel))
     s e sp cap base pv fv gl used pc ok
 
+theorem «op_timestamp_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_timestamp" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc 2#64) := by
+  have hbody := (fun_of_index 556 hE.functions (by guest_decl_at 556) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE 2#64 "benv"
+    (Exp.op BinOp.add [(Exp.var VarKind.local "benv"), (Exp.const (BitVec.ofNat 64 80))])
+    (keepFn_sound (quietKeeper E) hE.functions 6 "block_env"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "block_env" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "block_env"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "block_env" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+
+theorem «op_number_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_number" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc 2#64) := by
+  have hbody := (fun_of_index 557 hE.functions (by guest_decl_at 557) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE 2#64 "benv"
+    (Exp.op BinOp.add [(Exp.var VarKind.local "benv"), (Exp.const (BitVec.ofNat 64 40))])
+    (keepFn_sound (quietKeeper E) hE.functions 6 "block_env"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "block_env" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "block_env"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "block_env" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+
+theorem «op_gaslimit_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_gaslimit" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc 2#64) := by
+  have hbody := (fun_of_index 558 hE.functions (by guest_decl_at 558) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE 2#64 "benv"
+    (Exp.op BinOp.add [(Exp.var VarKind.local "benv"), (Exp.const (BitVec.ofNat 64 8))])
+    (keepFn_sound (quietKeeper E) hE.functions 6 "block_env"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "block_env" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "block_env"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "block_env" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+
+theorem «op_chainid_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_chainid" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc 2#64) := by
+  have hbody := (fun_of_index 559 hE.functions (by guest_decl_at 559) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE 2#64 "benv"
+    (Exp.op BinOp.add [(Exp.var VarKind.local "benv"), (Exp.const (BitVec.ofNat 64 0))])
+    (keepFn_sound (quietKeeper E) hE.functions 6 "block_env"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "block_env" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "block_env"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "block_env" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+
+theorem «op_slotnum_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_slotnum" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc 2#64) := by
+  have hbody := (fun_of_index 561 hE.functions (by guest_decl_at 561) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE 2#64 "benv"
+    (Exp.op BinOp.add [(Exp.var VarKind.local "benv"), (Exp.const (BitVec.ofNat 64 112))])
+    (keepFn_sound (quietKeeper E) hE.functions 6 "block_env"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "block_env" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "block_env"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "block_env" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+
 end InitECandidate.Solver.GuestBound

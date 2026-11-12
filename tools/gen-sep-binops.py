@@ -174,6 +174,42 @@ theorem «{n}_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Pro
         decide +kernel))
     s e sp cap base pv fv gl used pc ok
 ''')
+# charge_gas(G); var x = f(); stack_push_word(lds 1 a); pc_add(1); return 0.
+PAT4 = re.compile(
+    r'^\(Prog\.seq \(Prog\.call \(some \(none, none\)\) "charge_gas" \[\(Exp\.const \(BitVec\.ofNat 64 (\d+)\)\)\]\) '
+    r'\(Prog\.decCall "(\w+)" Shape\.one "(\w+)" \[\] '
+    r'\(Prog\.seq \(Prog\.call \(some \(none, none\)\) "stack_push_word" \[\(Exp\.load Shape\.one (.*)\)\]\) '
+    r'\(Prog\.seq \(Prog\.call \(some \(none, none\)\) "pc_add" \[\(Exp\.const \(BitVec\.ofNat 64 1\)\)\]\) '
+    r'\(Prog\.return \(Exp\.const \(BitVec\.ofNat 64 0\)\)\)\)\)\)\)$')
+nenv = 0
+for i, n in ns:
+    m = PAT4.match(body(n))
+    if not m:
+        continue
+    gas, x, f, a = m.groups()
+    if not pure(f):
+        print('skipped', n, '(callee', f, 'is not pure)')
+        continue
+    nenv += 1
+    out.append(f'''
+theorem «{n}_framed» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "{n}" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc {gas}#64) := by
+  have hbody := (fun_of_index {i} hE.functions (by guest_decl_at {i}) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  exact pushEnv_framed hE {gas}#64 "{x}"
+    {a}
+    (keepFn_sound (quietKeeper E) hE.functions {DEPTH} "{f}"
+      (show keepFn quietLeaf Guest.Software.guestAst {DEPTH} "{f}" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions {DEPTH} "{f}"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst {DEPTH} "{f}" = true by
+        decide +kernel))
+    s e sp cap base pv fv gl used pc ok
+''')
+print(nenv, 'environment push handlers')
 out.append('\nend InitECandidate.Solver.GuestBound\n')
 open('submission/InitECandidate/Solver/GuestBound/SepPushWords.lean', 'w').write(''.join(out))
 print(npush, 'push-word handlers,', ncmp, 'comparison handlers')

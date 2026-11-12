@@ -132,35 +132,47 @@ def PushPost (ffi : FfiState σ) (e sp cap base pv fv gl used pc G : Word) (r : 
           (OpW e (sp + 1#64) nc qv qv fv (gl - G) (used + G) (pc + 1#64) ⋆
             Assn.Range (qv + 32#64 * nc) pv ⋆ Assn.Range base (base + 32#64 * cap)))))
 
+theorem restore_raised_ex {x : VarName} {old : Option (PanValue Word)} {r : Result σ}
+    {f : FfiState σ} {e : ExceptionId} {v : PanValue Word}
+    (h : ∃ l g m, r = .raised l g m f e v) :
+    ∃ l g m, restorePanValueFfiLocal x old r = .raised l g m f e v := by
+  obtain ⟨l, g, m, rfl⟩ := h
+  exact ⟨_, _, _, rfl⟩
+
+theorem restore_returned_ex {x : VarName} {old : Option (PanValue Word)} {r : Result σ}
+    {f : FfiState σ} {vs : List (PanValue Word)} (h : ∃ l g m, r = .returned l g m f vs) :
+    ∃ l g m, restorePanValueFfiLocal x old r = .returned l g m f vs := by
+  obtain ⟨l, g, m, rfl⟩ := h
+  exact ⟨_, _, _, rfl⟩
+
+/-- `PushPost` survives the end of a declaration scope. -/
+theorem PushPost.restore {ffi : FfiState σ} {e sp cap base pv fv gl used pc G : Word}
+    {x : VarName} {old : Option (PanValue Word)} {r : Result σ} {R : Assn}
+    (h : (PushPost ffi e sp cap base pv fv gl used pc G r ⋆ R).holds r.st) :
+    (PushPost ffi e sp cap base pv fv gl used pc G (restorePanValueFfiLocal x old r) ⋆ R).holds
+      (restorePanValueFfiLocal x old r).st := by
+  unfold Assn.holds at h ⊢
+  rw [restore_view]
+  refine Assn.holdsV_mono (Assn.sep_mono (fun hh hp => ?_) (fun _ h => h)) h
+  rcases hp with hp | hp | hp | ⟨qv, nc, hp⟩
+  · exact Or.inl (Assn.sep_mono (fun _ ⟨⟨a, hex⟩, e⟩ => ⟨⟨a, restore_raised_ex hex⟩, e⟩)
+      (fun _ h => h) _ hp)
+  · exact Or.inr (Or.inl (Assn.sep_mono
+      (fun _ ⟨⟨a, hex⟩, e⟩ => ⟨⟨a, restore_raised_ex hex⟩, e⟩) (fun _ h => h) _ hp))
+  · exact Or.inr (Or.inr (Or.inl (Assn.sep_mono
+      (fun _ ⟨⟨a, hex⟩, e⟩ => ⟨⟨a, restore_returned_ex hex⟩, e⟩) (fun _ h => h) _ hp)))
+  · exact Or.inr (Or.inr (Or.inr ⟨qv, nc, Assn.sep_mono
+      (fun _ ⟨⟨a, hex⟩, e⟩ => ⟨⟨a, restore_returned_ex hex⟩, e⟩) (fun _ h => h) _ hp⟩))
+
 set_option maxHeartbeats 1000000 in
-theorem pushLoad_framed (hE : GuestEnv E) (G : Word) (a : Exp Word)
-    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
-    WPFt E s (pushLoadBody G a) (OpW e sp cap base pv fv gl used pc)
-      (PushPost s.ffi e sp cap base pv fv gl used pc G) := by
-  intro R hR
-  unfold pushLoadBody
-  refine WPr.seq_call_framedT (Assn.holds_focus (OpW_gas ..) hR)
-    (fun p b v cl a1 a2 a3 => (charge_gas_hc hE (a := G)
-      (by simp [evalArgs_cons, evalArgs_nil, eval_const]) e gl used p b v cl a1 a2 a3).toT)
-    (by trap_tac) ?_ ?_
-  rotate_left
-  · intro l g m ffi exc v _ h
-    rcases Assn.holds_or_elim h with h | h
-    · obtain ⟨⟨hlt, _, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim h
-      injection hC with _ _ _ hf hx hv
-      subst hf hx hv
-      exact Or.inr (Assn.holds_or_left (Assn.holds_pure_intro ⟨hlt, _, _, _, rfl⟩
-        (Assn.holds_unfocus (OpW_gas ..) (Assn.holds_congr rfl rfl hk))))
-    · obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
-      cases hC
-  intro l g m ffi vs h
-  rcases Assn.holds_or_elim h with h | h
-  · obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
-    cases hC
-  obtain ⟨⟨hge, _, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim h
-  injection hC with _ _ _ hf _
-  subst hf
-  have hO1 := Assn.holds_unfocus (OpW_gas e sp cap base pv fv (gl - G) (used + G) pc) hk
+/-- After the charge: push the loaded word and advance the program counter. -/
+theorem pushTail (hE : GuestEnv E) (G : Word) (a : Exp Word) (st : St σ)
+    (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) (hge : ¬ gl < G)
+    {R : Assn} (hO1 : (OpW e sp cap base pv fv (gl - G) (used + G) pc ⋆ R).holds st) :
+    WPr E st
+      (.seq (.call (some (none, none)) "stack_push_word" [.load .one a])
+        (.seq (.call (some (none, none)) "pc_add" [.const 1#64]) (.return (.const 0#64))))
+      (fun r => Trap r ∨ (PushPost st.ffi e sp cap base pv fv gl used pc G r ⋆ R).holds r.st) := by
   refine WPr.seq_call_framedT (Assn.holds_focus (OpW_stack ..) hO1)
     (stack_push_word_hc hE a e sp cap base pv fv ok) (by trap_tac) ?_ ?_
   rotate_left
@@ -214,7 +226,7 @@ theorem pushLoad_framed (hE : GuestEnv E) (G : Word) (a : Exp Word)
     subst hf
     have hO2 : (OpW e (sp + 1#64) nc qv qv fv (gl - G) (used + G) pc ⋆
         (Assn.Range (qv + 32#64 * nc) pv ⋆ Assn.Range base (base + 32#64 * cap)) ⋆ R).holds
-        (⟨s.locals, g2, m2, s.ffi⟩ : St σ) :=
+        (⟨st.locals, g2, m2, st.ffi⟩ : St σ) :=
       Assn.holds_perm hk (by rw [OpW_stack]; ac_rfl)
     refine WPr.seq_call_framedT (Assn.holds_focus (OpW_pc ..) hO2)
       (fun p b v cl a1 a2 a3 => (pc_add_hc hE (n := 1#64)
@@ -231,12 +243,80 @@ theorem pushLoad_framed (hE : GuestEnv E) (G : Word) (a : Exp Word)
     refine WPr.ret (w := 0#64) (of_eval (eval_const _ _)) ?_
     have hO3 := Assn.holds_unfocus
       (OpW_pc e (sp + 1#64) nc qv qv fv (gl - G) (used + G) (pc + 1#64))
-      (Assn.holds_congr (s' := (⟨fun _ => none, g3, m3, s.ffi⟩ : St σ)) rfl rfl hk)
+      (Assn.holds_congr (s' := (⟨fun _ => none, g3, m3, st.ffi⟩ : St σ)) rfl rfl hk)
     exact Or.inr (Assn.holds_or_right (Assn.holds_or_right (Assn.holds_or_right
       (Assn.holdsV_ex.mpr ⟨qv, Assn.holdsV_ex.mpr ⟨nc,
         Assn.holds_pure_intro ⟨⟨hge, hok.1, hok.2.1, hok.2.2⟩, _, _, _, rfl⟩
           (Assn.holds_assoc_l
             (P := OpW e (sp + 1#64) nc qv qv fv (gl - G) (used + G) (pc + 1#64)) hO3)⟩⟩))))
+
+/-- The charge at the start of a handler: out of gas with nothing changed, or
+the rest runs with `G` moved from gas left to gas used. -/
+theorem WPr.seq_charge (hE : GuestEnv E) (G : Word) {q : Prog Word}
+    {e sp cap base pv fv gl used pc : Word} {R : Assn}
+    (hR : (OpW e sp cap base pv fv gl used pc ⋆ R).holds s) (htrap : ∀ r, Trap r → Q r)
+    (hoog : gl < G → ∀ l g m, (OpW e sp cap base pv fv gl used pc ⋆ R).holds
+      (⟨l, g, m, s.ffi⟩ : St σ) → Q (.raised (fun _ => none) g m s.ffi "EvmErr" (.word 4#64)))
+    (hq : ¬ gl < G → ∀ g m, (OpW e sp cap base pv fv (gl - G) (used + G) pc ⋆ R).holds
+      (⟨s.locals, g, m, s.ffi⟩ : St σ) → WPr E ⟨s.locals, g, m, s.ffi⟩ q Q) :
+    WPr E s (.seq (.call (some (none, none)) "charge_gas" [.const G]) q) Q := by
+  refine WPr.seq_call_framedT (Assn.holds_focus (OpW_gas ..) hR)
+    (fun p b v cl a1 a2 a3 => (charge_gas_hc hE (a := G)
+      (by simp [evalArgs_cons, evalArgs_nil, eval_const]) e gl used p b v cl a1 a2 a3).toT)
+    htrap ?_ ?_
+  rotate_left
+  · intro l g m ffi exc v _ h
+    rcases Assn.holds_or_elim h with h | h
+    · obtain ⟨⟨hlt, _, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim h
+      injection hC with _ _ _ hf hx hv
+      subst hf hx hv
+      exact hoog hlt _ _ _ (Assn.holds_unfocus (OpW_gas ..) hk)
+    · obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+      cases hC
+  intro l g m ffi vs h
+  rcases Assn.holds_or_elim h with h | h
+  · obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+    cases hC
+  obtain ⟨⟨hge, _, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim h
+  injection hC with _ _ _ hf _
+  subst hf
+  exact hq hge _ _ (Assn.holds_unfocus (OpW_gas e sp cap base pv fv (gl - G) (used + G) pc) hk)
+
+theorem pushLoad_framed (hE : GuestEnv E) (G : Word) (a : Exp Word)
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s (pushLoadBody G a) (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc G) := by
+  intro R hR
+  unfold pushLoadBody
+  refine WPr.seq_charge hE G hR (by trap_tac) (fun hlt l g m hk => ?_) (fun hge g m hk => ?_)
+  · exact Or.inr (Assn.holds_or_left (Assn.holds_pure_intro ⟨hlt, _, _, _, rfl⟩
+      (Assn.holds_congr rfl rfl hk)))
+  · exact pushTail hE G a _ e sp cap base pv fv gl used pc ok hge hk
+
+/-- The handlers that push a word read through an environment pointer:
+`charge_gas(G); var x = f(); stack_push_word(lds 1 a); pc_add(1); return 0`. -/
+def pushEnvBody (G : Word) (x : VarName) (f : FunName) (a : Exp Word) : Prog Word :=
+  .seq (.call (some (none, none)) "charge_gas" [.const G])
+    (.decCall x .one f []
+      (.seq (.call (some (none, none)) "stack_push_word" [.load .one a])
+        (.seq (.call (some (none, none)) "pc_add" [.const 1#64]) (.return (.const 0#64)))))
+
+theorem pushEnv_framed (hE : GuestEnv E) (G : Word) (x : VarName) {f : FunName} (a : Exp Word)
+    (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun _ => false) f)
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s (pushEnvBody G x f a) (OpW e sp cap base pv fv gl used pc)
+      (PushPost s.ffi e sp cap base pv fv gl used pc G) := by
+  intro R hR
+  unfold pushEnvBody
+  refine WPr.seq_charge hE G hR (by trap_tac) (fun hlt l g m hk => ?_) (fun hge g m hk => ?_)
+  · exact Or.inr (Assn.holds_or_left (Assn.holds_pure_intro ⟨hlt, _, _, _, rfl⟩
+      (Assn.holds_congr rfl rfl hk)))
+  refine WPr.decCall_quiet hq hr (by trap_tac) (fun v _ => ?_)
+  refine WPr.conseq (pushTail hE G a _ e sp cap base pv fv gl used pc ok hge
+    (Assn.holds_congr rfl rfl hk)) (fun r hr' => ?_)
+  rcases hr' with ht | hh
+  · exact Or.inl ht.restore
+  · exact Or.inr (PushPost.restore hh)
 
 /-- `stack_push_bool(b)` behaves as `stack_push`, whatever `b` is. -/
 theorem stack_push_bool_framed (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
