@@ -18,7 +18,7 @@ theorem op_mload_frameM (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
     (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
-    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+    WPr E s body (HandlerQM M K e Y0.mem R s.ffi X0) := by
   have hbody := (fun_of_index 510 hE.functions (by guest_decl_at 510) (by decide +kernel)
     hlookup).1
   subst hbody

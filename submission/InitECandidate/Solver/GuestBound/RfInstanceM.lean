@@ -97,7 +97,8 @@ theorem rfDispatch_stepM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → Ha
       (∀ x, x ≠ "err" → l x = s.locals x) ∧
       X'.gl.toNat + Z'.sp.toNat ≤ X.gl.toNat + Z.sp.toNat ∧
       ((Z'.fl = Z.fl ∧ (X'.gl.toNat + Z'.sp.toNat < X.gl.toNat + Z.sp.toNat ∨
-          Y'.run = 0#64)) ∨ Z'.fl = 1#64)) := by
+          Y'.run = 0#64)) ∨ Z'.fl = 1#64) ∧
+      (Y'.mem = Y.mem ∧ Z'.cc = Z.cc ∧ Z'.msg = Z.msg ∧ Z'.ee = Z.ee)) := by
   unfold rfDispatch
   refine WPr.callH (fun rb hrb => ?_)
   obtain ⟨parameters, body, values, cl, hlk, -, -, hrun⟩ := hrb
@@ -107,8 +108,8 @@ theorem rfDispatch_stepM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → Ha
   | returned l g m ffi vs =>
     rcases hd with he | hq
     · cases he
-    rcases hq with (ht | ⟨_, _, _, _, _, _, _, _, _, _, _, _, hC⟩) |
-      ⟨fv1, X1, Y1, n, hok1, hY1, hp1, hn, hh, _, _, _, hC⟩
+    rcases hq with (ht | ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hC⟩) |
+      ⟨fv1, X1, Y1, n, hok1, hY1, hm1, hp1, hn, hh, _, _, _, hC⟩
     · exact ht.elim
     · cases hC
     injection hC with _ _ _ hf _
@@ -119,15 +120,15 @@ theorem rfDispatch_stepM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → Ha
     subst this
     have hle := hp1.1
     refine Or.inr ⟨_, _, _, fv1, X1, Y1, Z, rfl, hok1, hY1, Assn.holds_congr rfl rfl hh,
-      fun _ _ => rfl, by omega, Or.inl ⟨rfl, ?_⟩⟩
+      fun _ _ => rfl, by omega, Or.inl ⟨rfl, ?_⟩, hm1, rfl, rfl, rfl⟩
     rcases hn with hn | hn
     · exact Or.inl (by omega)
     · exact Or.inr hn
   | raised l g m ffi e' v =>
     rcases hd with he | hq
     · cases he
-    rcases hq with (ht | ⟨fv1, X1, Y1, n, hok1, hY1, hp1, hh, _, _, _, _, hC⟩) |
-      ⟨_, _, _, _, _, _, _, _, _, _, _, _, hC⟩
+    rcases hq with (ht | ⟨fv1, X1, Y1, n, hok1, hY1, hm1, hp1, hh, _, _, _, _, hC⟩) |
+      ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hC⟩
     · have ht' : e' = "TrapErr" := ht
       subst ht'
       exact ⟨fun _ => Or.inl rfl, fun h0 => absurd h0 (by decide)⟩
@@ -165,7 +166,8 @@ theorem rfDispatch_stepM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → Ha
       have hle := hp1.1
       refine Or.inr ⟨_, _, _, fv1, excX X1 Z err, excY Y1 Z err, excZ Z err,
         rfl, ⟨hok1.ok, hok1.pb, hok1.bM, hok1.Kpv, hok1.Kst⟩,
-        ⟨hY1.mal, hY1.cal, hY1.l32, hY1.lc, hY1.top⟩, ?_, ?_, ?_, Or.inr rfl⟩
+        ⟨hY1.mal, hY1.cal, hY1.l32, hY1.lc, hY1.top⟩, ?_, ?_, ?_, Or.inr rfl, hm1, rfl, rfl,
+        rfl⟩
       · exact holds_of_excM (X := excX X1 Z err) (Y := excY Y1 Z err) (Z := excZ Z err) hk
       · intro x hx
         simp [update_lookup, hx]
@@ -289,7 +291,7 @@ def rfSpecM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E 
       (Assn.holds_congr (s' := (⟨l2, a.globals, a.memory, a.ffi⟩ : St σ)) rfl rfl hh) hpre2
     have hrun' : Y.run.toNat ≠ 0 := fun h0 => hrun (by bv_omega)
     refine WPr.wps (rfDispatch_stepM hE hrest a M K e fv R X Y Z hok hY hno hha) (fun r hr => ?_)
-    rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase⟩
+    rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase, -⟩
     · exact Or.inl ht.stopped
     · refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨M, K, e, fv', R, X', Y', Z', hok', hY', by omega,
         Assn.holds_congr rfl rfl hh'⟩, ?_, hl "go" (by decide), hl "done" (by decide)⟩

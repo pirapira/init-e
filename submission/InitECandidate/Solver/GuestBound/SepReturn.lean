@@ -108,7 +108,8 @@ theorem op_extend (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word} {x 
     (hargs : E.evalArgs s args = some [.word x]) (hx8 : x.toNat % 32 = 0)
     (hxb : x.toNat < 2 ^ 37) {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn}
     {X0 X : OpSt} {Y : MemSt} (hok : FrameOk M K fv X) (hY : MBufOk Y fv)
-    (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s) (hQ : AcceptsM M K e R s.ffi X0 Q)
+    (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s) {mem0 : Word}
+    (hQ : AcceptsM M K e mem0 R s.ffi X0 Q)
     (hq : ∀ (fv' cap' : Word) g m, FrameOk M K fv' X →
       MBufOk { Y with len := Y.len + x, cap := cap' } fv' →
       (Y.len + x).toNat = Y.len.toNat + x.toNat →
@@ -175,12 +176,12 @@ theorem op_set_retdata (hE : GuestEnv E) {v1 v2 : Exp Word} {q : Prog Word} {M :
 theorem op_raiseM {k : Word} {q : Prog Word} {M : Word} {K : Word → Prop} {e fv : Word}
     {R : Assn} {X0 X : OpSt} {Y : MemSt} {n : Nat} (hok : FrameOk M K fv X) (hY : MBufOk Y fv)
     (hp : Adv X X0 n) (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s)
-    (hQ : AcceptsM M K e R s.ffi X0 Q) :
+    {mem0 : Word} (hQ : AcceptsM M K e mem0 R s.ffi X0 Q) (hm : Y.mem = mem0 := by rfl) :
     WPr E s (.seq (.raise "EvmErr" (.const k)) q) Q := by
   refine WPr.seq (fun _ => False) (WPr.raise (fun v hv => ?_)) (fun _ h => h.elim)
   rw [eval_const] at hv
   cases hv
-  exact hQ _ (Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hp, Assn.holds_congr rfl rfl h,
+  exact hQ _ (Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, Assn.holds_congr rfl rfl h,
     _, _, _, _, rfl⟩))
 
 set_option maxHeartbeats 4000000 in
@@ -189,7 +190,7 @@ theorem op_return_frameM (hE : GuestEnv E) (parameters : List VarName) (body : P
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
     (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
-    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+    WPr E s body (HandlerQM M K e Y0.mem R s.ffi X0) := by
   have hbody := (fun_of_index 568 hE.functions (by guest_decl_at 568) (by decide +kernel)
     hlookup).1
   subst hbody
@@ -252,7 +253,7 @@ theorem op_revert_frameM (hE : GuestEnv E) (parameters : List VarName) (body : P
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
     (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
-    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+    WPr E s body (HandlerQM M K e Y0.mem R s.ffi X0) := by
   have hbody := (fun_of_index 569 hE.functions (by guest_decl_at 569) (by decide +kernel)
     hlookup).1
   subst hbody

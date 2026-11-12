@@ -65,7 +65,8 @@ theorem op_store32 (hE : GuestEnv E) {e1 e2 : Exp Word} {q : Prog Word}
     (h2 : ∀ y, E.eval s e2 = some y → y = .word out)
     (hlo : Y.mem.toNat ≤ out.toNat) (hhi : out.toNat + 32 ≤ Y.mem.toNat + Y.cap.toNat)
     (hok : FrameOk M K fv X) (hY : MBufOk Y fv)
-    (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s) (hQ : AcceptsM M K e R s.ffi X0 Q)
+    (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s) {mem0 : Word}
+    (hQ : AcceptsM M K e mem0 R s.ffi X0 Q)
     (hq : ∀ g m, (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds (⟨s.locals, g, m, s.ffi⟩ : St σ) →
       WPr E ⟨s.locals, g, m, s.ffi⟩ q Q) :
     WPr E s (.seq (.call (some (none, none)) "u256_to_be32" [e1, e2]) q) Q := by
@@ -109,7 +110,7 @@ theorem op_mstore_frameM (hE : GuestEnv E) (parameters : List VarName) (body : P
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
     (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
-    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+    WPr E s body (HandlerQM M K e Y0.mem R s.ffi X0) := by
   have hbody := (fun_of_index 508 hE.functions (by guest_decl_at 508) (by decide +kernel)
     hlookup).1
   subst hbody
@@ -194,7 +195,7 @@ theorem op_mstore8_frameM (hE : GuestEnv E) (parameters : List VarName) (body : 
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
     (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
-    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+    WPr E s body (HandlerQM M K e Y0.mem R s.ffi X0) := by
   have hbody := (fun_of_index 509 hE.functions (by guest_decl_at 509) (by decide +kernel)
     hlookup).1
   subst hbody

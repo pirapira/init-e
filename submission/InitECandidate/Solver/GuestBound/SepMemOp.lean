@@ -59,67 +59,70 @@ theorem FrameM_cmw (M : Word) (K : Word → Prop) (e fv : Word) (X : OpSt) (Y : 
   ac_rfl
 
 /-- The handler stopped early, with the buffer state and `frame_mem_ptr` free to differ. -/
-def AbortM (M : Word) (K : Word → Prop) (e : Word) (R : Assn) (ffi : FfiState σ) (X0 : OpSt)
-    (r : Result σ) : Prop :=
-  Trap r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Adv X X0 n ∧
+def AbortM (M : Word) (K : Word → Prop) (e mem0 : Word) (R : Assn) (ffi : FfiState σ)
+    (X0 : OpSt) (r : Result σ) : Prop :=
+  Trap r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Y.mem = mem0 ∧ Adv X X0 n ∧
     (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds r.st ∧
     ∃ l g m v, r = .raised l g m ffi "EvmErr" v
 
 /-- What a handler guarantees, at the level of the frame with its memory buffer. -/
-def HandlerQM (M : Word) (K : Word → Prop) (e : Word) (R : Assn) (ffi : FfiState σ)
+def HandlerQM (M : Word) (K : Word → Prop) (e mem0 : Word) (R : Assn) (ffi : FfiState σ)
     (X0 : OpSt) (r : Result σ) : Prop :=
-  AbortM M K e R ffi X0 r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Adv X X0 n ∧
+  AbortM M K e mem0 R ffi X0 r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Y.mem = mem0 ∧
+    Adv X X0 n ∧
     (0 < n ∨ Y.run = 0#64) ∧
     (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds r.st ∧
     ∃ l g m, r = .returned l g m ffi [.word 0#64]
 
 /-- A stack-level outcome is a memory-level one. -/
 theorem HandlerQ.toM {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn} {ffi : FfiState σ}
-    {X0 : OpSt} {Y : MemSt} (hY : MBufOk Y fv) {r : Result σ}
-    (h : HandlerQ M K e fv (MemExtra e Y ⋆ R) ffi X0 r) : HandlerQM M K e R ffi X0 r := by
+    {X0 : OpSt} {Y : MemSt} (hY : MBufOk Y fv) {mem0 : Word} (hm : Y.mem = mem0) {r : Result σ}
+    (h : HandlerQ M K e fv (MemExtra e Y ⋆ R) ffi X0 r) : HandlerQM M K e mem0 R ffi X0 r := by
   rcases h with (ht | ⟨X, n, hok, hp, hh, hex⟩) | ⟨X, n, hok, hp, hn, hh, hex⟩
   · exact Or.inl (Or.inl ht)
-  · exact Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hp, hh, hex⟩)
-  · exact Or.inr ⟨fv, X, Y, n, hok, hY, hp, Or.inl hn, hh, hex⟩
+  · exact Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, hh, hex⟩)
+  · exact Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, Or.inl hn, hh, hex⟩
 
-theorem HandlerQM.restore {M : Word} {K : Word → Prop} {e : Word} {R : Assn}
+theorem HandlerQM.restore {M : Word} {K : Word → Prop} {e mem0 : Word} {R : Assn}
     {ffi : FfiState σ} {X0 : OpSt} {x : VarName} {old : Option (PanValue Word)} {r : Result σ}
-    (h : HandlerQM M K e R ffi X0 r) :
-    HandlerQM M K e R ffi X0 (restorePanValueFfiLocal x old r) := by
-  rcases h with (ht | ⟨fv, X, Y, n, hok, hY, hp, hh, hex⟩) |
-    ⟨fv, X, Y, n, hok, hY, hp, hn, hh, hex⟩
+    (h : HandlerQM M K e mem0 R ffi X0 r) :
+    HandlerQM M K e mem0 R ffi X0 (restorePanValueFfiLocal x old r) := by
+  rcases h with (ht | ⟨fv, X, Y, n, hok, hY, hm, hp, hh, hex⟩) |
+    ⟨fv, X, Y, n, hok, hY, hm, hp, hn, hh, hex⟩
   · exact Or.inl (Or.inl ht.restore)
-  · refine Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hp, ?_, ?_⟩)
+  · refine Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, ?_, ?_⟩)
     · unfold Assn.holds at hh ⊢
       rw [restore_view]
       exact hh
     · obtain ⟨l, g, m, v, rfl⟩ := hex
       exact ⟨_, _, _, _, rfl⟩
-  · refine Or.inr ⟨fv, X, Y, n, hok, hY, hp, hn, ?_, restore_returned_ex hex⟩
+  · refine Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, hn, ?_, restore_returned_ex hex⟩
     unfold Assn.holds at hh ⊢
     rw [restore_view]
     exact hh
 
 /-- A postcondition that accepts every memory-level handler outcome. -/
-def AcceptsM (M : Word) (K : Word → Prop) (e : Word) (R : Assn) (ffi : FfiState σ)
+def AcceptsM (M : Word) (K : Word → Prop) (e mem0 : Word) (R : Assn) (ffi : FfiState σ)
     (X0 : OpSt) (Q : Result σ → Prop) : Prop :=
-  ∀ r, HandlerQM M K e R ffi X0 r → Q r
+  ∀ r, HandlerQM M K e mem0 R ffi X0 r → Q r
 
-theorem AcceptsM.refl {M : Word} {K : Word → Prop} {e : Word} {R : Assn} {ffi : FfiState σ}
-    {X0 : OpSt} : AcceptsM M K e R ffi X0 (HandlerQM M K e R ffi X0) :=
+theorem AcceptsM.refl {M : Word} {K : Word → Prop} {e mem0 : Word} {R : Assn}
+    {ffi : FfiState σ} {X0 : OpSt} :
+    AcceptsM M K e mem0 R ffi X0 (HandlerQM M K e mem0 R ffi X0) :=
   fun _ h => h
 
-theorem AcceptsM.restore {M : Word} {K : Word → Prop} {e : Word} {R : Assn}
+theorem AcceptsM.restore {M : Word} {K : Word → Prop} {e mem0 : Word} {R : Assn}
     {ffi : FfiState σ} {X0 : OpSt} {x : VarName} {old : Option (PanValue Word)}
-    (h : AcceptsM M K e R ffi X0 Q) :
-    AcceptsM M K e R ffi X0 (fun r => Q (restorePanValueFfiLocal x old r)) :=
+    (h : AcceptsM M K e mem0 R ffi X0 Q) :
+    AcceptsM M K e mem0 R ffi X0 (fun r => Q (restorePanValueFfiLocal x old r)) :=
   fun _ hr => h _ hr.restore
 
 /-- For the stack rules: with the buffer in their frame. -/
-theorem AcceptsM.toH {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn} {ffi : FfiState σ}
-    {X0 : OpSt} {Y : MemSt} (h : AcceptsM M K e R ffi X0 Q) (hY : MBufOk Y fv) :
+theorem AcceptsM.toH {M : Word} {K : Word → Prop} {e fv mem0 : Word} {R : Assn}
+    {ffi : FfiState σ} {X0 : OpSt} {Y : MemSt} (h : AcceptsM M K e mem0 R ffi X0 Q)
+    (hY : MBufOk Y fv) (hm : Y.mem = mem0 := by rfl) :
     AcceptsH M K e fv (MemExtra e Y ⋆ R) ffi X0 Q :=
-  fun r hr => h r (hr.toM hY)
+  fun r hr => h r (hr.toM hY hm)
 
 /-- `charge_with_memory(base, start, size)` at a call site. -/
 theorem charge_with_memory_hc (hE : GuestEnv E) {args : List (Exp Word)}
@@ -172,7 +175,7 @@ theorem op_charge_mem (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word}
     (hok : FrameOk M K fv X) (hY : MBufOk Y fv) (hp : Adv X X0 n)
     (hgl : X.gl.toNat < 2 ^ 64 - 1)
     (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s)
-    (hQ : AcceptsM M K e R s.ffi X0 Q)
+    {mem0 : Word} (hQ : AcceptsM M K e mem0 R s.ffi X0 Q)
     (hq : ∀ (fv' x total cap' : Word) g m,
       FrameOk M K fv' { X with gl := X.gl - total, used := X.used + total } →
       MBufOk { Y with len := Y.len + x, cap := cap' } fv' →
@@ -182,7 +185,7 @@ theorem op_charge_mem (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word}
       (FrameOp M K e fv' { X with gl := X.gl - total, used := X.used + total } ⋆
         MemExtra e { Y with len := Y.len + x, cap := cap' } ⋆ R).holds
           (⟨s.locals, g, m, s.ffi⟩ : St σ) →
-      WPr E ⟨s.locals, g, m, s.ffi⟩ q Q) :
+      WPr E ⟨s.locals, g, m, s.ffi⟩ q Q) (hm : Y.mem = mem0 := by rfl) :
     WPr E s (.seq (.call (some (none, none)) "charge_with_memory" args) q) Q := by
   have hmok : MemOk Y.len Y.cap Y.mem X.pv fv :=
     ⟨hY.mal, hY.cal, by have := hY.l32; omega, hY.lc, hY.top, hok.ok.fp, hok.ok.pv_hi⟩
@@ -217,7 +220,7 @@ theorem op_charge_mem (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word}
     · obtain ⟨⟨_, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim hh
       injection hC with _ _ _ hf hx hv
       subst hf hx hv
-      exact hQ _ (Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hp, Assn.holds_assoc_r
+      exact hQ _ (Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hm, hp, Assn.holds_assoc_r
         (Assn.holds_unfocus (FrameM_cmw M K e fv X Y) (Assn.holds_congr rfl rfl hk)),
         _, _, _, _, rfl⟩))
     · obtain ⟨cap', hh⟩ := Assn.holdsV_ex.mp hh
