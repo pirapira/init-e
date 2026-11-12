@@ -181,8 +181,13 @@ def gen(node, hq, shapes, spent):
             raise Unsupported('raise')
         return [f'exact op_raise hok hp h {hq}.abort']
     if head == 'Prog.dec':
+        x, init = node[1].strip('"'), node[3]
+        if isinstance(init, list) and init[0] == 'Exp.load' and list(init[1]) == COMB4:
+            return [f'refine op_dec_ev h (fun _ hev_{x} h => ?_)',
+                    f'have hval_{x} := arg4_load hE _ _ hev_{x}'] + \
+                gen(node[4], hq + '.restore', dict(shapes, **{x: 'fourval'}), spent)
         return ['refine op_dec h (fun _ h => ?_)'] + \
-            gen(node[4], hq + '.restore', shapes, spent)
+            gen(node[4], hq + '.restore', dict(shapes, **{x: None}), spent)
     if head == 'Prog.decCall':
         x, sh, f, args, rest = node[1].strip('"'), node[2], node[3].strip('"'), node[4], node[5]
         inner = dict(shapes, **{x: shape_of(sh)})
@@ -239,6 +244,9 @@ def gen(node, hq, shapes, spent):
             elif islocal and shapes.get(a[2].strip('"')) == 'four':
                 v = a[2].strip('"')
                 hc = f'stack_push_any_hc hE (arg4_shape ({LOOKUP}) hsh_{v}) e _ _ _ _ fv hok.ok'
+            elif islocal and shapes.get(a[2].strip('"')) == 'fourval':
+                v = a[2].strip('"')
+                hc = f'stack_push_any_hc hE (arg4_ex ({LOOKUP}) hval_{v}) e _ _ _ _ fv hok.ok'
             elif isinstance(a, list) and a[0] == 'Exp.rStruct' and len(a[1]) == 5 and \
                     all(isinstance(x, list) and x[0] == 'Exp.op' for x in a[1][1:]):
                 hc = 'stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok'

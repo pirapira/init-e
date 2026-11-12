@@ -87,3 +87,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms «op_byte_frame»
 #print axioms «op_jump_frame»
 #print axioms «op_jumpi_frame»
+#print axioms «op_dup_frame»
+#print axioms «op_dupn_frame»

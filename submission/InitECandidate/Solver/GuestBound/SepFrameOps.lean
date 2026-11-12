@@ -653,6 +653,66 @@ theorem «op_pop_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
     AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
   exact op_return hok hp (by decide) h AcceptsH.refl.restore
 
+theorem «op_dup_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_dup" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 515 hE.functions (by guest_decl_at 515)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.abort (fun g m hok hp h => ?_)
+  refine op_dec h (fun _ h => ?_)
+  refine WPr.seq_ite_skip ?_ ?_
+  · exact op_raise hok hp h AcceptsH.refl.restore.mid.abort
+  · refine op_dec_ev h (fun _ hev_v h => ?_)
+    have hval_v := arg4_load hE _ _ hev_v
+    refine op_push hok hp h AcceptsH.refl.restore.restore.abort
+      (stack_push_any_hc hE (arg4_ex (by simp (config := { decide := true }) [update_lookup]) hval_v) e _ _ _ _ fv hok.ok)
+      (fun _ g m hok hp h => ?_)
+    refine op_pc_add hE (d := 1#64)
+      (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+      AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+    exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
+theorem «op_dupn_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_dupn" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 520 hE.functions (by guest_decl_at 520)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.abort (fun g m hok hp h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "code_imm"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "code_imm" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "code_imm"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "code_imm" = true by
+        decide +kernel))
+    h AcceptsH.refl.abort (fun _ hsh_imm h => ?_)
+  refine op_quiet_raise (keepFn_sound (quietKeeper E) hE.functions 6 "decode_single"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "decode_single" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "decode_single"
+      (show raiseFn (fun x => x == "EvmErr") Guest.Software.guestAst 6 "decode_single" = true by
+        decide +kernel))
+    hok hp h AcceptsH.refl.restore.abort (fun _ hsh_n h => ?_)
+  refine WPr.seq_ite_skip ?_ ?_
+  · exact op_raise hok hp h AcceptsH.refl.restore.restore.mid.abort
+  · refine op_dec h (fun _ h => ?_)
+    refine op_dec_ev h (fun _ hev_v h => ?_)
+    have hval_v := arg4_load hE _ _ hev_v
+    refine op_push hok hp h AcceptsH.refl.restore.restore.restore.restore.abort
+      (stack_push_any_hc hE (arg4_ex (by simp (config := { decide := true }) [update_lookup]) hval_v) e _ _ _ _ fv hok.ok)
+      (fun _ g m hok hp h => ?_)
+    refine op_pc_add hE (d := 2#64)
+      (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+      AcceptsH.refl.restore.restore.restore.restore.abort (fun g m hok hp h => ?_)
+    exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore.restore.restore
+
 theorem «op_address_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "op_address" E.functions = some (parameters, body))
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)

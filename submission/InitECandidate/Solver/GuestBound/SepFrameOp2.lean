@@ -313,4 +313,23 @@ theorem WPr.seq_ite_skip {c : Exp Word} {P q : Prog Word}
   · exact WPr.skip rfl
   · exact hthen
 
+/-- `var x = e; rest` under the frame invariant, remembering how `x` was computed. -/
+theorem op_dec_ev {x : VarName} {sh : Shape} {ex : Exp Word} {body : Prog Word} {M : Word}
+    {K : Word → Prop} {e fv : Word} {R : Assn} {X : OpSt}
+    (h : (FrameOp M K e fv X ⋆ R).holds s)
+    (hk : ∀ v, E.eval s ex = some v → (FrameOp M K e fv X ⋆ R).holds
+        (⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ : St σ) →
+      WPr E ⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ body
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPr E s (.dec x sh ex body) Q :=
+  WPr.dec_ev (fun v hv => hk v hv (Assn.holds_congr rfl rfl h))
+
+/-- A local known to hold a four-word value. -/
+theorem arg4_ex {x : VarName} {v : PanValue Word} (hx : s.locals x = some v)
+    (hv : ∃ w0 w1 w2 w3 : Word, v = .rStruct [.word w0, .word w1, .word w2, .word w3]) :
+    ∀ v', E.eval s (.var .local x) = some v' →
+      ∃ w0 w1 w2 w3 : Word, v' = .rStruct [.word w0, .word w1, .word w2, .word w3] := by
+  obtain ⟨w0, w1, w2, w3, rfl⟩ := hv
+  exact arg4_local hx
+
 end InitECandidate.Solver.GuestBound
