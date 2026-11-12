@@ -5,9 +5,9 @@ import InitECandidate.Solver.GuestBound.SepFinish
 /-!
 # The world state as an owned assertion
 
-`WorldA` owns the heap `[HBASE - 7, HEAP_END)` and the globals `heap_ptr`,
-`journal`, `journal_cap`, `journal_n`, with the invariant `WorldTJ` (tables
-and journal). `restore_spec`: `state_restore` keeps `WorldA` and whatever is
+`WorldA D` owns the heap `[HBASE - 7, HEAP_END)` and the globals `heap_ptr`,
+`journal`, `journal_cap`, `journal_n`, with the invariant `WorldTJ D` (tables,
+journal, trie nodes; the tables in `D` are live). `restore_spec`: `state_restore` keeps `WorldA` and whatever is
 framed around it, which is the `RestoreSpec` hypothesis of
 `run_frames_bound_world`.
 
@@ -69,6 +69,20 @@ theorem JournalOK.frame {m m' : Word → Option (PanValue Word)} {pv : Word}
     keep 8 _ b1 (by omega) (by omega) _ r1, keep 16 _ b2 (by omega) (by omega) _ r2,
     keep 24 _ b3 (by omega) (by omega) _ r3, hT0, hkf⟩
 
+/-- Tables, journal and nodes only depend on aligned heap cells below the heap pointer. -/
+theorem HeapW.frame {m m' : Word → Option (PanValue Word)} {pv : Word}
+    {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
+    (h : HeapW m pv T N J C n)
+    (hm : ∀ a : Word, a.toNat % 8 = 0 → HBASE ≤ a.toNat → a.toNat < pv.toNat → m' a = m a) :
+    HeapW m' pv T N J C n := by
+  refine ⟨h.pvH, h.tabs.frame hm, h.jrn.frame hm, h.nodes.frame (Nat.le_refl _)
+    (fun a k x hN hx => ?_), h.tn, h.jn⟩
+  have hat := h.nodes.at_ a k hN
+  have hin := hx.inside hat
+  have := hat.lo
+  have := hat.hi
+  exact hm x (hx.aligned hat) (by omega) (by omega)
+
 /-- The globals the world state owns. -/
 def worldGlobals : List VarName := ["heap_ptr", "journal", "journal_cap", "journal_n"]
 
@@ -78,22 +92,23 @@ def HeapKeys : Key → Prop
   | .glob x => x ∈ worldGlobals
 
 /-- The world invariant on a view. -/
-def WorldP (V : View) : Prop := WorldTJ (fun x => V (.glob x)) (fun a => V (.mem a))
+def WorldP (D : Word → Prop) (V : View) : Prop :=
+  WorldTJ D (fun x => V (.glob x)) (fun a => V (.mem a))
 
-theorem worldP_local : Local HeapKeys WorldP := by
-  rintro V V' hV ⟨pv, T, J, C, n, hp, hpH, hJg, hCg, hng, hT, hJ⟩
+theorem worldP_local (D : Word → Prop) : Local HeapKeys (WorldP D) := by
+  rintro V V' hV ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD⟩
   have hg : ∀ x, x ∈ worldGlobals → V' (.glob x) = V (.glob x) := fun x hx => hV (.glob x) hx
   have hm : ∀ a : Word, a.toNat % 8 = 0 → HBASE ≤ a.toNat → a.toNat < pv.toNat →
       V' (.mem a) = V (.mem a) := by
     intro a _ h1 h2
     have := hpH.1
     exact hV (.mem a) ⟨by omega, by omega⟩
-  exact ⟨pv, T, J, C, n, (hg _ (by simp [worldGlobals])).trans hp, hpH,
+  exact ⟨pv, T, N, J, C, n, (hg _ (by simp [worldGlobals])).trans hp, hpH,
     (hg _ (by simp [worldGlobals])).trans hJg, (hg _ (by simp [worldGlobals])).trans hCg,
-    (hg _ (by simp [worldGlobals])).trans hng, hT.frame hm, hJ.frame hm⟩
+    (hg _ (by simp [worldGlobals])).trans hng, hW.frame hm, hD⟩
 
 /-- The world state: owns the heap and its globals, with tables and journal well formed. -/
-def WorldA : Assn := Assn.Region HeapKeys WorldP
+def WorldA (D : Word → Prop) : Assn := Assn.Region HeapKeys (WorldP D)
 
 theorem state_restore_raises (hE : GuestEnv E) :
     FunRaises E (fun x => x == "TrapErr") "state_restore" :=
@@ -102,12 +117,12 @@ theorem state_restore_raises (hE : GuestEnv E) :
       decide +kernel)
 
 /-- `state_restore` keeps the world assertion and its frame. -/
-theorem restore_spec (hE : GuestEnv E) : RestoreSpec E WorldA := by
+theorem restore_spec (hE : GuestEnv E) (D : Word → Prop) : RestoreSpec E (WorldA D) := by
   intro parameters body hlookup s R hh r hr
-  have hW : WorldTJ s.globals s.memory := Assn.region_elim hh
+  have hW : WorldTJ D s.globals s.memory := Assn.region_elim hh
   rcases state_restore_raises hE parameters body hlookup s r hr with he | hra
   · exact Or.inl he
-  rcases state_restore_world hE parameters body hlookup s r hW hr with hst | ⟨l, g', m', rfl, hW',
+  rcases state_restore_world hE parameters body hlookup D s r hW hr with hst | ⟨l, g', m', rfl, hW',
     hg, hm⟩
   · cases r with
     | error l g m f => exact Or.inl rfl
@@ -117,7 +132,8 @@ theorem restore_spec (hE : GuestEnv E) : RestoreSpec E WorldA := by
     | finalFfi l g m f ev => exact Or.inr (Or.inl trivial)
     | _ => exact absurd hst (fun h => h)
   · refine Or.inr (Or.inr ⟨l, g', m', rfl, ?_⟩)
-    refine Assn.region_change (s' := (⟨l, g', m', s.ffi⟩ : St σ)) hh worldP_local (fun k hk => ?_)
+    refine Assn.region_change (s' := (⟨l, g', m', s.ffi⟩ : St σ)) hh (worldP_local D)
+      (fun k hk => ?_)
       hW'
     cases k with
     | mem a =>

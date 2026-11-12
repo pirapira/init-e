@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.WorldJournal
+import InitECandidate.Solver.GuestBound.WorldHeap
 
 /-!
 # `state_restore` keeps the tables and the journal
@@ -14,12 +14,14 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- Heap pointer, live tables and journal. -/
-def WorldTJ (g : VarName → Option (PanValue Word)) (m : Word → Option (PanValue Word)) : Prop :=
-  ∃ (pv : Word) (T : Word → Option HtabV) (J C n : Word),
+/-- Heap pointer, live tables, journal and trie nodes. `D` is a set of table
+addresses known to be live; frames refer to their tables through it. -/
+def WorldTJ (D : Word → Prop) (g : VarName → Option (PanValue Word))
+    (m : Word → Option (PanValue Word)) : Prop :=
+  ∃ (pv : Word) (T : Word → Option HtabV) (N : Word → Option Word) (J C n : Word),
     g "heap_ptr" = some (.word pv) ∧ InHeap pv ∧ g "journal" = some (.word J) ∧
-    g "journal_cap" = some (.word C) ∧ g "journal_n" = some (.word n) ∧ TabsOK m pv T ∧
-    JournalOK m pv T J C n
+    g "journal_cap" = some (.word C) ∧ g "journal_n" = some (.word n) ∧
+    HeapW m pv T N J C n ∧ ∀ t, D t → ∃ v, T t = some v
 
 /-- A comparison that evaluated to a word: both sides are words. -/
 theorem cmp_word_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
@@ -104,22 +106,38 @@ theorem JournalOK.shrink {m : Word → Option (PanValue Word)} {pv : Word}
   ⟨by have := h.n_le; omega, h.al, h.lo, h.hi, h.off, fun i hi => h.entry i (by omega)⟩
 
 /-- The loop invariant of `state_restore`, relative to the entry state `s`. -/
-def RestI (s a : St σ) : Prop :=
-  a.ffi = s.ffi ∧ WorldTJ a.globals a.memory ∧
+def RestI (D : Word → Prop) (s a : St σ) : Prop :=
+  a.ffi = s.ffi ∧ WorldTJ D a.globals a.memory ∧
     (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → a.globals x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       a.memory addr = s.memory addr
 
-theorem worldTJ_step {g g' : VarName → Option (PanValue Word)}
+theorem HeapW.shrink {m : Word → Option (PanValue Word)} {pv : Word} {T : Word → Option HtabV}
+    {N : Word → Option Word} {J C n n' : Word} (h : HeapW m pv T N J C n)
+    (hn : n'.toNat ≤ n.toNat) : HeapW m pv T N J C n' :=
+  ⟨h.pvH, h.tabs, h.jrn.shrink hn, h.nodes, h.tn, h.jn⟩
+
+theorem stepT_dom {D : Word → Prop} {T : Word → Option HtabV} (hD : ∀ t, D t → ∃ v, T t = some v)
+    (t0 : Word) (v' : HtabV) : ∀ t, D t → ∃ v, stepT T t0 v' t = some v := by
+  classical
+  intro t ht
+  unfold stepT
+  by_cases e : t = t0
+  · exact ⟨v', by simp [e]⟩
+  · obtain ⟨v, hv⟩ := hD t ht
+    exact ⟨v, by simp [e, hv]⟩
+
+theorem worldTJ_step {D : Word → Prop} {g g' : VarName → Option (PanValue Word)}
     {m m' : Word → Option (PanValue Word)} {pv pv' t : Word} {T : Word → Option HtabV}
-    {v v' : HtabV} {J C n n' : Word} (hp' : g' "heap_ptr" = some (.word pv')) (hpH' : InHeap pv')
+    {N : Word → Option Word} {v v' : HtabV} {J C n n' : Word}
+    (hp' : g' "heap_ptr" = some (.word pv')) (hpH' : InHeap pv')
     (hg : ∀ x, x ≠ "heap_ptr" → g' x = g x) (hJg : g "journal" = some (.word J))
     (hCg : g "journal_cap" = some (.word C)) (hng : g "journal_n" = some (.word n'))
-    (hT : TabsOK m pv T) (hJ : JournalOK m pv T J C n) (hn : n'.toNat ≤ n.toNat)
-    (hs : TabStep m pv T t v m' pv' v') : WorldTJ g' m' :=
-  ⟨pv', stepT T t v', J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
-    by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng, hT.step hs,
-    hJ.step hT hs hn⟩
+    (hW : HeapW m pv T N J C n) (hD : ∀ t, D t → ∃ v, T t = some v) (hn : n'.toNat ≤ n.toNat)
+    (hs : TabStep m pv T t v m' pv' v') : WorldTJ D g' m' :=
+  ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
+    by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
+    hW.tab_step hs hn hpH'.1, stepT_dom hD t v'⟩
 
 set_option maxHeartbeats 4000000 in
 /-- `state_restore(snap)` keeps heap pointer, tables and journal well formed,
@@ -127,8 +145,9 @@ changes no global other than `heap_ptr` and `journal_n`, and no memory
 outside the heap. -/
 theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "state_restore" E.functions = some (parameters, body))
-    (s : St σ) (r : Result σ) (hW : WorldTJ s.globals s.memory) (h : Runs E s body r) :
-    Stopped r ∨ ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧ WorldTJ g' m' ∧
+    (D : Word → Prop) (s : St σ) (r : Result σ) (hW : WorldTJ D s.globals s.memory)
+    (h : Runs E s body r) :
+    Stopped r ∨ ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧ WorldTJ D g' m' ∧
       (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
@@ -137,17 +156,20 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧
-    WorldTJ g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
+    WorldTJ D g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
-  refine WPs.seqG (RestI s) (WPs.loopG (I := RestI s) ⟨rfl, hW, fun _ _ _ => rfl, fun _ _ => rfl⟩
+  refine WPs.seqG (RestI D s) (WPs.loopG (I := RestI D s)
+      ⟨rfl, hW, fun _ _ _ => rfl, fun _ _ => rfl⟩
     ?_ (fun a k hI _ => hI)) ?_
   rotate_left
   · rintro a ⟨hf, hWa, hga, hma⟩
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     exact ⟨_, _, _, by rw [hf], hWa, hga, hma⟩
-  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, J, C, n, hp, hpH, hJg, hCg, hng, hT, hJ⟩, hga, hma⟩ hct
-  dsimp only at hf hp hJg hCg hng hT hJ hga hma
+  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD⟩, hga, hma⟩ hct
+  dsimp only at hf hp hJg hCg hng hHW hD hga hma
+  have hT := hHW.tabs
+  have hJ := hHW.jrn
   subst hf
   obtain ⟨w, cc, hcond, hw⟩ := hct
   obtain ⟨x, y, -, hy, hwv⟩ := cmp_word_inv hE (cond_of_eval hcond)
@@ -226,10 +248,10 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
       subst g m ffi
       simp only [restorePanValueFfiLocal]
       rcases hcase with rfl | ⟨Lw, hL, hLk, hrel⟩
-      · exact ⟨rfl, ⟨pv, T, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hT, hJ.shrink hnle⟩,
+      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD⟩,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2), hma⟩
       · obtain ⟨v', hs⟩ := TabStep.of_del hT hT0 hok hL hLk hrel
-        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hT hJ hnle hs,
+        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hnle hs,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2),
           fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
   · have hwz : evalPanCmp .notEqual fl (0#64 : Word) = 1#64 := by simp [evalPanCmp, hfl]
@@ -277,7 +299,7 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
         (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
           SetPost ma t0 pv v0 s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
       simp only [restorePanValueFfiLocal]
-      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hT hJ hnle hs,
+      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hnle hs,
         fun x h1 h2 => (hgl x h1).trans ((g1o x h2).trans (hga x h1 h2)),
         fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
 

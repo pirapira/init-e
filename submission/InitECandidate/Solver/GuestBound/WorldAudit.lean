@@ -14,3 +14,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms state_restore_world
 #print axioms Assn.region_changeV
 #print axioms restore_spec
+#print axioms HeapW.tab_step
+#print axioms HeapW.node_child
+#print axioms HeapW.node_add
+#print axioms NodesOK.store_child
