@@ -2,6 +2,7 @@ import InitECandidate.Solver.GuestBound.SepBinops
 import InitECandidate.Solver.GuestBound.SepPushWords
 import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
+import InitECandidate.Solver.GuestBound.DispatchOps
 
 /-!
 # Axiom audit of the framed specifications
@@ -93,3 +94,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms rf_body_wps
 #print axioms rf_loop
 #print axioms run_frames_bound
+#print axioms tree_sound
+#print axioms handler_leaf
+#print axioms handlers_proved
+#print axioms op_dispatch_frame
