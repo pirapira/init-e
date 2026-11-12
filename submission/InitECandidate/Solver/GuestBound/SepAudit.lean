@@ -9,6 +9,7 @@ import InitECandidate.Solver.GuestBound.SepFinish
 import InitECandidate.Solver.GuestBound.SepDom
 import InitECandidate.Solver.GuestBound.RunFramesWorld
 import InitECandidate.Solver.GuestBound.SepCarve
+import InitECandidate.Solver.GuestBound.SepTeardown
 import InitECandidate.Solver.GuestBound.WorldSep
 
 /-!
@@ -152,3 +153,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms range_carve
 #print axioms WPr.decCall_alloc_world
 #print axioms WPr.seq_memcpy_world
+#print axioms child_teardown
