@@ -35,3 +35,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms «op_calldatasize_framed»
 #print axioms «op_codesize_framed»
 #print axioms «op_returndatasize_framed»
+#print axioms «op_eq_framed»
+#print axioms «op_gt_framed»
+#print axioms «op_lt_framed»
+#print axioms «op_sgt_framed»
+#print axioms «op_slt_framed»

@@ -238,4 +238,46 @@ theorem pushLoad_framed (hE : GuestEnv E) (G : Word) (a : Exp Word)
           (Assn.holds_assoc_l
             (P := OpW e (sp + 1#64) nc qv qv fv (gl - G) (used + G) (pc + 1#64)) hO3)⟩⟩))))
 
+/-- `stack_push_bool(b)` behaves as `stack_push`, whatever `b` is. -/
+theorem stack_push_bool_framed (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "stack_push_bool" E.functions = some (parameters, body))
+    (s : St σ) (e sp cap base pv fv : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s body (StackW e sp cap base pv fv) (StackPushPost s.ffi e sp cap base pv fv) := by
+  have hbody := (fun_of_index 456 hE.functions (by guest_decl_at 456) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  intro R hR
+  dsimp only
+  refine WPr.seq (fun s' => ∃ l g m ffi vs, s' = ⟨s.locals, g, m, ffi⟩ ∧
+      (StackPushPost s.ffi e sp cap base pv fv (.returned l g m ffi vs) ⋆ R).holds s')
+    (WPr.ite_both (fun w _ => ?_)) ?_
+  · split
+    · exact WPr.call_framedT hR (stack_push_hc hE (w0 := 0#64) (w1 := 0#64) (w2 := 0#64)
+        (w3 := 0#64) (by simp [evalArgs_cons, evalArgs_nil, evalF_rStruct, eval_const])
+        e sp cap base pv fv ok) (by trap_tac) (fun l g m ffi vs h => ⟨l, g, m, ffi, vs, rfl, h⟩)
+        (fun l g m ffi exc v _ h =>
+          Or.inr (StackPushPost.raise_congr (Assn.holds_congr rfl rfl h)))
+    · exact WPr.call_framedT hR (stack_push_hc hE (w0 := 1#64) (w1 := 0#64) (w2 := 0#64)
+        (w3 := 0#64) (by simp [evalArgs_cons, evalArgs_nil, evalF_rStruct, eval_const])
+        e sp cap base pv fv ok) (by trap_tac) (fun l g m ffi vs h => ⟨l, g, m, ffi, vs, rfl, h⟩)
+        (fun l g m ffi exc v _ h =>
+          Or.inr (StackPushPost.raise_congr (Assn.holds_congr rfl rfl h)))
+  · rintro _ ⟨l, g, m, ffi, vs, rfl, h⟩
+    exact WPr.ret (w := 0#64) (of_eval (eval_const _ _))
+      (Or.inr (StackPushPost.ret_congr (Assn.holds_congr rfl rfl h)))
+
+/-- `stack_push_bool` pushes a one-word result. -/
+theorem pushesR_stack_push_bool (hE : GuestEnv E) : PushesR E .one "stack_push_bool" := by
+  intro st v _ _ e sp cap base pv fv ok parameters cbody values cl hlk _ _
+  exact stack_push_bool_framed hE parameters cbody hlk ⟨cl, st.globals, st.memory, st.ffi⟩ e sp
+    cap base pv fv ok
+
+/-- A comparison handler: the one-word result is pushed with `stack_push_bool`. -/
+theorem cmpop_framed (hE : GuestEnv E) {f : FunName} (G : Word)
+    (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun _ => false) f)
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s (binopBodyG .one f "stack_push_bool" G) (OpW e sp cap base pv fv gl used pc)
+      (BinopPost s.ffi e sp cap base pv fv gl used pc G) :=
+  binopG_framed hE G hq hr (pushesR_stack_push_bool hE) s e sp cap base pv fv gl used pc ok
+
 end InitECandidate.Solver.GuestBound

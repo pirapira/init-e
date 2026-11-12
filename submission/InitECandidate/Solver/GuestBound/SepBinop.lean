@@ -192,15 +192,33 @@ macro "trap_tac" : tactic => `(tactic| (
     | exact Or.inl hr
     | (simp only [restorePanValueFfiLocal]; exact Or.inl hr)))
 
-/-- The body shared by the binary stack handlers. -/
-def binopBody (f : FunName) (G : Word) : Prog Word :=
+/-- The body shared by the binary stack handlers: the result has shape `sh`
+and is pushed with `pf`. -/
+def binopBodyG (sh : Shape) (f pf : FunName) (G : Word) : Prog Word :=
   .decCall "x" (.comb [.one, .one, .one, .one]) "stack_pop" []
     (.decCall "y" (.comb [.one, .one, .one, .one]) "stack_pop" []
       (.seq (.call (some (none, none)) "charge_gas" [.const G])
-        (.decCall "r" (.comb [.one, .one, .one, .one]) f [.var .local "x", .var .local "y"]
-          (.seq (.call (some (none, none)) "stack_push" [.var .local "r"])
+        (.decCall "r" sh f [.var .local "x", .var .local "y"]
+          (.seq (.call (some (none, none)) pf [.var .local "r"])
             (.seq (.call (some (none, none)) "pc_add" [.const 1#64])
               (.return (.const 0#64)))))))
+
+/-- The binary handlers whose result is a 256-bit value pushed with `stack_push`. -/
+def binopBody (f : FunName) (G : Word) : Prog Word :=
+  binopBodyG (.comb [.one, .one, .one, .one]) f "stack_push" G
+
+/-- What the generic proof needs of the push function: it behaves as
+`stack_push` on a result of shape `sh` held in the local `r`. -/
+def PushesR (E : Env σ) (sh : Shape) (pf : FunName) : Prop :=
+  ∀ (st : St σ) (v : PanValue Word), st.locals "r" = some v →
+    panShapeMatches (panValueShape E.structs v) sh = true →
+    ∀ e sp cap base pv fv : Word, StackOk sp cap base pv fv →
+    ∀ parameters cbody values cl,
+      lookupPanFunction pf E.functions = some (parameters, cbody) →
+      E.evalArgs st [.var .local "r"] = some values →
+      bindPanValueParameters parameters values = some cl →
+      WPFt E ⟨cl, st.globals, st.memory, st.ffi⟩ cbody (StackW e sp cap base pv fv)
+        (StackPushPost st.ffi e sp cap base pv fv)
 
 /-- What a binary stack handler leaves. -/
 def BinopPost (ffi : FfiState σ) (e sp cap base pv fv gl used pc G : Word) (r : Result σ) :
@@ -214,13 +232,14 @@ def BinopPost (ffi : FfiState σ) (e sp cap base pv fv gl used pc G : Word) (r :
 
 set_option maxHeartbeats 1000000 in
 /-- A binary stack handler with a callee that changes nothing and never raises. -/
-theorem binop_framed (hE : GuestEnv E) {f : FunName} (G : Word)
+theorem binopG_framed (hE : GuestEnv E) {sh : Shape} {f pf : FunName} (G : Word)
     (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun _ => false) f)
+    (hpush : PushesR E sh pf)
     (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
-    WPFt E s (binopBody f G) (OpW e sp cap base pv fv gl used pc)
+    WPFt E s (binopBodyG sh f pf G) (OpW e sp cap base pv fv gl used pc)
       (BinopPost s.ffi e sp cap base pv fv gl used pc G) := by
   intro R hR
-  unfold binopBody
+  unfold binopBodyG
   -- first pop
   refine WPr.decCall_framedT (Assn.holds_focus (OpW_sp ..) hR)
     (fun p b v cl a1 a2 a3 => (stack_pop_hc hE e sp p b v cl a1 a2 a3).toT) (by trap_tac) ?_ ?_
@@ -301,18 +320,15 @@ theorem binop_framed (hE : GuestEnv E) {f : FunName} (G : Word)
     (OpW_gas e (sp - 1#64 - 1#64) cap base pv fv (gl - G) (used + G) pc) hk
   -- the pure callee
   refine WPr.decCall_quiet hq hr (by trap_tac) (fun vr hsh => ?_)
-  obtain ⟨w0, w1, w2, w3, rfl⟩ := struct4_of_shape hsh
   have hO4 := Assn.holds_congr (s' := (⟨updatePanValueMap (updatePanValueMap
-    (updatePanValueMap s.locals "x" vx) "y" vy) "r"
-    (.rStruct [.word w0, .word w1, .word w2, .word w3]), g3, m3, s.ffi⟩ : St σ)) rfl rfl hO3
+    (updatePanValueMap s.locals "x" vx) "y" vy) "r" vr, g3, m3, s.ffi⟩ : St σ)) rfl rfl hO3
   have ok2 : StackOk (sp - 1#64 - 1#64) cap base pv fv :=
     ⟨ok.cap_pos, ok.cap_le, by have := ok.sp_le; omega, ok.base_al, ok.base_hi, ok.fp, ok.pv_hi⟩
   have hsplt : (sp - 1#64 - 1#64).toNat < cap.toNat := by have := ok.sp_le; omega
   -- push
   refine WPr.seq_call_framedT (Assn.holds_focus (OpW_stack ..) hO4)
-    (stack_push_hc hE (w0 := w0) (w1 := w1) (w2 := w2) (w3 := w3)
-      (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil,
-      evalF_local, update_lookup]) e (sp - 1#64 - 1#64) cap base pv fv ok2) (by trap_tac) ?_ ?_
+    (hpush _ vr (by simp (config := { decide := true }) [update_lookup]) hsh e
+      (sp - 1#64 - 1#64) cap base pv fv ok2) (by trap_tac) ?_ ?_
   rotate_left
   · intro l5 g5 m5 ffi5 exc v _ h
     rcases Assn.holds_or_elim h with h | h
@@ -359,5 +375,21 @@ theorem binop_framed (hE : GuestEnv E) {f : FunName} (G : Word)
   simp only [restorePanValueFfiLocal]
   exact Or.inr (Assn.holds_or_right (Assn.holds_pure_intro ⟨⟨hs2.2, hge⟩, _, _, _, rfl⟩
     (Assn.holds_unfocus (OpW_pc ..) (Assn.holds_congr rfl rfl hk))))
+
+/-- `stack_push` pushes a four-word result. -/
+theorem pushesR_stack_push (hE : GuestEnv E) :
+    PushesR E (.comb [.one, .one, .one, .one]) "stack_push" := by
+  intro st v hv hsh e sp cap base pv fv ok
+  obtain ⟨w0, w1, w2, w3, rfl⟩ := struct4_of_shape hsh
+  exact stack_push_hc hE (w0 := w0) (w1 := w1) (w2 := w2) (w3 := w3)
+    (by simp [evalArgs_cons, evalArgs_nil, evalF_local, hv]) e sp cap base pv fv ok
+
+/-- A binary stack handler whose result is pushed with `stack_push`. -/
+theorem binop_framed (hE : GuestEnv E) {f : FunName} (G : Word)
+    (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun _ => false) f)
+    (s : St σ) (e sp cap base pv fv gl used pc : Word) (ok : StackOk sp cap base pv fv) :
+    WPFt E s (binopBody f G) (OpW e sp cap base pv fv gl used pc)
+      (BinopPost s.ffi e sp cap base pv fv gl used pc G) :=
+  binopG_framed hE G hq hr (pushesR_stack_push hE) s e sp cap base pv fv gl used pc ok
 
 end InitECandidate.Solver.GuestBound
