@@ -1,6 +1,6 @@
 import InitECandidate.Solver.GuestBound.MemEqGen
 import InitECandidate.Solver.GuestBound.HtabGrow
-import InitECandidate.Solver.GuestBound.HtabDelInv
+import InitECandidate.Solver.GuestBound.HtabDet
 
 /-!
 # Hash tables: moving a table
@@ -18,8 +18,8 @@ variable {m m' : Word → Option (PanValue Word)} {t : Word} {v : HtabV} {kind :
 
 set_option maxHeartbeats 2000000 in
 /-- The table invariant at new block addresses. -/
-theorem HtabOK.transport (hok : HtabOK m t v kind rep) {cp' nc' K N O : Word}
-    (hnc : v.nc.toNat ≤ nc'.toNat)
+theorem HtabOKd.transport {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
+    {cp' nc' K N O : Word} (hnc : v.nc.toNat ≤ nc'.toNat)
     (hlay : HtabLayout t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩)
     (hhdr : HtabHdr m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩)
     (hK8 : K.toNat % 8 = 0) (hN8 : N.toNat % 8 = 0) (hO8 : O.toNat % 8 = 0)
@@ -30,67 +30,71 @@ theorem HtabOK.transport (hok : HtabOK m t v kind rep) {cp' nc' K N O : Word}
     (hKey : ∀ i, i ≤ v.nc.toNat → ∀ (j : Word) (bit : Bool), j.toNat < (v.kl * 8#64).toNat →
       KeyBitIs 8#64 m (v.keys + BitVec.ofNat 64 i * v.st) j bit →
       KeyBitIs 8#64 m' (K + BitVec.ofNat 64 i * v.st) j bit) :
-    HtabOK m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind rep := by
+    HtabOKd m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind rep det := by
   have hwf := hok.wf
   have hnl := hwf.next_le
   have hcl := hwf.cnt_le
-  have hPar : ∀ (i : Nat) (p : Word), ParentOk m v kind i p →
-      ParentOk m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind i p := by
-    rintro i p (h | ⟨a1, a2, a3, a4⟩)
-    · exact Or.inl h
-    · exact Or.inr ⟨a1, a2, a3, a4.imp (fun h => (hN _ 8 _ (by omega) (by omega) (by omega)).mpr h)
-        (fun h => (hN _ 16 _ (by omega) (by omega) (by omega)).mpr h)⟩
+  have hPar : ∀ (i : Nat) (p : Word), ParentOkd m v kind det i p →
+      ParentOkd m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind det i
+        p := by
+    rintro i p ⟨h | ⟨a1, a2, a3, a4⟩, hd⟩
+    · exact ⟨Or.inl h, hd⟩
+    · exact ⟨Or.inr ⟨a1, a2, a3,
+        a4.imp (fun h => (hN _ 8 _ (by omega) (by omega) (by omega)).mpr h)
+          (fun h => (hN _ 16 _ (by omega) (by omega) (by omega)).mpr h)⟩, hd⟩
   have hCh : ∀ (i : Nat) (c : Word), ChildOk m v kind i c →
       ChildOk m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind i c := by
     rintro i c ⟨c1, c2, c3, c4⟩
     exact ⟨c1, c2, c3, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr c4⟩
-  refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, hwf.free_ok, ?_, ?_, ?_, ?_⟩, ⟨?_⟩, hK8, hN8, hO8,
+  refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, hwf.free_ok, ?_, ?_, ?_, ?_⟩, ?_, hK8, hN8, hO8,
     (by have := hok.nc_pos; show 1 ≤ nc'.toNat; omega), hok.kl_st, hok.kl8, ?_⟩
   · show v.next.toNat ≤ nc'.toNat + 1
     omega
   · show v.cnt.toNat ≤ nc'.toNat
     omega
-  · rcases hwf.root_ok with h | ⟨r1, r2, r3, r4⟩
+  · rcases hwf.root_ok with h | ⟨r1, r2, r3, rd, r4⟩
     · exact Or.inl h
-    · exact Or.inr ⟨r1, r2, r3, (hN v.root.toNat 0 _ (by omega) (by omega) (by omega)).mpr r4⟩
+    · exact Or.inr ⟨r1, r2, r3, rd,
+        (hN v.root.toNat 0 _ (by omega) (by omega) (by omega)).mpr r4⟩
   · intro i hi1 hi2 hk
     have hi2 : i < v.next.toNat := hi2
     obtain ⟨f, hf, hc⟩ := hwf.free_next i hi1 hi2 hk
     exact ⟨f, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hf, hc⟩
   · intro i hi1 hi2 hk
     have hi2 : i < v.next.toNat := hi2
-    obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hpar, hcl', hcr', hlr⟩ :=
-      hwf.internal_ok i hi1 hi2 hk
-    exact ⟨p, l, r, b, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
+    obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
+    refine ⟨p, l, r, b, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
       (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hl,
       (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hr,
-      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, hbne, hPar i p hpar, hCh i l hcl',
-      hCh i r hcr', hlr⟩
+      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, hbne, fun hd => ?_⟩
+    obtain ⟨hpar, hcl', hcr', dl, dr, hlr⟩ := hrest hd
+    exact ⟨hPar i p hpar, hCh i l hcl', hCh i r hcr', dl, dr, hlr⟩
   · intro i hi1 hi2 hk
     have hi2 : i < v.next.toNat := hi2
     obtain ⟨p, val, pos, hp, hv, hpos, hb, hpar, hlt, hord⟩ := hwf.leaf_ok i hi1 hi2 hk
     exact ⟨p, val, pos, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
       (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hv,
       (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hpos,
-      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, hPar i p hpar, hlt,
+      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, fun hd => hPar i p (hpar hd), hlt,
       (hO _ _ (by omega)).mpr hord⟩
   · intro pos hpos
     have hpos : pos < v.cnt.toNat := hpos
     obtain ⟨i, hrd, i1, i2, ik, i16⟩ := hwf.order_ok pos hpos
     exact ⟨i, (hO _ _ (by omega)).mpr hrd, i1, i2, ik,
       (hN _ 16 _ (by omega) (by omega) (by omega)).mpr i16⟩
-  · intro i hi1 hi2 hk b l r hb hl hr
+  · intro i hi1 hi2 hk hd b l r hb hl hr
     have hi2 : i < v.next.toNat := hi2
     have hb' := (hN _ 24 _ (by omega) (by omega) (by omega)).mp hb
     have hl' := (hN _ 8 _ (by omega) (by omega) (by omega)).mp hl
     have hr' := (hN _ 16 _ (by omega) (by omega) (by omega)).mp hr
-    obtain ⟨_, l0, r0, _, -, hl0, hr0, -, -, -, hcl', hcr', -⟩ := hwf.internal_ok i hi1 hi2 hk
+    obtain ⟨_, l0, r0, _, -, hl0, hr0, -, -, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
+    obtain ⟨-, hcl', hcr', -⟩ := hrest hd
     have el := Rd.inj hl0 hl'
     have er := Rd.inj hr0 hr'
     subst el er
     have := hcl'.2.1
     have := hcr'.2.1
-    obtain ⟨x1, x2, x3, x4, x5, x6⟩ := hok.keys.internal_bits i hi1 hi2 hk b l0 r0 hb' hl' hr'
+    obtain ⟨x1, x2, x3, x4, x5, x6⟩ := hok.bits i hi1 hi2 hk hd b l0 r0 hb' hl' hr'
     exact ⟨x1, x2, x3, x4,
       fun bl h => x5 bl ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h),
       fun br h => x6 br ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h)⟩
@@ -174,11 +178,11 @@ theorem byteAt_congr {M M' : Word → Option (PanValue Word)} {X : Word}
 
 set_option maxHeartbeats 4000000 in
 /-- After `htab_grow` the table is well formed at its new blocks, with twice the capacity. -/
-theorem htab_grow_ok (hok : HtabOK m t v kind rep) {pv N O q : Word}
+theorem htab_grow_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det) {pv N O q : Word}
     {mF : Word → Option (PanValue Word)} (hpH : InHeap pv)
     (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (R : GrowRel m t v pv N O q mF) :
-    HtabOK mF t ⟨v.kl, v.st, v.cp * 2#64, v.nc * 2#64, v.cnt, pv, N, O, v.root, v.next, v.free⟩
-      kind rep := by
+    HtabOKd mF t ⟨v.kl, v.st, v.cp * 2#64, v.nc * 2#64, v.cnt, pv, N, O, v.root, v.next, v.free⟩
+      kind rep det := by
   obtain ⟨hN, inN, hO, inO, hq, inq, m1, m2, m3, c1, c2, c3, rfl⟩ := R
   have hwf := hok.wf
   have hlay := hwf.layout
@@ -224,7 +228,7 @@ theorem htab_grow_ok (hok : HtabOK m t v kind rep) {pv N O q : Word}
       setCell_ne' _ (hneT _ 48 (by omega) (by omega)), E3 _ (by omega),
       setCell_ne' _ (hneT _ 40 (by omega) (by omega)), E2 _ (by omega),
       setCell_ne' _ (hneT _ 32 (by omega) (by omega)), E1 _ (by omega)]
-  refine HtabOK.transport hok (by rw [hnc2]; omega) ?_ ?_ hp8 hN8 hO8 ?_ ?_ ?_
+  refine HtabOKd.transport hok (by rw [hnc2]; omega) ?_ ?_ hp8 hN8 hO8 ?_ ?_ ?_
   · -- layout
     refine ⟨by show t.toNat + 88 ≤ pv.toNat; omega, ?_, ?_, ?_⟩
     · show pv.toNat + ((v.nc * 2#64).toNat + 1) * v.st.toNat ≤ N.toNat

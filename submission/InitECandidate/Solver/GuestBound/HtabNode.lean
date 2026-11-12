@@ -14,7 +14,7 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
 /-- `htab_grow(t)` as a statement. -/
 theorem WPs.call_grow (hE : GuestEnv E) {t pv : Word} {v : HtabV} {kind : Nat → NodeKind}
-    (ht : s.locals "t" = some (.word t)) (hwf : HtabWF s.memory t v kind)
+    (ht : s.locals "t" = some (.word t)) (hhdr : HtabHdr s.memory t v) (hlay : HtabLayout t v)
     (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
     (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat)
     (h : ∀ N O q mF, GrowRel s.memory t v pv N O q mF →
@@ -33,8 +33,8 @@ theorem WPs.call_grow (hE : GuestEnv E) {t pv : Word} {v : HtabV} {kind : Nat �
   rw [hparams] at hbind
   simp [bindPanValueParameters] at hbind
   have hpost := htab_grow_exec hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ rb t pv
-    v kind (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hwf hp hpH
-    hend hcallee
+    v kind (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hhdr hlay hp
+    hpH hend hcallee
   rcases hpost with hst | ⟨l, N, O, q, mF, rfl, hR⟩
   · cases rb with
     | raised lr g m f ex v =>
@@ -59,10 +59,10 @@ theorem WPs.call_grow (hE : GuestEnv E) {t pv : Word} {v : HtabV} {kind : Nat �
 
 /-- The table after the optional growth in `htab_new_node`: unchanged, or grown. -/
 def NodeGS (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV) (kind : Nat → NodeKind)
-    (rep : KeyRep) (g : VarName → Option (PanValue Word)) (pv : Word)
+    (rep : KeyRep) (det : Nat → Prop) (g : VarName → Option (PanValue Word)) (pv : Word)
     (g1 : VarName → Option (PanValue Word)) (m1 : Word → Option (PanValue Word)) (v1 : HtabV) :
     Prop :=
-  HtabOK m1 t v1 kind rep ∧ v1.kl = v.kl ∧ v1.st = v.st ∧ v1.cnt = v.cnt ∧ v1.root = v.root ∧
+  HtabOKd m1 t v1 kind rep det ∧ v1.kl = v.kl ∧ v1.st = v.st ∧ v1.cnt = v.cnt ∧ v1.root = v.root ∧
     v1.next = v.next ∧ v1.free = v.free ∧ v.next.toNat ≤ v1.nc.toNat ∧
     ((m1 = m ∧ v1 = v ∧ g1 = g) ∨ ∃ N O q, GrowRel m t v pv N O q m1 ∧
       v1 = ⟨v.kl, v.st, v.cp * 2#64, v.nc * 2#64, v.cnt, pv, N, O, v.root, v.next, v.free⟩ ∧
@@ -72,29 +72,31 @@ def NodeGS (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV) (kind : 
 /-- What `htab_new_node` did: popped the free list, or bumped `next` after an
 optional growth. -/
 def NewNodeRel (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
-    (kind : Nat → NodeKind) (rep : KeyRep) (g : VarName → Option (PanValue Word)) (pv : Word)
+    (kind : Nat → NodeKind) (rep : KeyRep) (det : Nat → Prop)
+    (g : VarName → Option (PanValue Word)) (pv : Word)
     (m' : Word → Option (PanValue Word)) (g' : VarName → Option (PanValue Word)) (n : Word) :
     Prop :=
   (v.free ≠ 0#64 ∧ n = v.free ∧ g' = g ∧
     ∃ nf, Rd m (nodeField v v.free.toNat 0) nf ∧ m' = setCell m (t + 72#64) nf) ∨
   (v.free = 0#64 ∧ n = v.next ∧
-    ∃ m1 v1, NodeGS m t v kind rep g pv g' m1 v1 ∧ m' = setCell m1 (t + 64#64) (v.next + 1#64))
+    ∃ m1 v1, NodeGS m t v kind rep det g pv g' m1 v1 ∧ m' = setCell m1 (t + 64#64) (v.next + 1#64))
 
 set_option maxHeartbeats 4000000 in
 theorem htab_new_node_exec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "htab_new_node" E.functions = some (parameters, body))
     (s : St σ) (r : Result σ) (t pv : Word) (v : HtabV) (kind : Nat → NodeKind) (rep : KeyRep)
-    (ht : s.locals "t" = some (.word t)) (hok : HtabOK s.memory t v kind rep)
+    (det : Nat → Prop)
+    (ht : s.locals "t" = some (.word t)) (hok : HtabOKd s.memory t v kind rep det)
     (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
     (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' n, r = .returned l g' m' s.ffi [.word n] ∧
-      NewNodeRel s.memory t v kind rep s.globals pv m' g' n := by
+      NewNodeRel s.memory t v kind rep det s.globals pv m' g' n := by
   have hbody := (fun_of_index 134 hE.functions (by guest_decl_at 134) (by decide +kernel)
     hlookup).1
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' n, r = .returned l g' m' s.ffi [.word n] ∧
-      NewNodeRel s.memory t v kind rep s.globals pv m' g' n)) r h
+      NewNodeRel s.memory t v kind rep det s.globals pv m' g' n)) r h
   have hwf := hok.wf
   have hlay := hwf.layout
   obtain ⟨l1, l2, l3, l4⟩ := id hlay
@@ -108,7 +110,7 @@ theorem htab_new_node_exec (hE : GuestEnv E) (parameters : List VarName) (body :
     refine WPs.dec (eval_load_rd hE (eval_addc hE (a := t) 64#64 (by lk [ht])) hnext) ?_
     refine WPs.seq (fun a => a.locals = updatePanValueMap (updatePanValueMap s.locals "f"
         (.word v.free)) "next" (.word v.next) ∧ a.ffi = s.ffi ∧
-        ∃ v1, NodeGS s.memory t v kind rep s.globals pv a.globals a.memory v1) ?_ ?_
+        ∃ v1, NodeGS s.memory t v kind rep det s.globals pv a.globals a.memory v1) ?_ ?_
     · refine WPs.ite (w := evalPanCmp .lower v.nc v.next) (eval_cmp_inv hE
         (eval_load_rd hE (eval_addc hE (a := t) 80#64 (by lk [ht])) hnc)
         (of_eval (w := v.next) (by lk []))) ?_
@@ -120,7 +122,7 @@ theorem htab_new_node_exec (hE : GuestEnv E) (parameters : List VarName) (body :
           omega
         exact WPs.skip ⟨_, _, _, _, rfl, rfl, rfl, v, hok, rfl, rfl, rfl, rfl, rfl, rfl, hle,
           Or.inl ⟨rfl, rfl, rfl⟩⟩
-      · refine WPs.call_grow hE (by lk [ht]) hwf hp hpH hend ?_
+      · refine WPs.call_grow hE (kind := kind) (by lk [ht]) hwf.hdr hlay hp hpH hend ?_
         intro N O q mF hR
         have h2 : (2#64 : Word).toNat = 2 := by decide
         have hnc2 : (v.nc * 2#64).toNat = v.nc.toNat * 2 := by

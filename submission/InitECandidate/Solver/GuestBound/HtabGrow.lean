@@ -100,7 +100,7 @@ set_option maxHeartbeats 4000000 in
 theorem htab_grow_exec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "htab_grow" E.functions = some (parameters, body))
     (s : St σ) (r : Result σ) (t pv : Word) (v : HtabV) (kind : Nat → NodeKind)
-    (ht : s.locals "t" = some (.word t)) (hwf : HtabWF s.memory t v kind)
+    (ht : s.locals "t" = some (.word t)) (hhdr : HtabHdr s.memory t v) (hlay : HtabLayout t v)
     (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
     (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (h : Runs E s body r) :
     Stopped r ∨ ∃ l N O q mF, r = .returned l
@@ -115,9 +115,8 @@ theorem htab_grow_exec (hE : GuestEnv E) (parameters : List VarName) (body : Pro
       (updatePanValueMap (updatePanValueMap (updatePanValueMap s.globals "heap_ptr" (.word N))
         "heap_ptr" (.word O)) "heap_ptr" (.word q)) mF s.ffi [.word 0#64] ∧
       GrowRel s.memory t v pv N O q mF)) r h
-  have hlay := hwf.layout
   obtain ⟨l1, l2, l3, l4⟩ := id hlay
-  obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+  obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hhdr
   obtain ⟨hple, hp8⟩ := id hpH
   -- sizes
   have h1 : (1#64 : Word).toNat = 1 := by decide
