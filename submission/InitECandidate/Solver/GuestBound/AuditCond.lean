@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.EcpMulK
+import InitECandidate.Solver.GuestBound.ParseG2
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -46,3 +46,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms ecp_doubleK_bufs
 #print axioms ecp_addK_bufs
 #print axioms ecp_mulK_bufs
+#print axioms fq_to_mont_canon
+#print axioms bn254_parse_g1_bufs
+#print axioms bn254_parse_g2_bufs
