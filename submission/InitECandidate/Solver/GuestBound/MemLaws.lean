@@ -31,6 +31,13 @@ structure MemEnv (E : Env σ) : Prop where
     ∀ memory b address v, access.readByte access.domain memory b address = some v →
       ∃ cell, memory (RiscV.panRiscVByteAlign b address) = some (.word cell) ∧
         v = RiscV.panRiscVGetByte b address cell
+  /-- A byte store patches one byte of the aligned word cell. -/
+  storeByte : ∃ access, E.memoryAccess = some access ∧
+    ∀ memory b address value memory',
+      access.storeByte access.domain memory b address value = some memory' →
+      ∃ cell, memory (RiscV.panRiscVByteAlign b address) = some (.word cell) ∧
+        memory' = setCell memory (RiscV.panRiscVByteAlign b address)
+          (RiscV.panRiscVSetByte b address value cell)
 
 /-- The add-with-carry primitive: sum modulo `2^64` and the carry out. -/
 def addCarryResult (l r c : Word) : PanValue Word :=
@@ -158,5 +165,68 @@ theorem eval_loadByte (hM : MemEnv E) {s : St σ} {a : Exp Word} {x : PanValue W
       obtain ⟨cell, hc, rfl⟩ := hbyte _ _ _ _ hv
       exact ⟨addr, cell, rfl, hc, rfl⟩
     | _ => simp at h
+
+/-- A byte store fails or patches one byte of the aligned word cell. -/
+theorem storeByte_inv (hM : MemEnv E) {fuel : Nat} {s : St σ} {a v : Exp Word}
+    {r : Result σ} {n : Nat} (h : E.run fuel s (.storeByte a v) = some (r, n)) :
+    r.isError = true ∨ ∃ addr val cell, E.eval s a = some (.word addr) ∧
+      E.eval s v = some (.word val) ∧
+      s.memory (RiscV.panRiscVByteAlign E.bytesInWord addr) = some (.word cell) ∧
+      r = .normal s.locals s.globals (setCell s.memory (RiscV.panRiscVByteAlign E.bytesInWord addr)
+        (RiscV.panRiscVSetByte E.bytesInWord addr val cell)) s.ffi := by
+  obtain ⟨access, hacc, hstore⟩ := hM.storeByte
+  cases fuel with
+  | zero => simp [Env.run, evalPanValueFfiProgSteps] at h
+  | succ fuel =>
+    simp only [Env.run] at h
+    rw [evalPanValueFfiProgSteps] at h
+    simp only [panValueStoreByteResult, evalPanValueExpCounted] at h
+    cases ha : evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+        E.bytesInWord a E.memoryAccess with
+    | none =>
+      rw [ha] at h
+      simp only [Option.map_none, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, -⟩ := h
+      exact Or.inl rfl
+    | some av =>
+      rw [ha] at h
+      simp only [Option.map_some] at h
+      cases hv : evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress
+          E.topAddress E.bytesInWord v E.memoryAccess with
+      | none =>
+        rw [hv] at h
+        simp only [Option.map_none, Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, -⟩ := h
+        exact Or.inl rfl
+      | some val =>
+        rw [hv] at h
+        simp only [Option.map_some] at h
+        cases av with
+        | word addr =>
+          cases val with
+          | word w =>
+            simp only at h
+            rw [hacc] at h
+            simp only at h
+            cases hst : access.storeByte access.domain s.memory E.bytesInWord addr w with
+            | none =>
+              rw [hst] at h
+              simp only [Option.some.injEq, Prod.mk.injEq] at h
+              obtain ⟨rfl, -⟩ := h
+              exact Or.inl rfl
+            | some m =>
+              rw [hst] at h
+              simp only [Option.some.injEq, Prod.mk.injEq] at h
+              obtain ⟨rfl, -⟩ := h
+              obtain ⟨cell, hc, rfl⟩ := hstore _ _ _ _ _ hst
+              exact Or.inr ⟨addr, w, cell, ha, hv, hc, rfl⟩
+          | _ =>
+            simp only [Option.some.injEq, Prod.mk.injEq] at h
+            obtain ⟨rfl, -⟩ := h
+            exact Or.inl rfl
+        | _ =>
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, -⟩ := h
+          exact Or.inl rfl
 
 end InitECandidate.Solver.GuestBound

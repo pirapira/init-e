@@ -87,6 +87,22 @@ theorem guest_memEnv (state : PanValueProgramState Word) :
           exact ⟨w, hm, h.symm⟩
         | _ => simp at h
     · cases h
+  storeByte := by
+    refine ⟨Guest.guestMemoryAccess, rfl, ?_⟩
+    intro memory b address value memory' h
+    simp only [Guest.guestMemoryAccess, panValueMemoryAccessOfModel] at h
+    split at h
+    · cases hm : memory ((RiscV.panRiscVMemoryModel (width := 64)).byteAlign b address) with
+      | none => rw [hm] at h; simp at h
+      | some cellv =>
+        rw [hm] at h
+        cases cellv with
+        | word w =>
+          simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+            Option.some.injEq] at h
+          exact ⟨w, hm, h.symm⟩
+        | _ => simp at h
+    · simp at h
 
 /-- The environment of a stepped guest run is a `GuestEnv`. -/
 theorem guest_guestEnv (state : PanValueProgramState Word)
