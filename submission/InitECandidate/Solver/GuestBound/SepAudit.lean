@@ -125,3 +125,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms st_be64_framed
 #print axioms u256_to_be32_framed
 #print axioms op_mstore_frameM
+#print axioms op_mstore8_frameM

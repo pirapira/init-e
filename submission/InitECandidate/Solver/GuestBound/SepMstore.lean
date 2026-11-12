@@ -168,4 +168,86 @@ theorem op_mstore_frameM (hE : GuestEnv E) (parameters : List VarName) (body : P
     (AcceptsM.refl.restore.restore.restore.toH hY).abort (fun g3 m3 hok hp h3 => ?_)
   exact op_return hok hp (by decide) h3 (AcceptsM.refl.restore.restore.restore.toH hY)
 
+/-- `stb mem + off, v; rest` when the byte lies inside the buffer. -/
+theorem op_storeByte_mem (hE : GuestEnv E) {a v : Exp Word} {q : Prog Word} {addr : Word}
+    {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn} {X : OpSt} {Y : MemSt}
+    (ha : ∀ y, E.eval s a = some y → y = .word addr)
+    (hlo : Y.mem.toNat ≤ addr.toNat) (hhi : addr.toNat < Y.mem.toNat + Y.cap.toNat)
+    (hok : FrameOk M K fv X) (hY : MBufOk Y fv)
+    (h : (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds s)
+    (hq : ∀ m, (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds
+        (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) → WPr E ⟨s.locals, s.globals, m, s.ffi⟩ q Q) :
+    WPr E s (.seq (.storeByte a v) q) Q := by
+  have htop := hY.top
+  have hmal := hY.mal
+  have hfp := hok.ok.fp
+  have hpv := hok.ok.pv_hi
+  have hmc : (Y.mem + Y.cap).toNat = Y.mem.toNat + Y.cap.toNat := by bv_omega
+  have hF : (Assn.Range Y.mem (Y.mem + Y.cap) ⋆ (.mem (e + 32#64) ↦ .word Y.len ⋆
+      .mem (e + 40#64) ↦ .word Y.cap ⋆ .mem (e + 24#64) ↦ .word Y.mem ⋆ FrameOp M K e fv X) ⋆
+      R).holds s :=
+    Assn.holds_perm h (by unfold MemExtra; ac_rfl)
+  refine WPr.seq_storeByte_range hE hF ha (by omega) (by omega) (fun m hm => ?_)
+  exact hq m (Assn.holds_perm hm (by unfold MemExtra; ac_rfl))
+
+set_option maxHeartbeats 2000000 in
+theorem op_mstore8_frameM (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_mstore8" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
+    (hok : FrameOk M K fv X0) (hY : MBufOk Y0 fv) (hgl : X0.gl.toNat < 2 ^ 64 - 1)
+    (h : (FrameOp M K e fv X0 ⋆ MemExtra e Y0 ⋆ R).holds s) :
+    WPr E s body (HandlerQM M K e R s.ffi X0) := by
+  have hbody := (fun_of_index 509 hE.functions (by guest_decl_at 509) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h (AcceptsM.refl.toH hY).abort
+    (fun v g m hsh_start hok hp h => ?_)
+  obtain ⟨a0, a1, a2, a3, rfl⟩ := struct4_of_shape hsh_start
+  refine op_pop_sh hE hok hp h (AcceptsM.refl.restore.toH hY).abort
+    (fun v g m hsh_value hok hp h => ?_)
+  obtain ⟨c0, c1, c2, c3, rfl⟩ := struct4_of_shape hsh_value
+  refine op_charge_mem hE (base := 3#64) (a0 := a0) (a1 := a1) (a2 := a2) (a3 := a3)
+    (b0 := 1#64) (b1 := 0#64) (b2 := 0#64) (b3 := 0#64)
+    (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_const, eval_local,
+      evalF_rStruct, update_lookup]) hok hY hp hgl h AcceptsM.refl.restore.restore
+    (fun fv' x total cap' g m hok hY hp hacc h => ?_)
+  have hacc' : (satW a0 a1 a2 a3).toNat + 1 ≤ (Y0.len + x).toNat := by
+    have e1 : satW (1#64) (0#64) (0#64) (0#64) = 1#64 := by simp [satW]
+    rw [e1] at hacc
+    rcases hacc with h0 | h1
+    · exact absurd h0 (by decide)
+    · simpa using h1
+  refine op_sat_word hE (a0 := a0) (a1 := a1) (a2 := a2) (a3 := a3)
+    (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+      update_lookup]) ?_
+  have hh := Assn.holds_congr (s' := (⟨updatePanValueMap (updatePanValueMap (updatePanValueMap
+    s.locals "start" (.rStruct [.word a0, .word a1, .word a2, .word a3])) "value"
+    (.rStruct [.word c0, .word c1, .word c2, .word c3])) "s" (.word (satW a0 a1 a2 a3)), g, m,
+    s.ffi⟩ : St σ)) rfl rfl h
+  have hlc := hY.lc
+  have htop := hY.top
+  have hfp := hok.ok.fp
+  have hpv := hok.ok.pv_hi
+  have hadd : (Y0.mem + satW a0 a1 a2 a3).toNat = Y0.mem.toNat + (satW a0 a1 a2 a3).toNat := by
+    have h1 : (satW a0 a1 a2 a3).toNat ≤ cap'.toNat := by
+      have : (Y0.len + x).toNat ≤ cap'.toNat := hlc
+      omega
+    have h2 : Y0.mem.toNat + cap'.toNat = fv'.toNat := htop
+    bv_omega
+  refine op_storeByte_mem hE (addr := Y0.mem + satW a0 a1 a2 a3)
+    (Y := ⟨Y0.len + x, cap', Y0.mem⟩)
+    (mem_addr_eval hE (Y := ⟨Y0.len + x, cap', Y0.mem⟩) hh (by lk []))
+    (by show Y0.mem.toNat ≤ _; omega)
+    (by
+      show (Y0.mem + satW a0 a1 a2 a3).toNat < Y0.mem.toNat + cap'.toNat
+      have : (Y0.len + x).toNat ≤ cap'.toNat := hlc
+      omega)
+    hok hY hh (fun m2 h2 => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h2
+    (AcceptsM.refl.restore.restore.restore.toH hY).abort (fun g3 m3 hok hp h3 => ?_)
+  exact op_return hok hp (by decide) h3 (AcceptsM.refl.restore.restore.restore.toH hY)
+
 end InitECandidate.Solver.GuestBound
