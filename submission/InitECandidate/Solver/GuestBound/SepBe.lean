@@ -224,4 +224,114 @@ theorem st_be64_hc (hE : GuestEnv E) {args : List (Exp Word)} {p v : Word}
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hl8 hlo hhi hb
 
+set_option maxHeartbeats 2000000 in
+/-- `u256_to_be32(a, out)`: 32 bytes written inside an owned range. -/
+theorem u256_to_be32_framed (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_to_be32" E.functions = some (parameters, body))
+    (s : St σ) (out w0 w1 w2 w3 lo hi : Word) (hout : s.locals "out" = some (.word out))
+    (ha : s.locals "a" = some (.rStruct [.word w0, .word w1, .word w2, .word w3]))
+    (hl8 : lo.toNat % 8 = 0) (hlo : lo.toNat ≤ out.toNat) (hhi : out.toNat + 32 ≤ hi.toNat)
+    (hb : hi.toNat ≤ 2 ^ 62) :
+    WPFt E s body (Assn.Range lo hi)
+      (fun r => ⌜∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆ Assn.Range lo hi) := by
+  have hbody := (fun_of_index 87 hE.functions (by guest_decl_at 87) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  intro R hR
+  dsimp only
+  have h8 : (out + 8#64).toNat = out.toNat + 8 := by bv_omega
+  have h16 : (out + 16#64).toNat = out.toNat + 16 := by bv_omega
+  have h24 : (out + 24#64).toNat = out.toNat + 24 := by bv_omega
+  have htrap : ∀ r : Result σ, Trap r → Trap r ∨
+      ((⌜∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆ Assn.Range lo hi) ⋆ R).holds r.st :=
+    fun r ht => Or.inl ht
+  refine WPr.seq_ite_skip ?_ ?_
+  · -- aligned: four word stores
+    refine WPr.decCall_quiet (bswap64_quiet hE) (bswap64_raises hE)
+      (fun r hr => by cases r <;> first | exact hr.elim | exact Or.inl hr) (fun vw hsh => ?_)
+    obtain ⟨x0, rfl⟩ := word_of_shape_one hsh
+    have hR0 := Assn.holds_congr (s' := (⟨updatePanValueMap s.locals "w" (.word x0), s.globals,
+      s.memory, s.ffi⟩ : St σ)) rfl rfl hR
+    refine WPr.seq_store_at hE hR0 (addr := out) (w := x0) (of_eval (by lk [hout]))
+      (of_eval (by lk [])) (Step.range hlo (by omega)) (fun m1 hm1 => ?_)
+    refine WPr.seq_callA_quiet (o := x0) (by lk []) (bswap64_quiet hE) (bswap64_raises hE)
+      (fun r hr => by
+        cases r <;> first | exact hr.elim | (simp only [restorePanValueFfiLocal]; exact Or.inl hr))
+      (fun x1 => ?_)
+    have hR1 := Assn.holds_congr (s' := (⟨updatePanValueMap (updatePanValueMap s.locals "w"
+      (.word x0)) "w" (.word x1), s.globals, m1, s.ffi⟩ : St σ)) rfl rfl hm1
+    refine WPr.seq_store_at hE hR1 (addr := out + 8#64) (w := x1) (of_eval (by ev [hout]))
+      (of_eval (by lk [])) (Step.range (by omega) (by omega)) (fun m2 hm2 => ?_)
+    refine WPr.seq_callA_quiet (o := x1) (by lk []) (bswap64_quiet hE) (bswap64_raises hE)
+      (fun r hr => by
+        cases r <;> first | exact hr.elim | (simp only [restorePanValueFfiLocal]; exact Or.inl hr))
+      (fun x2 => ?_)
+    have hR2 := Assn.holds_congr (s' := (⟨updatePanValueMap (updatePanValueMap
+      (updatePanValueMap s.locals "w" (.word x0)) "w" (.word x1)) "w" (.word x2), s.globals, m2,
+      s.ffi⟩ : St σ)) rfl rfl hm2
+    refine WPr.seq_store_at hE hR2 (addr := out + 16#64) (w := x2) (of_eval (by ev [hout]))
+      (of_eval (by lk [])) (Step.range (by omega) (by omega)) (fun m3 hm3 => ?_)
+    refine WPr.seq_callA_quiet (o := x2) (by lk []) (bswap64_quiet hE) (bswap64_raises hE)
+      (fun r hr => by
+        cases r <;> first | exact hr.elim | (simp only [restorePanValueFfiLocal]; exact Or.inl hr))
+      (fun x3 => ?_)
+    have hR3 := Assn.holds_congr (s' := (⟨updatePanValueMap (updatePanValueMap (updatePanValueMap
+      (updatePanValueMap s.locals "w" (.word x0)) "w" (.word x1)) "w" (.word x2)) "w" (.word x3),
+      s.globals, m3, s.ffi⟩ : St σ)) rfl rfl hm3
+    refine WPr.seq_store_at hE hR3 (addr := out + 24#64) (w := x3) (of_eval (by ev [hout]))
+      (of_eval (by lk [])) (Step.range (by omega) (by omega)) (fun m4 hm4 => ?_)
+    refine WPr.ret (w := 0#64) (of_eval (eval_const _ _)) ?_
+    simp only [restorePanValueFfiLocal]
+    exact Or.inr (Assn.holds_pure_intro ⟨_, _, _, rfl⟩ (Assn.holds_congr rfl rfl hm4))
+  · -- unaligned: four `st_be64`
+    refine WPr.seq_call_framedT hR (st_be64_hc hE (p := out) (v := w3)
+      (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+        evalF_rField, hout, ha]) lo hi hl8 hlo (by omega) hb) htrap ?_ ?_
+    rotate_left
+    · intro l g m ffi exc v' _ h
+      obtain ⟨⟨_, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+      cases hC
+    intro l g m ffi vs h
+    obtain ⟨⟨_, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim h
+    injection hC with _ _ _ hf _
+    subst hf
+    refine WPr.seq_call_framedT hk (st_be64_hc hE (p := out + 8#64) (v := w2)
+      (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+        evalF_rField, evalF_op hE.word, eval_const, wordOp, hout, ha]) lo hi hl8 (by omega)
+      (by omega) hb) htrap ?_ ?_
+    rotate_left
+    · intro l2 g2 m2 ffi2 exc v' _ h
+      obtain ⟨⟨_, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+      cases hC
+    intro l2 g2 m2 ffi2 vs2 h
+    obtain ⟨⟨_, _, _, hC⟩, hk2⟩ := Assn.holds_pure_elim h
+    injection hC with _ _ _ hf _
+    subst hf
+    refine WPr.seq_call_framedT hk2 (st_be64_hc hE (p := out + 16#64) (v := w1)
+      (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+        evalF_rField, evalF_op hE.word, eval_const, wordOp, hout, ha]) lo hi hl8 (by omega)
+      (by omega) hb) htrap ?_ ?_
+    rotate_left
+    · intro l3 g3 m3 ffi3 exc v' _ h
+      obtain ⟨⟨_, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+      cases hC
+    intro l3 g3 m3 ffi3 vs3 h
+    obtain ⟨⟨_, _, _, hC⟩, hk3⟩ := Assn.holds_pure_elim h
+    injection hC with _ _ _ hf _
+    subst hf
+    refine WPr.seq_call_framedT hk3 (st_be64_hc hE (p := out + 24#64) (v := w0)
+      (by simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+        evalF_rField, evalF_op hE.word, eval_const, wordOp, hout, ha]) lo hi hl8 (by omega)
+      (by omega) hb) htrap ?_ ?_
+    rotate_left
+    · intro l4 g4 m4 ffi4 exc v' _ h
+      obtain ⟨⟨_, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
+      cases hC
+    intro l4 g4 m4 ffi4 vs4 h
+    obtain ⟨⟨_, _, _, hC⟩, hk4⟩ := Assn.holds_pure_elim h
+    injection hC with _ _ _ hf _
+    subst hf
+    exact WPr.ret (w := 0#64) (of_eval (eval_const _ _))
+      (Or.inr (Assn.holds_pure_intro ⟨_, _, _, rfl⟩ (Assn.holds_congr rfl rfl hk4)))
+
 end InitECandidate.Solver.GuestBound
