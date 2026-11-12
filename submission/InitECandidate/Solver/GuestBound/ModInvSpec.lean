@@ -434,4 +434,121 @@ theorem outer_body_spec (hE : GuestEnv E) {a : St σ} {A M : Nat} (hI : InvI A M
   · exact Or.inl hst
   · exact Or.inr (Or.inl ⟨l, by rw [hg2, hmm2, hf2, hg, hmm, hf], hI'⟩)
 
+set_option maxHeartbeats 4000000 in
+/-- `u256_is_zero` returns 0 on a nonzero number. -/
+theorem u256_is_zero_nz (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_is_zero" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (a0 a1 a2 a3 : Word)
+    (ha : s.locals "a" = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
+    (hne : limbsVal [a0, a1, a2, a3] ≠ 0) (h : Runs E s body r) :
+    r = .returned (fun _ => none) s.globals s.memory s.ffi [.word 0#64] := by
+  have hbody := (fun_of_index 42 hE.functions (by guest_decl_at 42) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp h
+  rw [runs_ite] at h1
+  simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_op hE.word, evalF_rField,
+    evalF_local, eval_const, evalArgs_cons, evalArgs_nil, ha, Option.map_some,
+    List.getElem?_cons_zero, List.getElem?_cons_succ, wordsProj_nil, wordsProj_cons, wordOp,
+    List.foldr] at h1
+  obtain ⟨W, hW⟩ : ∃ W : Word, W = OrOp.or a0 (OrOp.or a1 (OrOp.or a2 (OrOp.or a3 (0 : Word)))) :=
+    ⟨_, rfl⟩
+  rw [← hW] at h1
+  have hz : W ≠ 0#64 := by
+    intro hz
+    have hz' : a0 ||| (a1 ||| (a2 ||| (a3 ||| (0 : Word)))) = 0#64 := hW.symm.trans hz
+    rw [BitVec.or_eq_zero_iff, BitVec.or_eq_zero_iff, BitVec.or_eq_zero_iff,
+      BitVec.or_eq_zero_iff] at hz'
+    obtain ⟨e0, e1, e2, e3, -⟩ := hz'
+    subst e0 e1 e2 e3
+    exact hne rfl
+  have hc : evalPanCmp .equal W 0#64 = 0#64 := by simp [evalPanCmp, hz]
+  rw [hc, if_pos (show (0#64 : Word) = 0 from rfl), runs_skip] at h1
+  subst h1
+  simp only at hrest
+  rw [runs_return] at hrest
+  simp only [eval_const, payload_word, if_true] at hrest
+  exact hrest
+
+set_option maxHeartbeats 8000000 in
+/-- `modinv_bin(a, m)` for nonzero `a` and odd `m > 1`: if it returns, the
+result is below `m` and inverts `a` modulo `m`. -/
+theorem modinv_bin_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "modinv_bin" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (a0 a1 a2 a3 m0 m1 m2 m3 : Word)
+    (ha : s.locals "a" = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
+    (hm : s.locals "m" = some (.rStruct [.word m0, .word m1, .word m2, .word m3]))
+    (hA : limbsVal [a0, a1, a2, a3] ≠ 0) (hM : limbsVal [m0, m1, m2, m3] % 2 = 1)
+    (hM1 : 1 < limbsVal [m0, m1, m2, m3]) (h : Runs E s body r) :
+    Stopped r ∨ RetQ (limbsVal [a0, a1, a2, a3]) (limbsVal [m0, m1, m2, m3]) s.globals s.memory
+      s.ffi r := by
+  have hbody := (fun_of_index 157 hE.functions (by guest_decl_at 157) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  rcases runs_decCall_inv h with herr | ⟨ps, cb, vals, cl, rb, hl, hvals, hbind, hcal, hout⟩
+  · exact Or.inl (Stopped.of_error herr)
+  have hparams := (fun_of_index 42 hE.functions (by guest_decl_at 42) (by decide +kernel) hl).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, ha, Option.map_some,
+    Option.some.injEq] at hvals
+  subst hvals
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hz := u256_is_zero_nz hE ps cb hl ⟨cl, s.globals, s.memory, s.ffi⟩ rb a0 a1 a2 a3
+    (by rw [← hbind]; simp [updatePanValueMap]) hA hcal
+  subst hz
+  obtain ⟨r', -, hrun', rfl⟩ := hout
+  refine Or.elim ((?_ : WPs E _ _ (RetQ (limbsVal [a0, a1, a2, a3]) (limbsVal [m0, m1, m2, m3])
+    s.globals s.memory s.ffi)) r' hrun') (fun hst => Or.inl (Stopped.restore hst))
+    (fun hq => Or.inr hq.restore)
+  refine WPs.guard0 (fun y hy => by
+    rw [eval_cmp_inv hE (of_eval (w := 0#64) (by lk [])) (of_eval (eval_const _ _)) y hy]
+    rfl) ?_
+  refine WPs.dec_ev (fun v hv => ?_)
+  have e : v = .rStruct [.word a0, .word a1, .word a2, .word a3] := by
+    rw [evalF_local] at hv
+    simp (config := { decide := true }) only [update_lookup, ha, if_false] at hv
+    exact (Option.some.inj hv).symm
+  subst e
+  refine WPs.dec_ev (fun v hv => ?_)
+  have e : v = .rStruct [.word m0, .word m1, .word m2, .word m3] := by
+    rw [evalF_local] at hv
+    simp (config := { decide := true }) only [update_lookup, hm, if_false] at hv
+    exact (Option.some.inj hv).symm
+  subst e
+  refine WPs.dec_ev (fun v hv => ?_)
+  have e : v = .rStruct [.word 1#64, .word 0#64, .word 0#64, .word 0#64] := by
+    simp only [evalF_rStruct, evalArgs_cons, evalArgs_nil, eval_const, Option.map_some] at hv
+    exact (Option.some.inj hv).symm
+  subst e
+  refine WPs.dec_ev (fun v hv => ?_)
+  have e : v = .rStruct [.word 0#64, .word 0#64, .word 0#64, .word 0#64] := by
+    simp only [evalF_rStruct, evalArgs_cons, evalArgs_nil, eval_const, Option.map_some] at hv
+    exact (Option.some.inj hv).symm
+  subst e
+  refine WPs.conseq (Q' := RetQ (limbsVal [a0, a1, a2, a3]) (limbsVal [m0, m1, m2, m3])
+    s.globals s.memory s.ffi) ?_ (fun r h => h.restore.restore.restore.restore)
+  refine WPs.seqG (fun _ => False) (WPs.loopG (I := fun b => b.globals = s.globals ∧
+    b.memory = s.memory ∧ b.ffi = s.ffi ∧
+    InvI (limbsVal [a0, a1, a2, a3]) (limbsVal [m0, m1, m2, m3]) b.locals) ?_ ?_ ?_)
+    (fun _ hF => hF.elim)
+  · refine ⟨rfl, rfl, rfl, ⟨m0, m1, m2, m3, by lk [hm], rfl⟩, limbsVal [a0, a1, a2, a3],
+      limbsVal [m0, m1, m2, m3], 1, 0, ⟨a0, a1, a2, a3, by lk [], rfl⟩,
+      ⟨m0, m1, m2, m3, by lk [], rfl⟩, ⟨1#64, 0#64, 0#64, 0#64, by lk [], by decide⟩,
+      ⟨0#64, 0#64, 0#64, 0#64, by lk [], by decide⟩, hM1, by omega, by rw [Nat.one_mul], ?_⟩
+    rw [Nat.zero_mul, Nat.mod_self, Nat.zero_mod]
+  · rintro ⟨lb, gb, mb, fb⟩ ⟨hg, hmm, hf, hI⟩ - r hr
+    simp only at hg hmm hf hI
+    subst hg hmm hf
+    rcases outer_body_spec hE (a := ⟨lb, s.globals, s.memory, s.ffi⟩) hI hM hr with
+      hst | ⟨l, rfl, hI'⟩ | hret
+    · exact Or.inl hst
+    · exact Or.inr ⟨rfl, rfl, rfl, hI'⟩
+    · obtain ⟨l, d0, d1, d2, d3, rfl, rest⟩ := hret
+      exact Or.inr ⟨l, d0, d1, d2, d3, rfl, rest⟩
+  · intro b k _ hcond
+    rw [cond_eq] at hcond
+    simp [eval_const] at hcond
+
 end InitECandidate.Solver.GuestBound
