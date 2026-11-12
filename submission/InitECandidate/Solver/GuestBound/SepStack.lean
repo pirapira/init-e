@@ -157,12 +157,14 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
     (hv : s.locals "v" = some (.rStruct [.word w0, .word w1, .word w2, .word w3]))
     (ok : StackOk sp cap base pv fv) :
     WPFt E s body (StackW e sp cap base pv fv) (fun r => Assn.or
-      (⌜∃ l g m, r = .raised l g m s.ffi "EvmErr" (.word 3#64)⌝ ⋆ StackW e sp cap base pv fv)
+      (⌜sp.toNat = cap.toNat ∧ ∃ l g m, r = .raised l g m s.ffi "EvmErr" (.word 3#64)⌝ ⋆
+        StackW e sp cap base pv fv)
       (Assn.or
         (⌜sp.toNat < cap.toNat ∧ ∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆
           StackW e (sp + 1#64) cap base pv fv)
         (Assn.ex fun qv : Word => Assn.ex fun nc : Word =>
-          ⌜(StackOk (sp + 1#64) nc qv qv fv ∧ qv.toNat + 32 * nc.toNat ≤ pv.toNat) ∧
+          ⌜(StackOk (sp + 1#64) nc qv qv fv ∧ qv.toNat + 32 * nc.toNat ≤ pv.toNat ∧
+              sp.toNat = cap.toNat) ∧
             ∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆
           (StackW e (sp + 1#64) nc qv qv fv ⋆ Assn.Range (qv + 32#64 * nc) pv ⋆
             Assn.Range base (base + 32#64 * cap))))) := by
@@ -198,7 +200,7 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
           .mem (e + 8#64) ↦ .word base ⋆ .glob "scratch_ptr" ↦ .word pv ⋆
           .glob "frame_mem_ptr" ↦ .word fv ⋆ Assn.Range fv pv) ⋆ R).holds s') ∨
         ∃ qv nc : Word, StackOk (sp + 1#64) nc qv qv fv ∧ sp.toNat < nc.toNat ∧
-          qv.toNat + 32 * nc.toNat ≤ pv.toNat ∧
+          qv.toNat + 32 * nc.toNat ≤ pv.toNat ∧ sp.toNat = cap.toNat ∧
           ((Assn.Range qv (qv + 32#64 * nc) ⋆ .glob "ev" ↦ .word e ⋆
             .mem (e + 16#64) ↦ .word sp ⋆ .mem (e + 232#64) ↦ .word nc ⋆
             .mem (e + 8#64) ↦ .word qv ⋆ .glob "scratch_ptr" ↦ .word qv ⋆
@@ -237,7 +239,7 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
         rw [eval_const] at hv'
         cases hv'
         simp only [restorePanValueFfiLocal]
-        exact Or.inr (Assn.holds_or_left (Assn.holds_pure_intro ⟨_, _, _, rfl⟩
+        exact Or.inr (Assn.holds_or_left (Assn.holds_pure_intro ⟨hspcap, _, _, _, rfl⟩
           (Assn.holds_congr rfl rfl hR0)))
     rintro _ ⟨rfl, hcaplt⟩
     refine WPr.dec_ev (fun v hv' => ?_)
@@ -324,7 +326,7 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
         (fun m3 hm3 => ?_)
       simp only [restorePanValueFfiLocal]
       refine ⟨_, _, _, rfl, ?_, ?_, Or.inr ⟨qv, nc, ⟨by omega, hc2, ?_, hq3, by omega, hq1,
-        by omega⟩, by omega, by omega, Assn.holds_congr rfl rfl hm3⟩⟩
+        by omega⟩, by omega, by omega, hspcap, Assn.holds_congr rfl rfl hm3⟩⟩
       · simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hlsp]
       · simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hlv]
       · have : (sp + 1#64).toNat = sp.toNat + 1 := by bv_omega
@@ -334,7 +336,7 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
       obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim h
       cases hC
   · -- the store
-    rintro _ ⟨l, g, m, rfl, hlsp, hlv, ⟨hlt, hW⟩ | ⟨qv, nc, okn, hlt, hle, hG⟩⟩
+    rintro _ ⟨l, g, m, rfl, hlsp, hlv, ⟨hlt, hW⟩ | ⟨qv, nc, okn, hlt, hle, hsc, hG⟩⟩
     · refine WPr.conseq (stack_push_tail hE hlsp hlv hW hlt ok.cap_le hhi ok.base_hi) ?_
       rintro r ⟨l', g', m', rfl, hh⟩
       simp only [restorePanValueFfiLocal]
@@ -350,7 +352,7 @@ theorem stack_push_framed (hE : GuestEnv E) (parameters : List VarName) (body : 
       simp only [restorePanValueFfiLocal]
       refine Or.inr (Assn.holds_or_right (Assn.holds_or_right
         (Assn.holdsV_ex.mpr ⟨qv, Assn.holdsV_ex.mpr ⟨nc, ?_⟩⟩)))
-      exact Assn.holds_pure_intro ⟨⟨okn, hle⟩, _, _, _, rfl⟩
+      exact Assn.holds_pure_intro ⟨⟨okn, hle, hsc⟩, _, _, _, rfl⟩
         (Assn.holds_perm (Assn.holds_congr rfl rfl hh) (by unfold StackW; ac_rfl))
 
 end InitECandidate.Solver.GuestBound
