@@ -295,15 +295,24 @@ structure FreeOK (pv : Word) (T : Word → Option HtabV) (N : Word → Option Wo
   lo_ : HBASE ≤ lo.toNat
   hi_ : hi.toNat ≤ pv.toNat
   tab : ∀ t v, T t = some v → ∀ x, TabFoot t v x → x.toNat < lo.toNat ∨ hi.toNat ≤ x.toNat
+  /-- The same, on intervals: header and blocks of every table lie off the range. -/
+  tabI : ∀ t v, T t = some v → (hi.toNat ≤ t.toNat ∨ t.toNat + 88 ≤ lo.toNat) ∧
+    (hi.toNat ≤ v.keys.toNat ∨ v.order.toNat + (v.nc.toNat + 1) * 8 ≤ lo.toNat)
   node : ∀ a k, N a = some k → a.toNat + nodeSize k ≤ lo.toNat ∨ hi.toNat ≤ a.toNat
   jrn : J.toNat + 32 * C.toNat ≤ lo.toNat ∨ hi.toNat ≤ J.toNat
 
 /-- A block allocated at the heap pointer is free. -/
 theorem FreeOK.fresh (h : HeapW m pv T N J C n) {lo hi : Word} (hlo : pv.toNat ≤ lo.toNat)
     (hhi : hi.toNat ≤ pv'.toNat) (hb : HBASE ≤ lo.toNat) : FreeOK pv' T N J C lo hi := by
-  refine ⟨hb, hhi, fun t v ht x hx => ?_, fun a k hN => ?_, ?_⟩
+  refine ⟨hb, hhi, fun t v ht x hx => ?_, fun t v ht => ?_, fun a k hN => ?_, ?_⟩
   · have := ((h.tabs.at_ t v ht).foot_lt hx).2
     exact Or.inl (by omega)
+  · have hat := h.tabs.at_ t v ht
+    obtain ⟨kind, rep, hok⟩ := hat.ok
+    obtain ⟨l1, l2, l3, l4⟩ := hok.wf.layout
+    have hkn : v.keys.toNat ≤ v.nodes.toNat := Nat.le_trans (Nat.le_add_right _ _) l2
+    have := hat.fin
+    exact ⟨Or.inr (by omega), Or.inr (by omega)⟩
   · have := (h.nodes.at_ a k hN).hi
     exact Or.inl (by omega)
   · have := h.jrn.hi
@@ -315,24 +324,36 @@ theorem FreeOK.tab_step {t : Word} {v v' : HtabV} {lo hi : Word}
   classical
   have := hs.pv_le
   have := hf.hi_
-  refine ⟨hf.lo_, by omega, fun u w hu x hx => ?_, hf.node, hf.jrn⟩
-  unfold stepT at hu
-  by_cases e : u = t
-  · subst e
-    simp only [if_true, Option.some.injEq] at hu
-    subst hu
-    rcases hs.foot x hx with hold | hge
-    · exact hf.tab u v hs.hT x hold
-    · exact Or.inr (by omega)
-  · simp only [if_neg e] at hu
-    exact hf.tab u w hu x hx
+  refine ⟨hf.lo_, by omega, fun u w hu x hx => ?_, fun u w hu => ?_, hf.node, hf.jrn⟩
+  · unfold stepT at hu
+    by_cases e : u = t
+    · subst e
+      simp only [if_true, Option.some.injEq] at hu
+      subst hu
+      rcases hs.foot x hx with hold | hge
+      · exact hf.tab u v hs.hT x hold
+      · exact Or.inr (by omega)
+    · simp only [if_neg e] at hu
+      exact hf.tab u w hu x hx
+  · unfold stepT at hu
+    by_cases e : u = t
+    · subst e
+      simp only [if_true, Option.some.injEq] at hu
+      subst hu
+      obtain ⟨a1, a2⟩ := hf.tabI u v hs.hT
+      refine ⟨a1, ?_⟩
+      rcases hs.loc with ⟨e1, -, e3, e4⟩ | hge
+      · rw [e1, e3, e4]; exact a2
+      · exact Or.inl (by omega)
+    · simp only [if_neg e] at hu
+      exact hf.tabI u w hu
 
 theorem FreeOK.node_add {a k lo hi : Word} (hf : FreeOK pv T N J C lo hi)
     (hlo : pv.toNat ≤ a.toNat) (hpv : pv.toNat ≤ pv'.toNat) :
     FreeOK pv' T (addN N a k) J C lo hi := by
   classical
   have := hf.hi_
-  refine ⟨hf.lo_, by omega, hf.tab, fun b j hb => ?_, hf.jrn⟩
+  refine ⟨hf.lo_, by omega, hf.tab, hf.tabI, fun b j hb => ?_, hf.jrn⟩
   unfold addN at hb
   by_cases e : b = a
   · subst e
@@ -342,7 +363,7 @@ theorem FreeOK.node_add {a k lo hi : Word} (hf : FreeOK pv T N J C lo hi)
 
 theorem FreeOK.mono {lo hi : Word} (hf : FreeOK pv T N J C lo hi) (hpv : pv.toNat ≤ pv'.toNat) :
     FreeOK pv' T N J C lo hi :=
-  ⟨hf.lo_, by have := hf.hi_; omega, hf.tab, hf.node, hf.jrn⟩
+  ⟨hf.lo_, by have := hf.hi_; omega, hf.tab, hf.tabI, hf.node, hf.jrn⟩
 
 /-- Any change confined to a free range keeps the heap structures. -/
 theorem HeapW.change_free (h : HeapW m pv T N J C n) {lo hi : Word}
@@ -373,5 +394,90 @@ theorem HeapW.mono (h : HeapW m pv T N J C n) (hpv : pv.toNat ≤ pv'.toNat)
     exact ⟨t0, kc, fl, val, v0, r0, r1, r2, r3, hT0, hkf.mono hpv⟩
   · have hat := h.nodes.at_ a k hN
     exact ⟨hat.al, hat.lo, hat.top, by have := hat.hi; omega, hat.k3, hat.kind, hat.ext, hat.br⟩
+
+/-- Appending a journal entry: four stores at entry `n` of the journal block. -/
+theorem HeapW.jpush (h : HeapW m pv T N J C n) {t kc o0 o1 n' R : Word} {v : HtabV}
+    (hn : n.toNat < C.toNat) (hn' : n'.toNat = n.toNat + 1)
+    (hR : R = J + BitVec.ofNat 64 (32 * n.toNat)) (hT : T t = some v)
+    (hk : KeyFree pv T kc v.kl)
+    (hm : m' = setCell (setCell (setCell (setCell m R t) (R + 8#64) kc) (R + 16#64) o0)
+      (R + 24#64) o1) :
+    HeapW m' pv T N J C n' := by
+  have hJhi := h.jrn.hi
+  have hJlo := h.jrn.lo
+  have hal := h.jrn.al
+  have hpH := h.pvH
+  have hpvlt := pv.isLt
+  have e0 : R.toNat = J.toNat + 32 * n.toNat := by
+    rw [hR, BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+  have e1 : (R + 8#64).toNat = J.toNat + 32 * n.toNat + 8 := by
+    rw [BitVec.toNat_add, e0]
+    simp
+    omega
+  have e2 : (R + 16#64).toNat = J.toNat + 32 * n.toNat + 16 := by
+    rw [BitVec.toNat_add, e0]
+    simp
+    omega
+  have e3 : (R + 24#64).toNat = J.toNat + 32 * n.toNat + 24 := by
+    rw [BitVec.toNat_add, e0]
+    simp
+    omega
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  -- cells outside entry `n` are unchanged
+  have keep : ∀ a : Word, ¬ (J.toNat + 32 * n.toNat ≤ a.toNat ∧
+      a.toNat < J.toNat + 32 * n.toNat + 32) → m' a = m a := by
+    intro a ha
+    rw [hm, setCell_ne _ (NE (by omega)), setCell_ne _ (NE (by omega)),
+      setCell_ne _ (NE (by omega)), setCell_ne _ (NE (by omega))]
+  have hstep : HeapStep m pv m' pv (fun a => J.toNat + 32 * n.toNat ≤ a.toNat ∧
+      a.toNat < J.toNat + 32 * n.toNat + 32) := by
+    refine ⟨Nat.le_refl _, fun a _ ha _ => keep a ha, fun a ha => keep a ?_⟩
+    unfold HBASE at ha hJlo
+    omega
+  refine ⟨h.pvH, h.tabs.persist hstep (fun u w hu x hx hF => ?_), ?_,
+    h.nodes.persist hstep (fun a k x hN hx hF => ?_), h.tn, h.jn⟩
+  · rcases h.jrn.off u w hu x hx with h1 | h1 <;> omega
+  · refine ⟨by omega, hal, hJlo, hJhi, h.jrn.off, fun i hi => ?_⟩
+    have hbase : (J + BitVec.ofNat 64 (32 * i)).toNat = J.toNat + 32 * i := by
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    by_cases e : i = n.toNat
+    · subst e
+      unfold JEntry
+      rw [← hR]
+      refine ⟨t, kc, o0, o1, v, ?_, ?_, ?_, ?_, hT, hk⟩
+      · rw [hm]
+        exact (((Rd.here m R t).frame _ (NE (by omega))).frame _ (NE (by omega))).frame _
+          (NE (by omega))
+      · rw [hm]
+        exact ((Rd.here _ (R + 8#64) kc).frame _ (NE (by omega))).frame _ (NE (by omega))
+      · rw [hm]
+        exact (Rd.here _ (R + 16#64) o0).frame _ (NE (by omega))
+      · rw [hm]
+        exact Rd.here _ (R + 24#64) o1
+    · obtain ⟨t0, kc0, fl, val, v0, r0, r1, r2, r3, hT0, hkf⟩ := h.jrn.entry i (by omega)
+      have b1 : (J + BitVec.ofNat 64 (32 * i) + 8#64).toNat = J.toNat + 32 * i + 8 := by
+        rw [BitVec.toNat_add, hbase]
+        simp
+        omega
+      have b2 : (J + BitVec.ofNat 64 (32 * i) + 16#64).toNat = J.toNat + 32 * i + 16 := by
+        rw [BitVec.toNat_add, hbase]
+        simp
+        omega
+      have b3 : (J + BitVec.ofNat 64 (32 * i) + 24#64).toNat = J.toNat + 32 * i + 24 := by
+        rw [BitVec.toNat_add, hbase]
+        simp
+        omega
+      have keepR : ∀ (a w : Word), ¬ (J.toNat + 32 * n.toNat ≤ a.toNat ∧
+          a.toNat < J.toNat + 32 * n.toNat + 32) → Rd m a w → Rd m' a w := by
+        intro a w ha hr
+        unfold Rd at hr ⊢
+        rw [keep a ha]
+        exact hr
+      exact ⟨t0, kc0, fl, val, v0, keepR _ _ (by omega) r0, keepR _ _ (by omega) r1,
+        keepR _ _ (by omega) r2, keepR _ _ (by omega) r3, hT0, hkf⟩
+  · have hin := hx.inside (h.nodes.at_ a k hN)
+    rcases h.jn a k hN with h3 | h3 <;> omega
 
 end InitECandidate.Solver.GuestBound
