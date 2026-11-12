@@ -934,4 +934,48 @@ theorem hk_sound (hE : GuestEnv E)
       subst hGe
       exact HPost.of_globals ((globalsKeeper E).leaf _ _ s r n rfl hrun0) hH
 
+/-- Every function declaration other than `alloc` and `heap_release` passes `hk`. -/
+def hkAll (decls : List (Decl Word)) : Bool :=
+  decls.all fun decl =>
+    match decl with
+    | .function d => d.name == "alloc" || d.name == "heap_release" || hk [] d.body
+    | _ => true
+
+theorem hkAll_guest : hkAll Guest.Software.guestAst = true := by decide +kernel
+
+/-- Every guest function body other than `alloc` and `heap_release` is checked. -/
+theorem guest_hk (hE : GuestEnv E) (f : FunName) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction f E.functions = some (parameters, body)) (hfa : f ≠ "alloc")
+    (hfr : f ≠ "heap_release") : hk [] body = true := by
+  obtain ⟨d, hmem, hname, hbody, -⟩ :=
+    hE.functions f parameters body (lookupPanFunction_mem hlookup)
+  have hall := hkAll_guest
+  unfold hkAll at hall
+  have hd := List.all_eq_true.mp hall _ hmem
+  simp only [Bool.or_eq_true, beq_iff_eq] at hd
+  rcases hd with (h | h) | h
+  · exact absurd (hname ▸ h) hfa
+  · exact absurd (hname ▸ h) hfr
+  · rw [← hbody]
+    exact h
+
+/-- In the guest, a checked program keeps the heap pointer in the heap. -/
+theorem heap_keep (hE : GuestEnv E) (fuel : Nat) (p : Prog Word) (G : List VarName) (s : St σ)
+    (r : Result σ) (n : Nat) (hp : hk G p = true) (hs : HeapOk s.globals)
+    (hG : GoodL G s.locals) (hrun : E.run fuel s p = some (r, n)) : HPost G r :=
+  hk_sound hE (guest_hk hE) fuel p G s r n hp hs hG hrun
+
+/-- Every guest function other than `heap_release` keeps the heap pointer in
+the heap, whatever its arguments and outcome. -/
+theorem fun_heap_keep (hE : GuestEnv E) {f : FunName} (hf : f ≠ "heap_release")
+    (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction f E.functions = some (parameters, body)) (fuel : Nat)
+    (s : St σ) (r : Result σ) (n : Nat) (hs : HeapOk s.globals)
+    (hrun : E.run fuel s body = some (r, n)) : HeapOk r.st.globals := by
+  by_cases hfa : f = "alloc"
+  · subst hfa
+    exact alloc_keeps hE parameters body hlookup s r hs (Runs.of_run hrun)
+  · exact (heap_keep hE fuel body [] s r n (guest_hk hE f parameters body hlookup hfa hf) hs
+      (fun _ h => by cases h) hrun).heapOk
+
 end InitECandidate.Solver.GuestBound
