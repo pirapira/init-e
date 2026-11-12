@@ -216,4 +216,60 @@ theorem rlp_item_frame (hE : GuestEnv E) (parameters : List VarName) (body : Pro
   exact WPs.ret_struct4 (isw_const _) (isw_op hE) (isw_local (w := nn) (by lk [])) (isw_op hE)
     (ret0 _ _ hk)
 
+theorem rlpitem_ret (hE : GuestEnv E) {e1 e2 : Exp Word} {pv fv pw : Word}
+    {vs : List (PanValue Word)} {g : VarName → Option (PanValue Word)}
+    {m : Word → Option (PanValue Word)} {ffi : FfiState σ}
+    (h : CalleeRet E s "rlp_item" [e1, e2] vs g m ffi)
+    (h1 : E.eval s e1 = some (.word pw))
+    (hp : s.globals "scratch_ptr" = some (.word pv))
+    (hf : s.globals "frame_mem_ptr" = some (.word fv)) (hfp : fv.toNat ≤ pv.toNat) :
+    g = s.globals ∧ ffi = s.ffi ∧ ScrMem pv fv s.memory m ∧
+      ∃ a b c d : Word, vs = [.rStruct [.word a, .word b, .word c, .word d]] := by
+  obtain ⟨parameters, body, values, cl, l, hlookup, hvalues, hbind, hrun⟩ := h
+  have hparams := (fun_of_index 107 hE.functions (by guest_decl_at 107) (by decide +kernel)
+    hlookup).2
+  obtain ⟨v2, hv2⟩ : ∃ v2, values = [.word pw, v2] := by
+    simp only [evalArgs_cons, evalArgs_nil, h1] at hvalues
+    cases he2 : E.eval s e2 with
+    | none => rw [he2] at hvalues; simp at hvalues
+    | some v2 =>
+      rw [he2] at hvalues
+      simp at hvalues
+      exact ⟨v2, hvalues.symm⟩
+  subst hv2
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  rcases rlp_item_frame hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _ pv fv pw
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hp hf hfp hrun
+    with hst | ⟨l', m', a, b, c, d, heq, hk⟩
+  · exact absurd hst (fun h => h)
+  · cases heq
+    exact ⟨rfl, rfl, hk, a, b, c, d, rfl⟩
+
+/-- On return, `rlp_decode_fully` has changed only free scratch memory and
+returns four words. -/
+theorem rlp_decode_fully_frame (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "rlp_decode_fully" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (pv fv pw : Word) (hpw : s.locals "p" = some (.word pw))
+    (hp : s.globals "scratch_ptr" = some (.word pv))
+    (hf : s.globals "frame_mem_ptr" = some (.word fv)) (hfp : fv.toNat ≤ pv.toNat)
+    (h : Runs E s body r) : Stopped r ∨ Item4 pv fv s r := by
+  have hbody := (fun_of_index 108 hE.functions (by guest_decl_at 108) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (Item4 pv fv s)) r h
+  refine WPs.decCall_ret (fun v g m ffi hret => WPs.conseq (Q' := Item4 pv fv s) ?_
+    (fun r h => h.restore))
+  obtain ⟨hg, hf', hk, a, b, c, d, hv⟩ := rlpitem_ret hE hret (pw := pw) (by lk [hpw]) hp hf hfp
+  simp only [List.cons.injEq, and_true] at hv
+  subst g ffi v
+  try dsimp only
+  refine WPs.guard_quiet (rlp_fail_quiet hE) ?_
+  refine WPs.ret_ev (fun v hv => ?_)
+  rw [evalF_local] at hv
+  simp (config := { decide := true }) [update_lookup] at hv
+  subst hv
+  exact ⟨_, m, a, b, c, d, rfl, hk⟩
+
 end InitECandidate.Solver.GuestBound
