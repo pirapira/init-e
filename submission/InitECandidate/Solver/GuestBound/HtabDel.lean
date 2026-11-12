@@ -151,4 +151,82 @@ theorem WPs.decCall_memeq (hE : GuestEnv E) {x : VarName} {body : Prog Word}
     exact Or.inl trivial
   | _ => exact hout.elim
 
+/-- `a; rest` where `a` is a guard that does not fire. -/
+theorem WPs.guard0 {c : Exp Word} {p q : Prog Word}
+    (hc : ∀ x, E.eval s c = some x → x = .word 0#64) (h : WPs E s q Q) :
+    WPs E s (.seq (.ite c p .skip) q) Q := by
+  refine WPs.seq (fun s' => s' = s) (WPs.ite hc ?_) (fun s' hs' => hs' ▸ h)
+  rw [if_pos rfl]
+  exact WPs.skip ⟨_, _, _, _, rfl, rfl⟩
+
+/-- Sequencing when the first part only changes memory. -/
+theorem WPs.seq_mem {p q : Prog Word} (P : (Word → Option (PanValue Word)) → Prop)
+    (hp : WPs E s p (fun r1 => ∃ m', r1 = .normal s.locals s.globals m' s.ffi ∧ P m'))
+    (hq : ∀ m', P m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ q Q) :
+    WPs E s (.seq p q) Q := by
+  refine WPs.seq (fun s' => ∃ m', s' = ⟨s.locals, s.globals, m', s.ffi⟩ ∧ P m') ?_ ?_
+  · exact hp.conseq (fun r ⟨m', hr, hP⟩ => ⟨_, _, _, _, hr, m', rfl, hP⟩)
+  · rintro s' ⟨m', rfl, hP⟩
+    exact hq m' hP
+
+/-- `st a, v; rest`. -/
+theorem WPs.seq_store (hE : GuestEnv E) {a val : Exp Word} {q : Prog Word} {addr w : Word}
+    (ha : E.eval s a = some (.word addr)) (hv : ∀ y, E.eval s val = some y → y = .word w)
+    (h : WPs E ⟨s.locals, s.globals, setCell s.memory addr w, s.ffi⟩ q Q) :
+    WPs E s (.seq (.store a val) q) Q :=
+  WPs.seq_mem (fun m' => m' = setCell s.memory addr w) (WPs.store hE ha hv ⟨_, rfl, rfl⟩)
+    (fun _ hm => hm ▸ h)
+
+-- Look up a local through declarations.
+macro "lk" "[" hs:Lean.Parser.Tactic.simpLemma,* "]" : tactic => `(tactic|
+  simp (config := { decide := true }) [evalF_local, update_lookup, $hs,*])
+
+set_option maxHeartbeats 1000000 in
+/-- The order fix of `htab_del`: the last ordinal moves to the freed position.
+When the leaf already is the last one, the stores would write what is there. -/
+theorem del_phaseA (hE : GuestEnv E) {t : Word} {v : HtabV} (hlay : HtabLayout t v)
+    {pos cnt1 moved : Word} (h_t : s.locals "t" = some (.word t))
+    (h_nodes : s.locals "nodes" = some (.word v.nodes))
+    (h_pos : s.locals "pos" = some (.word pos)) (h_count : s.locals "count" = some (.word cnt1))
+    (hpnc : pos.toNat ≤ v.nc.toNat) (hcnc : cnt1.toNat ≤ v.nc.toNat)
+    (hmnc : moved.toNat ≤ v.nc.toNat) (hord : Rd s.memory (t + 48#64) v.order)
+    (hmoved : Rd s.memory (orderSlot v cnt1.toNat) moved)
+    (hsame : pos = cnt1 → Rd s.memory (nodeField v moved.toNat 16) pos) :
+    WPs E s
+      (.ite (.cmp .notEqual (.var .local "pos") (.var .local "count"))
+        (.dec "order" .one (.load .one (.op .add [.var .local "t", .const 48#64]))
+          (.dec "moved" .one (.load .one (.op .add [.var .local "order",
+              .panOp .mul [.var .local "count", .const 8#64]]))
+            (.seq
+              (.store (.op .add [.var .local "order", .panOp .mul [.var .local "pos",
+                .const 8#64]]) (.var .local "moved"))
+              (.store (.op .add [.var .local "nodes", .panOp .mul [.var .local "moved",
+                .const 32#64], .const 16#64]) (.var .local "pos")))))
+        .skip)
+      (fun r1 => r1 = .normal s.locals s.globals
+        (setCell (setCell s.memory (orderSlot v pos.toNat) moved) (nodeField v moved.toNat 16)
+          pos) s.ffi) := by
+  apply WPs.ite_both
+  intro w hw
+  simp only [evalF_cmp hE.word, evalF_local, h_pos, h_count, Option.some.injEq,
+    PanValue.word.injEq] at hw
+  by_cases hpc : pos = cnt1
+  · subst hpc
+    have hw0 : w = 0 := by rw [← hw]; simp [evalPanCmp]
+    rw [if_pos hw0]
+    apply WPs.skip
+    rw [setCell_same hmoved, setCell_same (hsame rfl)]
+  · have hw0 : w ≠ 0 := by rw [← hw]; simp [evalPanCmp, hpc]
+    rw [if_neg hw0]
+    refine WPs.dec (eval_load_rd hE (eval_addc hE 48#64 h_t) hord) ?_
+    refine WPs.dec (eval_load_rd hE (eval_ord hE hlay (idx := "count") hcnc (by lk [])
+      (by lk [h_count])) hmoved) ?_
+    refine WPs.seq_store hE (eval_ord hE hlay (idx := "pos") hpnc (by lk [])
+      (by lk [h_pos])) (of_eval (by lk [])) ?_
+    refine WPs.store hE (eval_node hE hlay (idx := "moved") hmnc (by lk [h_nodes])
+      (by lk []) 16#64 (by decide)) (of_eval (by lk [h_pos])) ?_
+    simp only [restorePanValueFfiLocal]
+    rw [restore_update, restore_update]
+    rfl
+
 end InitECandidate.Solver.GuestBound
