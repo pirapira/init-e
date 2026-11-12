@@ -62,6 +62,10 @@ theorem op_exchange_specM (hE : GuestEnv E) : HandlerSpecM E "op_exchange" :=
   HandlerSpec.toM (fun p b hl s M K e fv R X0 hok hh =>
     op_exchange_frame hE p b hl s M K e fv R X0 hok hh)
 
+theorem op_clz_specM (hE : GuestEnv E) : HandlerSpecM E "op_clz" :=
+  HandlerSpec.toM (fun p b hl s M K e fv R X0 hok hh =>
+    op_clz_frame hE p b hl s M K e fv R X0 hok hh)
+
 /-- A leaf of the dispatcher, from the handler's memory-level theorem. -/
 theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Word))
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
@@ -99,7 +103,7 @@ theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Wo
 
 /-- The handlers proved by hand at the memory level. -/
 def memOps : List FunName := ["op_mload", "op_mstore", "op_mstore8", "op_stop", "op_return", "op_revert", "op_swap",
-  "op_swapn", "op_exchange"]
+  "op_swapn", "op_exchange", "op_clz"]
 
 /-- The handlers still to be proved, at the memory level. -/
 def restOpsM : List FunName := restOps.filter (fun f => !memOps.contains f)
@@ -110,7 +114,7 @@ theorem handlers_provedM (hE : GuestEnv E) :
   rcases List.mem_append.mp hf with h1 | h2
   · exact (handlers_proved hE f h1).toM
   · simp only [memOps, List.mem_cons, List.not_mem_nil, or_false] at h2
-    rcases h2 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    rcases h2 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     · exact op_mload_specM hE
     · exact op_mstore_specM hE
     · exact op_mstore8_specM hE
@@ -120,6 +124,7 @@ theorem handlers_provedM (hE : GuestEnv E) :
     · exact op_swap_specM hE
     · exact op_swapn_specM hE
     · exact op_exchange_specM hE
+    · exact op_clz_specM hE
 
 /-- The dispatcher at the memory level. -/
 theorem op_dispatch_frameM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)

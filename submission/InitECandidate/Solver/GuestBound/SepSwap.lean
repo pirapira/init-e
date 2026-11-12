@@ -552,4 +552,32 @@ theorem op_exchange_frame (hE : GuestEnv E) (parameters : List VarName) (body : 
   exact op_return hok hp (by decide) h
     AcceptsH.refl.restore.restore.restore.restore.restore.restore.restore
 
+/-- `op_clz`. -/
+theorem op_clz_frame (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_clz" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 500 hE.functions (by guest_decl_at 500) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_charge hE 5#64 hok hp h AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_bit_length"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_bit_length" = true by
+        decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "u256_bit_length"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "u256_bit_length" = true by
+        decide +kernel))
+    h AcceptsH.refl.restore.abort (fun _ hsh_bl h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.restore.abort
+    (stack_push_word_any_hc hE (fun v hv => eval_op_word hE hv) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
 end InitECandidate.Solver.GuestBound
