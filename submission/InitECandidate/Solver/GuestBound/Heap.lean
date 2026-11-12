@@ -1,3 +1,4 @@
+import Mathlib.Tactic.IntervalCases
 import InitECandidate.Solver.GuestBound.Manual.Taylor
 
 /-!
@@ -109,13 +110,27 @@ theorem lower_zero {a b : Word} (h : evalPanCmp .lower a b = 0) : ¬ a < b := by
 /-- Clearing the low three bits, in the form the evaluator produces for `x & (0 - 8)`. -/
 theorem and_m8 (x : BitVec 64) :
     (AndOp.and x (AndOp.and (0#64 - 8#64) (~~~(0 : BitVec 64)))).toNat = x.toNat / 8 * 8 := by
-  have h : (x &&& ((0#64 - 8#64) &&& ~~~(0 : BitVec 64))) = (x >>> (3 : Nat)) <<< (3 : Nat) := by
-    bv_decide
-  show (x &&& ((0#64 - 8#64) &&& ~~~(0 : BitVec 64))).toNat = _
-  rw [h, BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight]
-  simp only [Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
+  have hmask : AndOp.and (0#64 - 8#64) (~~~(0 : BitVec 64)) = 18446744073709551608#64 := by
+    decide
+  rw [hmask]
+  have key : AndOp.and x (18446744073709551608#64 : BitVec 64) =
+      (x >>> (3 : Nat)) <<< (3 : Nat) := by
+    show x &&& 18446744073709551608#64 = (x >>> (3 : Nat)) <<< (3 : Nat)
+    apply BitVec.eq_of_getLsbD_eq
+    intro i hi
+    have hm : (18446744073709551608#64 : BitVec 64).getLsbD i = decide (3 ≤ i) := by
+      interval_cases i <;> decide
+    simp only [BitVec.getLsbD_and, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_ushiftRight, hm]
+    by_cases h3 : 3 ≤ i
+    · have e : 3 + (i - 3) = i := by omega
+      simp [h3, hi, e]
+    · simp [h3]
+  rw [key, BitVec.toNat_shiftLeft, BitVec.toNat_ushiftRight, Nat.shiftLeft_eq,
+    Nat.shiftRight_eq_div_pow]
   have := x.isLt
-  omega
+  have h8 : (2 : Nat) ^ 3 = 8 := by norm_num
+  rw [h8]
+  exact Nat.mod_eq_of_lt (by omega)
 
 /-- What a returning `alloc` did: the old `heap_ptr` is returned and the new
 one is aligned, past the block, and inside the heap; nothing else changed. -/
