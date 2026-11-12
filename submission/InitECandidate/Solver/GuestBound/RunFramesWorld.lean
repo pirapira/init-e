@@ -24,12 +24,15 @@ def Reg.info (Rg : Reg) : WInfo := ⟨Rg.live, Rg.B⟩
 /-- `run_frames` from a chain of frames over the world `WorldA Rg`, for a
 registry `Rg` that may change from step to step. Assumed: the handlers not yet
 proved (`hrest` for those that stay in their frame, `hcall` for the six that
-may push a frame), the step costs of the two blocks, and the `finish_child`
-branch. -/
+may push a frame), the step costs of the two blocks from invariant states,
+and the `finish_child` branch. -/
 theorem run_frames_bound_A (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E WorldA Reg.info f) (BD BF : Nat)
-    (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (costD : ∀ (a : St σ) (n : Nat), chainInv WorldA Reg.info n a.globals a.memory → rfPre E a →
+      CostAt E a rfDispatch BD)
+    (costF : ∀ (a : St σ) (n : Nat), chainInv WorldA Reg.info n a.globals a.memory →
+      CostAt E a rfEnd BF)
     (hC : ChildSpec E WorldA Reg.info)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))

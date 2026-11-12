@@ -1,4 +1,5 @@
 import InitECandidate.Solver.GuestBound.SepChain
+import InitECandidate.Solver.GuestBound.RunFramesLoopC
 
 /-!
 # Dispatch on a chain: handlers that may push a frame
@@ -285,21 +286,28 @@ theorem Fr.mu_le (F : Fr) : F.mu ≤ 4 * F.gas + 3 := by
   have hb : (if F.Z.fl.toNat = 0 then 1 else 0 : Nat) ≤ 1 := by split <;> omega
   omega
 
-/-- The loop interface on a chain, with handlers that may push frames; the
+/-- What is known when an opcode is dispatched: the two tests before it came out false. -/
+def rfPre (E : Env σ) (a : St σ) : Prop :=
+  (∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC1 = some (.word 0#64)) ∧
+    ∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC2 = some (.word 0#64)
+
+/-- The loop interface on a chain, with handlers that may push frames. The
+step costs of the two blocks are assumed for invariant states only; the
 end-of-frame block is assumed. -/
 noncomputable def rfChainC (W : ι → Assn) (D : ι → WInfo) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
-    (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (BD BF : Nat)
+    (costD : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory → rfPre E a →
+      CostAt E a rfDispatch BD)
+    (costF : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory → CostAt E a rfEnd BF)
     (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
       WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
         (l "go" = some (.word 0#64) ∨
           (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m)))) :
-    RfGhost E where
+    RfGhostC E where
   InvN := chainInv W D
-  DispatchPre := fun a =>
-    (∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC1 = some (.word 0#64)) ∧
-      ∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC2 = some (.word 0#64)
+  DispatchPre := rfPre E
   BD := BD
   BF := BF
   costD := costD
@@ -388,7 +396,10 @@ that may push frames. -/
 theorem run_frames_bound_chainC (W : ι → Assn) (D : ι → WInfo) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
-    (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (BD BF : Nat)
+    (costD : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory → rfPre E a →
+      CostAt E a rfDispatch BD)
+    (costF : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory → CostAt E a rfEnd BF)
     (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
       WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
         (l "go" = some (.word 0#64) ∨
@@ -398,7 +409,7 @@ theorem run_frames_bound_chainC (W : ι → Assn) (D : ι → WInfo) (hE : Guest
     (s : St σ) (k : Nat) (hI : chainInv W D k s.globals s.memory) (fuel : Nat) (r : Result σ)
     (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_ghost hE (rfChainC W D hE hrest hcall BD BF costD costF finish) parameters
+  run_frames_bound_ghostC hE (rfChainC W D hE hrest hcall BD BF costD costF finish) parameters
     body hlookup s k hI fuel r n hrun hne
 
 end InitECandidate.Solver.GuestBound

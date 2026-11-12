@@ -154,3 +154,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms WPr.decCall_alloc_world
 #print axioms WPr.seq_memcpy_world
 #print axioms child_teardown
+#print axioms run_frames_bound_ghostC
