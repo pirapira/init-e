@@ -1,0 +1,143 @@
+import InitECandidate.Solver.GuestBound.RfInstanceM
+import InitECandidate.Solver.GuestBound.KeyNibbles
+
+/-!
+# Big-endian writers into an owned range
+
+`st_be32(p, v)` writes four bytes at `p`. A byte store changes the word cell
+that contains the byte, so writing inside an owned range keeps the range (its
+contents are unknown anyway).
+-/
+
+namespace InitECandidate.Solver.GuestBound
+open Flapjack
+
+variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
+
+/-- `stb a, v; rest` when the word cell of the byte lies in an owned range. -/
+theorem WPr.seq_storeByte_range (hE : GuestEnv E) {a v : Exp Word} {q : Prog Word}
+    {addr lo hi : Word} {F : Assn} (hpre : (Assn.Range lo hi ⋆ F).holds s)
+    (ha : ∀ y, E.eval s a = some y → y = .word addr)
+    (hlo : lo.toNat ≤ addr.toNat / 8 * 8) (hhi : addr.toNat / 8 * 8 < hi.toNat)
+    (hq : ∀ m, (Assn.Range lo hi ⋆ F).holds (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) →
+      WPr E ⟨s.locals, s.globals, m, s.ffi⟩ q Q) :
+    WPr E s (.seq (.storeByte a v) q) Q := by
+  refine WPr.seq (fun s' => ∃ m, s' = ⟨s.locals, s.globals, m, s.ffi⟩ ∧
+    (Assn.Range lo hi ⋆ F).holds s') ?_ (by rintro _ ⟨m, rfl, hm⟩; exact hq m hm)
+  intro r hr
+  obtain ⟨fuel, n, hrun⟩ := hr
+  rcases storeByte_inv' hE.mem hrun with herr | ⟨addr', val, cell, ha', -, -, rfl, -⟩
+  · exact Or.inl herr
+  have := ha _ ha'
+  simp only [PanValue.word.injEq] at this
+  subst this
+  rw [hE.bytes]
+  have hal : (al8 addr').toNat = addr'.toNat / 8 * 8 := align8_toNat addr'
+  refine Or.inr ⟨_, rfl, Assn.holds_range_change hpre rfl (fun x hx => ?_)⟩
+  exact setCell_ne _ (by
+    intro hh
+    have := congrArg BitVec.toNat hh
+    rw [hal] at this
+    omega)
+
+/-- `x = f(args); rest` for a word-valued local `x` and a callee that changes
+nothing and never raises. -/
+theorem WPr.seq_callA_quiet {f : FunName} {args : List (Exp Word)} {x : VarName} {q : Prog Word}
+    {o : Word} (hx : s.locals x = some (.word o)) (hq : FunKeeps (quietKeeper E) f)
+    (hr : FunRaises E (fun _ => false) f) (htrap : ∀ r, Trap r → Q r)
+    (hk : ∀ w : Word, WPr E ⟨updatePanValueMap s.locals x (.word w), s.globals, s.memory, s.ffi⟩
+      q Q) :
+    WPr E s (.seq (.call (some (some (.local, x), none)) f args) q) Q := by
+  refine WPr.seq (fun s' => ∃ w : Word, s' = ⟨updatePanValueMap s.locals x (.word w), s.globals,
+    s.memory, s.ffi⟩) ?_ (by rintro _ ⟨w, rfl⟩; exact hk w)
+  intro r hr'
+  rcases runs_call_inv (some (some (.local, x))) hr' with herr | ⟨parameters, body, values, cl,
+    rb, hlookup, hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl herr
+  have hra := hr parameters body hlookup _ rb hcallee
+  obtain ⟨fuel, n, hrun⟩ := hcallee
+  have hkeep := hq parameters body hlookup fuel ⟨cl, s.globals, s.memory, s.ffi⟩ rb n hrun
+  cases rb with
+  | returned lr g m ffi vs =>
+    simp only [CallOutcome] at hout
+    rcases hout with herr | ⟨l', g', hassign, rfl⟩
+    · exact Or.inl herr
+    · obtain ⟨hg, hm, hf⟩ := hkeep
+      dsimp only [PanValueFfiControlResult.st] at hg hm hf
+      subst hg hm hf
+      cases vs with
+      | nil => simp [assignPanValueCallResult] at hassign
+      | cons v tl =>
+        cases tl with
+        | cons _ _ => simp [assignPanValueCallResult] at hassign
+        | nil =>
+          simp only [assignPanValueCallResult] at hassign
+          split at hassign
+          · rename_i hval
+            simp only [Option.some.injEq, Prod.mk.injEq] at hassign
+            obtain ⟨rfl, rfl⟩ := hassign
+            simp only [panValueAssignmentValid, hx, shape_word] at hval
+            obtain ⟨w, rfl⟩ := word_of_shape_one hval
+            exact Or.inr ⟨w, rfl⟩
+          · cases hassign
+  | raised lr g m ffi ex v =>
+    rcases hra with he | hx'
+    · cases he
+    · cases hx'
+  | finalFfi lr g m ffi ev =>
+    simp only [CallOutcome] at hout
+    subst hout
+    exact Or.inr (htrap _ trivial)
+  | _ =>
+    simp only [CallOutcome] at hout
+    exact Or.inl hout
+
+/-- `st_be32(p, v)` inside an owned range. -/
+theorem st_be32_framed (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "st_be32" E.functions = some (parameters, body))
+    (s : St σ) (p lo hi : Word) (hp : s.locals "p" = some (.word p))
+    (hl8 : lo.toNat % 8 = 0) (hlo : lo.toNat ≤ p.toNat) (hhi : p.toNat + 4 ≤ hi.toNat)
+    (hb : hi.toNat ≤ 2 ^ 62) :
+    WPFt E s body (Assn.Range lo hi)
+      (fun r => ⌜∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆ Assn.Range lo hi) := by
+  have hbody := (fun_of_index 27 hE.functions (by guest_decl_at 27) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  intro R hR
+  dsimp only
+  have h1 : (p + 1#64).toNat = p.toNat + 1 := by bv_omega
+  have h2 : (p + 2#64).toNat = p.toNat + 2 := by bv_omega
+  have h3 : (p + 3#64).toNat = p.toNat + 3 := by bv_omega
+  refine WPr.seq_storeByte_range hE hR (addr := p) (of_eval (by lk [hp])) (by omega) (by omega)
+    (fun m1 hm1 => ?_)
+  refine WPr.seq_storeByte_range hE hm1 (addr := p + 1#64) (of_eval (by ev [hp])) (by omega)
+    (by omega) (fun m2 hm2 => ?_)
+  refine WPr.seq_storeByte_range hE hm2 (addr := p + 2#64) (of_eval (by ev [hp])) (by omega)
+    (by omega) (fun m3 hm3 => ?_)
+  refine WPr.seq_storeByte_range hE hm3 (addr := p + 3#64) (of_eval (by ev [hp])) (by omega)
+    (by omega) (fun m4 hm4 => ?_)
+  exact WPr.ret (w := 0#64) (of_eval (eval_const _ _))
+    (Or.inr (Assn.holds_pure_intro ⟨_, _, _, rfl⟩ (Assn.holds_congr rfl rfl hm4)))
+
+/-- `st_be32(e1, e2)` at a call site where the first argument evaluates to `p`. -/
+theorem st_be32_hc (hE : GuestEnv E) {args : List (Exp Word)} {p : Word} {v : PanValue Word}
+    (hargs : E.evalArgs s args = some [.word p, v]) (lo hi : Word)
+    (hl8 : lo.toNat % 8 = 0) (hlo : lo.toNat ≤ p.toNat) (hhi : p.toNat + 4 ≤ hi.toNat)
+    (hb : hi.toNat ≤ 2 ^ 62) :
+    ∀ parameters cbody values cl,
+      lookupPanFunction "st_be32" E.functions = some (parameters, cbody) →
+      E.evalArgs s args = some values →
+      bindPanValueParameters parameters values = some cl →
+      WPFt E ⟨cl, s.globals, s.memory, s.ffi⟩ cbody (Assn.Range lo hi)
+        (fun r => ⌜∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆ Assn.Range lo hi) := by
+  intro parameters cbody values cl hlk hvalues hbind
+  have hparams := (fun_of_index 27 hE.functions (by guest_decl_at 27) (by decide +kernel)
+    hlk).2
+  rw [hargs] at hvalues
+  cases hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  exact st_be32_framed hE parameters cbody hlk ⟨cl, s.globals, s.memory, s.ffi⟩ p lo hi
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hl8 hlo hhi hb
+
+end InitECandidate.Solver.GuestBound
