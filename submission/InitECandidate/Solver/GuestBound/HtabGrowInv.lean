@@ -1,3 +1,4 @@
+import InitECandidate.Solver.GuestBound.MemEqGen
 import InitECandidate.Solver.GuestBound.HtabGrow
 import InitECandidate.Solver.GuestBound.HtabDelInv
 
@@ -165,5 +166,175 @@ theorem KeyBitIs.of_bytes {kp kp' j : Word} {bit : Bool}
           RiscV.panRiscVGetByte 8#64 (kp + a) c0 := hb
       exact hold a c0 y hs hm (by rw [← hb']; exact hy)
     | _ => rw [hm] at hb; cases hb
+
+theorem byteAt_congr {M M' : Word → Option (PanValue Word)} {X : Word}
+    (h : M (al8 X) = M' (al8 X)) : byteAt M X = byteAt M' X := by
+  unfold byteAt
+  rw [h]
+
+set_option maxHeartbeats 4000000 in
+/-- After `htab_grow` the table is well formed at its new blocks, with twice the capacity. -/
+theorem htab_grow_ok (hok : HtabOK m t v kind rep) {pv N O q : Word}
+    {mF : Word → Option (PanValue Word)} (hpH : InHeap pv)
+    (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (R : GrowRel m t v pv N O q mF) :
+    HtabOK mF t ⟨v.kl, v.st, v.cp * 2#64, v.nc * 2#64, v.cnt, pv, N, O, v.root, v.next, v.free⟩
+      kind rep := by
+  obtain ⟨hN, inN, hO, inO, hq, inq, m1, m2, m3, c1, c2, c3, rfl⟩ := R
+  have hwf := hok.wf
+  have hlay := hwf.layout
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+  obtain ⟨hple, hp8⟩ := hpH
+  obtain ⟨hNle, hN8⟩ := inN
+  obtain ⟨hOle, hO8⟩ := inO
+  obtain ⟨hqle, hq8⟩ := inq
+  have h2 : (2#64 : Word).toNat = 2 := by decide
+  have hncs : v.nc.toNat < 2 ^ 27 := by omega
+  have hnc2 : (v.nc * 2#64).toNat = v.nc.toNat * 2 := by
+    rw [BitVec.toNat_mul, h2]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hbig : (v.nc.toNat + 1) * v.st.toNat ≤ (v.nc.toNat * 2 + 1) * v.st.toNat :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hT : ∀ k, k < 88 → (t + BitVec.ofNat 64 k).toNat = t.toNat + k :=
+    fun k hk => hdr_toNat hlay hk
+  have E1 : ∀ A : Word, A.toNat + 8 ≤ pv.toNat → m1 A = m A := fun A hA => c1.cells A (Or.inl hA)
+  have E2 : ∀ A : Word, A.toNat + 8 ≤ N.toNat → m2 A = setCell m1 (t + 32#64) pv A :=
+    fun A hA => c2.cells A (Or.inl hA)
+  have E3 : ∀ A : Word, A.toNat + 8 ≤ O.toNat → m3 A = setCell m2 (t + 40#64) N A :=
+    fun A hA => c3.cells A (Or.inl hA)
+  have hneT : ∀ (A : Word) (k : Nat), k < 88 → t.toNat + k ≠ A.toNat → A ≠ t + BitVec.ofNat 64 k := by
+    intro A k hk hne h
+    rw [h, hT k hk] at hne
+    exact hne rfl
+  -- cells from the heap pointer on are untouched by the header stores
+  have hF : ∀ A : Word, pv.toNat ≤ A.toNat →
+      setCell (setCell (setCell m3 (t + 48#64) O) (t + 16#64) (v.cp * 2#64)) (t + 80#64)
+        (v.nc * 2#64) A = m3 A := by
+    intro A hA
+    rw [setCell_ne' _ (hneT A 80 (by omega) (by omega)),
+      setCell_ne' _ (hneT A 16 (by omega) (by omega)),
+      setCell_ne' _ (hneT A 48 (by omega) (by omega))]
+  have hH : ∀ k, k < 88 → k ≠ 16 → k ≠ 32 → k ≠ 40 → k ≠ 48 → k ≠ 80 →
+      setCell (setCell (setCell m3 (t + 48#64) O) (t + 16#64) (v.cp * 2#64)) (t + 80#64)
+        (v.nc * 2#64) (t + BitVec.ofNat 64 k) = m (t + BitVec.ofNat 64 k) := by
+    intro k hk k16 k32 k40 k48 k80
+    have hk8 : (t + BitVec.ofNat 64 k).toNat = t.toNat + k := hT k hk
+    rw [setCell_ne' _ (hneT _ 80 (by omega) (by omega)),
+      setCell_ne' _ (hneT _ 16 (by omega) (by omega)),
+      setCell_ne' _ (hneT _ 48 (by omega) (by omega)), E3 _ (by omega),
+      setCell_ne' _ (hneT _ 40 (by omega) (by omega)), E2 _ (by omega),
+      setCell_ne' _ (hneT _ 32 (by omega) (by omega)), E1 _ (by omega)]
+  refine HtabOK.transport hok (by rw [hnc2]; omega) ?_ ?_ hp8 hN8 hO8 ?_ ?_ ?_
+  · -- layout
+    refine ⟨by show t.toNat + 88 ≤ pv.toNat; omega, ?_, ?_, ?_⟩
+    · show pv.toNat + ((v.nc * 2#64).toNat + 1) * v.st.toNat ≤ N.toNat
+      rw [hnc2]
+      exact hN
+    · show N.toNat + ((v.nc * 2#64).toNat + 1) * 32 ≤ O.toNat
+      rw [hnc2]
+      exact hO
+    · show O.toNat + ((v.nc * 2#64).toNat + 1) * 8 ≤ 2952790016
+      rw [hnc2]
+      omega
+  · -- header
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · unfold Rd; rw [hH 0 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hkl
+    · unfold Rd; rw [hH 8 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hst
+    · unfold Rd
+      rw [setCell_ne' _ (hneT _ 80 (by omega) (by rw [hT 16 (by omega)]; omega))]
+      exact Rd.here _ _ _
+    · unfold Rd; rw [hH 24 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hcnt
+    · unfold Rd
+      rw [setCell_ne' _ (hneT _ 80 (by omega) (by rw [hT 32 (by omega)]; omega)),
+        setCell_ne' _ (hneT _ 16 (by omega) (by rw [hT 32 (by omega)]; omega)),
+        setCell_ne' _ (hneT _ 48 (by omega) (by rw [hT 32 (by omega)]; omega)),
+        E3 _ (by rw [hT 32 (by omega)]; omega),
+        setCell_ne' _ (hneT _ 40 (by omega) (by rw [hT 32 (by omega)]; omega)),
+        E2 _ (by rw [hT 32 (by omega)]; omega)]
+      exact Rd.here _ _ _
+    · unfold Rd
+      rw [setCell_ne' _ (hneT _ 80 (by omega) (by rw [hT 40 (by omega)]; omega)),
+        setCell_ne' _ (hneT _ 16 (by omega) (by rw [hT 40 (by omega)]; omega)),
+        setCell_ne' _ (hneT _ 48 (by omega) (by rw [hT 40 (by omega)]; omega)),
+        E3 _ (by rw [hT 40 (by omega)]; omega)]
+      exact Rd.here _ _ _
+    · unfold Rd
+      rw [setCell_ne' _ (hneT _ 80 (by omega) (by rw [hT 48 (by omega)]; omega)),
+        setCell_ne' _ (hneT _ 16 (by omega) (by rw [hT 48 (by omega)]; omega))]
+      exact Rd.here _ _ _
+    · unfold Rd; rw [hH 56 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hroot
+    · unfold Rd; rw [hH 64 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hnext
+    · unfold Rd; rw [hH 72 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)]
+      exact hfree
+    · exact Rd.here _ _ _
+  · -- node cells
+    intro i o w hi ho ho8
+    have hX : (off N (i * 32 + o)).toNat = N.toNat + (i * 32 + o) := off_toNat (by omega)
+    have hY : (off v.nodes (i * 32 + o)).toNat = v.nodes.toNat + (i * 32 + o) :=
+      off_toNat (by omega)
+    show Rd _ (off N (i * 32 + o)) w ↔ Rd m (off v.nodes (i * 32 + o)) w
+    have e1 : setCell (setCell (setCell m3 (t + 48#64) O) (t + 16#64) (v.cp * 2#64)) (t + 80#64)
+        (v.nc * 2#64) (off N (i * 32 + o)) = m2 (off N (i * 32 + o)) := by
+      rw [hF _ (by omega), E3 _ (by omega), setCell_ne' _ (hneT _ 40 (by omega) (by omega))]
+    have e2 : setCell m1 (t + 32#64) pv (off v.nodes (i * 32 + o)) =
+        m (off v.nodes (i * 32 + o)) := by
+      rw [setCell_ne' _ (hneT _ 32 (by omega) (by omega)), E1 _ (by omega)]
+    unfold Rd
+    rw [e1, ← e2]
+    exact rd_iff_bytes w (by omega) (by have := hok.nodes8; omega) (by omega) (by omega)
+      (fun k hk => by rw [off_off, off_off]; exact c2.copied _ (by omega))
+  · -- order slots
+    intro p w hp
+    have hX : (off O (p * 8)).toNat = O.toNat + p * 8 := off_toNat (by omega)
+    have hY : (off v.order (p * 8)).toNat = v.order.toNat + p * 8 := off_toNat (by omega)
+    show Rd _ (off O (p * 8)) w ↔ Rd m (off v.order (p * 8)) w
+    have e1 : setCell (setCell (setCell m3 (t + 48#64) O) (t + 16#64) (v.cp * 2#64)) (t + 80#64)
+        (v.nc * 2#64) (off O (p * 8)) = m3 (off O (p * 8)) := hF _ (by omega)
+    have e2 : setCell m2 (t + 40#64) N (off v.order (p * 8)) = m (off v.order (p * 8)) := by
+      rw [setCell_ne' _ (hneT _ 40 (by omega) (by omega)), E2 _ (by omega),
+        setCell_ne' _ (hneT _ 32 (by omega) (by omega)), E1 _ (by omega)]
+    unfold Rd
+    rw [e1, ← e2]
+    exact rd_iff_bytes w (by omega) (by have := hok.order8; omega) (by omega) (by omega)
+      (fun k hk => by rw [off_off, off_off]; exact c3.copied _ (by omega))
+  · -- key bits
+    intro i hi j bit hj hold
+    refine KeyBitIs.of_bytes ?_ hold
+    intro a ha
+    have h8 : (8#64 : Word).toNat = 8 := by decide
+    have hkl8 : (v.kl * 8#64).toNat = v.kl.toNat * 8 := by
+      rw [BitVec.toNat_mul, h8]
+      exact Nat.mod_eq_of_lt hok.kl8
+    have hklst := hok.kl_st
+    have hle : i * v.st.toNat + v.st.toNat ≤ (v.nc.toNat + 1) * v.st.toNat := by
+      have : (i + 1) * v.st.toNat ≤ (v.nc.toNat + 1) * v.st.toNat :=
+        Nat.mul_le_mul_right _ (by omega)
+      have e : (i + 1) * v.st.toNat = i * v.st.toNat + v.st.toNat := by ring
+      omega
+    have hmul : (BitVec.ofNat 64 i * v.st).toNat = i * v.st.toNat := by
+      have hi64 : i % 2 ^ 64 = i := Nat.mod_eq_of_lt (by omega)
+      rw [BitVec.toNat_mul, BitVec.toNat_ofNat, hi64]
+      exact Nat.mod_eq_of_lt (by omega)
+    have eK : pv + BitVec.ofNat 64 i * v.st + a = off pv (i * v.st.toNat + a.toNat) := by
+      apply BitVec.eq_of_toNat_eq
+      rw [off_toNat (by omega), BitVec.toNat_add, BitVec.toNat_add, hmul]
+      omega
+    have eS : v.keys + BitVec.ofNat 64 i * v.st + a = off v.keys (i * v.st.toNat + a.toNat) := by
+      apply BitVec.eq_of_toNat_eq
+      rw [off_toNat (by omega), BitVec.toNat_add, BitVec.toNat_add, hmul]
+      omega
+    rw [eK, eS, ← c1.copied _ (by omega)]
+    apply byteAt_congr
+    have hX : (off pv (i * v.st.toNat + a.toNat)).toNat = pv.toNat + (i * v.st.toNat + a.toNat) :=
+      off_toNat (by omega)
+    have hC : (al8 (off pv (i * v.st.toNat + a.toNat))).toNat =
+        (pv.toNat + (i * v.st.toNat + a.toNat)) / 8 * 8 := by rw [align8_toNat, hX]
+    rw [hF _ (by omega), E3 _ (by omega), setCell_ne' _ (hneT _ 40 (by omega) (by omega)),
+      E2 _ (by omega), setCell_ne' _ (hneT _ 32 (by omega) (by omega))]
 
 end InitECandidate.Solver.GuestBound
