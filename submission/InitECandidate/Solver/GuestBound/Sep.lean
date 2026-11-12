@@ -27,7 +27,11 @@ inductive Key where
   | glob (x : VarName)
   deriving DecidableEq
 
-abbrev Heap := Key → Option (PanValue Word)
+/-- The memory and globals of a state. -/
+abbrev View := Key → Option (PanValue Word)
+
+/-- An owned part of a view: each owned key with its content (possibly undefined). -/
+abbrev Heap := Key → Option (Option (PanValue Word))
 
 namespace Heap
 
@@ -38,11 +42,11 @@ def union (h1 h2 : Heap) : Heap := fun k =>
   | some v => some v
   | none => h2 k
 
-def Sub (h V : Heap) : Prop := ∀ k v, h k = some v → V k = some v
+def Sub (h : Heap) (V : View) : Prop := ∀ k c, h k = some c → V k = c
 
 def empty : Heap := fun _ => none
 
-def single (k : Key) (v : PanValue Word) : Heap := fun k' => if k' = k then some v else none
+def single (k : Key) (v : Option (PanValue Word)) : Heap := fun k' => if k' = k then some v else none
 
 theorem Disj.symm {h1 h2 : Heap} (h : Disj h1 h2) : Disj h2 h1 := fun k => (h k).symm
 
@@ -92,7 +96,7 @@ theorem disj_union_right {a b c : Heap} : Disj a (union b c) ↔ Disj a b ∧ Di
   · rintro ⟨h1, h2⟩
     exact (disj_union_left.mpr ⟨h1.symm, h2.symm⟩).symm
 
-theorem sub_union {a b V : Heap} (hd : Disj a b) : Sub (union a b) V ↔ Sub a V ∧ Sub b V := by
+theorem sub_union {a b : Heap} {V : View} (hd : Disj a b) : Sub (union a b) V ↔ Sub a V ∧ Sub b V := by
   constructor
   · intro h
     refine ⟨fun k v hk => h k v ?_, fun k v hk => h k v ?_⟩
@@ -106,10 +110,10 @@ theorem sub_union {a b V : Heap} (hd : Disj a b) : Sub (union a b) V ↔ Sub a V
     | some x => rw [e] at hk; exact h1 k v (e.trans hk)
     | none => rw [e] at hk; exact h2 k v hk
 
-theorem single_self (k : Key) (v : PanValue Word) : single k v k = some v := by
+theorem single_self (k : Key) (v : Option (PanValue Word)) : single k v k = some v := by
   simp [single]
 
-theorem single_ne {k k' : Key} (v : PanValue Word) (h : k' ≠ k) : single k v k' = none := by
+theorem single_ne {k k' : Key} (v : Option (PanValue Word)) (h : k' ≠ k) : single k v k' = none := by
   simp [single, h]
 
 end Heap
@@ -127,13 +131,16 @@ def emp : Assn := fun h => h = Heap.empty
 /-- A fact that owns nothing. -/
 def pure (φ : Prop) : Assn := fun h => φ ∧ h = Heap.empty
 
+/-- The key `k` is owned, with content `c` (`none`: undefined). -/
+def cell (k : Key) (c : Option (PanValue Word)) : Assn := fun h => h = Heap.single k c
+
 /-- The cell or global `k` holds `v`. -/
-def pts (k : Key) (v : PanValue Word) : Assn := fun h => h = Heap.single k v
+def pts (k : Key) (v : PanValue Word) : Assn := cell k (some v)
 
 def ex {α : Sort _} (P : α → Assn) : Assn := fun h => ∃ x, P x h
 
 /-- Some heap satisfying `P` is contained in `V`. -/
-def holdsV (P : Assn) (V : Heap) : Prop := ∃ h, Heap.Sub h V ∧ P h
+def holdsV (P : Assn) (V : View) : Prop := ∃ h, Heap.Sub h V ∧ P h
 
 end Assn
 
@@ -168,20 +175,20 @@ theorem sep_mono {P P' Q Q' : Assn} (hp : ∀ h, P h → P' h) (hq : ∀ h, Q h 
   rintro h ⟨h1, h2, hd, rfl, h1p, h2q⟩
   exact ⟨h1, h2, hd, rfl, hp h1 h1p, hq h2 h2q⟩
 
-theorem holdsV_mono {P P' : Assn} {V : Heap} (hp : ∀ h, P h → P' h) (h : P.holdsV V) :
+theorem holdsV_mono {P P' : Assn} {V : View} (hp : ∀ h, P h → P' h) (h : P.holdsV V) :
     P'.holdsV V := by
   obtain ⟨h0, hs, h0p⟩ := h
   exact ⟨h0, hs, hp h0 h0p⟩
 
 /-- A pure fact in front of an assertion. -/
-theorem holdsV_pure {φ : Prop} {P : Assn} {V : Heap} : (⌜φ⌝ ⋆ P).holdsV V ↔ φ ∧ P.holdsV V := by
+theorem holdsV_pure {φ : Prop} {P : Assn} {V : View} : (⌜φ⌝ ⋆ P).holdsV V ↔ φ ∧ P.holdsV V := by
   constructor
   · rintro ⟨h, hs, h1, h2, -, rfl, ⟨hφ, rfl⟩, hp⟩
     exact ⟨hφ, h2, hs, hp⟩
   · rintro ⟨hφ, h, hs, hp⟩
     exact ⟨h, hs, Heap.empty, h, Heap.disj_empty h, rfl, ⟨hφ, rfl⟩, hp⟩
 
-theorem holdsV_ex {α : Sort _} {P : α → Assn} {R : Assn} {V : Heap} :
+theorem holdsV_ex {α : Sort _} {P : α → Assn} {R : Assn} {V : View} :
     (ex P ⋆ R).holdsV V ↔ ∃ x, (P x ⋆ R).holdsV V := by
   constructor
   · rintro ⟨h, hs, h1, h2, hd, rfl, ⟨x, hx⟩, hr⟩
@@ -190,33 +197,31 @@ theorem holdsV_ex {α : Sort _} {P : α → Assn} {R : Assn} {V : Heap} :
     exact ⟨_, hs, h1, h2, hd, rfl, ⟨x, hx⟩, hr⟩
 
 /-- An owned key has its value in the state. -/
-theorem holdsV_pts {k : Key} {v : PanValue Word} {R : Assn} {V : Heap}
+theorem holdsV_pts {k : Key} {v : PanValue Word} {R : Assn} {V : View}
     (h : (k ↦ v ⋆ R).holdsV V) : V k = some v := by
   obtain ⟨h0, hs, h1, h2, hd, rfl, rfl, -⟩ := h
-  apply hs
-  unfold Heap.union
-  rw [Heap.single_self]
+  exact hs k (some v) (by unfold Heap.union; rw [Heap.single_self])
 
 /-- Changing an owned key keeps the frame. -/
-theorem holdsV_update {k : Key} {v w : PanValue Word} {R : Assn} {V V' : Heap}
-    (h : (k ↦ v ⋆ R).holdsV V) (hk : V' k = some w) (ho : ∀ k', k' ≠ k → V' k' = V k') :
+theorem holdsV_update {k : Key} {c : Option (PanValue Word)} {w : PanValue Word} {R : Assn}
+    {V V' : View} (h : (Assn.cell k c ⋆ R).holdsV V) (hk : V' k = some w) (ho : ∀ k', k' ≠ k → V' k' = V k') :
     (k ↦ w ⋆ R).holdsV V' := by
   obtain ⟨h0, hs, h1, h2, hd, rfl, rfl, hr⟩ := h
   have h2k : h2 k = none := by
     rcases hd k with e | e
     · rw [Heap.single_self] at e; cases e
     · exact e
-  have hd' : Heap.Disj (Heap.single k w) h2 := by
+  have hd' : Heap.Disj (Heap.single k (some w)) h2 := by
     intro k'
     by_cases e : k' = k
     · subst e; exact Or.inr h2k
-    · exact Or.inl (Heap.single_ne w e)
+    · exact Or.inl (Heap.single_ne (some w) e)
   obtain ⟨-, hs2⟩ := (Heap.sub_union hd).mp hs
   refine ⟨_, (Heap.sub_union hd').mpr ⟨?_, ?_⟩, _, h2, hd', rfl, rfl, hr⟩
   · intro k' x hx
     by_cases e : k' = k
-    · subst e; rw [Heap.single_self] at hx; rw [hk]; exact hx
-    · rw [Heap.single_ne w e] at hx; cases hx
+    · subst e; rw [Heap.single_self] at hx; cases hx; exact hk
+    · rw [Heap.single_ne (some w) e] at hx; cases hx
   · intro k' x hx
     have e : k' ≠ k := by
       rintro rfl
@@ -229,7 +234,7 @@ end Assn
 variable {σ : Type}
 
 /-- The memory and globals of a state as one heap. -/
-def St.view (s : St σ) : Heap
+def St.view (s : St σ) : View
   | .mem a => s.memory a
   | .glob x => s.globals x
 

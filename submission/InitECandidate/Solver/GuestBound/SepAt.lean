@@ -13,14 +13,14 @@ namespace InitECandidate.Solver.GuestBound
 open Flapjack
 
 /-- `V'` is `V` with `w` at `k`. -/
-def Upd (V V' : Heap) (k : Key) (w : PanValue Word) : Prop :=
+def Upd (V V' : View) (k : Key) (w : PanValue Word) : Prop :=
   V' k = some w ∧ ∀ k', k' ≠ k → V' k' = V k'
 
 def Look (k : Key) (v : PanValue Word) (X : Assn) : Prop :=
-  ∀ (V : Heap) (R : Assn), (X ⋆ R).holdsV V → V k = some v
+  ∀ (V : View) (R : Assn), (X ⋆ R).holdsV V → V k = some v
 
 def Step (k : Key) (w : PanValue Word) (X X' : Assn) : Prop :=
-  ∀ (V V' : Heap) (R : Assn), Upd V V' k w → (X ⋆ R).holdsV V → (X' ⋆ R).holdsV V'
+  ∀ (V V' : View) (R : Assn), Upd V V' k w → (X ⋆ R).holdsV V → (X' ⋆ R).holdsV V'
 
 theorem Look.here {k : Key} {v : PanValue Word} : Look k v (k ↦ v) :=
   fun _ _ h => Assn.holdsV_pts h
