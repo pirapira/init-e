@@ -173,6 +173,92 @@ theorem layout_declarations (state state' : PanValueProgramState Word)
     have := layout_withStructs structs memoryAccess declarations _ state' h
     exact this
 
+/-- The constant the last declaration of global `x` assigns, if that declaration
+has a constant initializer; `acc` is the value before the list. -/
+def finalConst (x : VarName) : List (Decl Word) → Option Word → Option Word
+  | [], acc => acc
+  | .decl _ name e :: rest, acc =>
+      finalConst x rest (if name == x then
+        (match e with
+          | .const k => some k
+          | _ => none) else acc)
+  | _ :: rest, acc => finalConst x rest acc
+
+/-- A global whose last declaration has a constant initializer holds that constant. -/
+theorem globals_withStructs (structs : StructContext)
+    (memoryAccess : Option (PanValueMemoryAccess Word)) (x : VarName) :
+    (declarations : List (Decl Word)) → (state state' : PanValueProgramState Word) →
+    (acc : Option Word) → (k : Word) →
+    evalPanValueDeclarationsWithStructs structs state declarations
+      (memoryAccess := memoryAccess) = some state' →
+    (∀ k0, acc = some k0 → state.globals x = some (.word k0)) →
+    finalConst x declarations acc = some k → state'.globals x = some (.word k)
+  | [], state, state', acc, k, h, hacc, hfin => by
+      simp only [evalPanValueDeclarationsWithStructs, Option.some.injEq] at h
+      subst h
+      exact hacc k hfin
+  | .name _ _ :: rest, state, state', acc, k, h, hacc, hfin => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      exact globals_withStructs structs memoryAccess x rest state state' acc k h hacc hfin
+  | .decl shape name expression :: rest, state, state', acc, k, h, hacc, hfin => by
+      simp only [evalPanValueDeclarationsWithStructs, Option.bind_eq_bind] at h
+      cases hv : evalPanValueExp structs (fun _ => none) state.globals state.memory
+          state.baseAddress state.topAddress state.bytesInWord expression
+          (memoryAccess := memoryAccess) with
+      | none => rw [hv] at h; simp at h
+      | some value =>
+        rw [hv] at h
+        simp only [Option.bind_some] at h
+        split at h
+        · refine globals_withStructs structs memoryAccess x rest _ state' _ k h ?_ hfin
+          intro k0 hk0
+          show updatePanValueMap state.globals name value x = some (.word k0)
+          by_cases hn : (name == x) = true
+          · rw [if_pos hn] at hk0
+            have hx : (x == name) = true := by rw [BEq.comm]; exact hn
+            simp only [updatePanValueMap, hx, if_true]
+            split at hk0
+            · rename_i c
+              simp only [Option.some.injEq] at hk0
+              subst hk0
+              simp [evalPanValueExp] at hv
+              rw [hv]
+            · cases hk0
+          · rw [if_neg hn] at hk0
+            have hx : (x == name) = false := by
+              rw [BEq.comm]
+              simpa using hn
+            simp only [updatePanValueMap, hx]
+            exact hacc k0 hk0
+        · simp at h
+  | .function declaration :: rest, state, state', acc, k, h, hacc, hfin => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      split at h
+      · exact globals_withStructs structs memoryAccess x rest _ state' acc k h hacc hfin
+      · simp at h
+  | .exnDecl exception shape :: rest, state, state', acc, k, h, hacc, hfin => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      split at h
+      · simp at h
+      · split at h
+        · exact globals_withStructs structs memoryAccess x rest _ state' acc k h hacc hfin
+        · simp at h
+
+theorem globals_declarations (state state' : PanValueProgramState Word)
+    (declarations : List (Decl Word)) (memoryAccess : Option (PanValueMemoryAccess Word))
+    (x : VarName) (k : Word)
+    (h : evalPanValueDeclarations state declarations (memoryAccess := memoryAccess) =
+      some state') (hfin : finalConst x declarations none = some k) :
+    state'.globals x = some (.word k) := by
+  simp only [evalPanValueDeclarations, Option.bind_eq_bind] at h
+  cases hs : collectPanValueStructs declarations state.structs with
+  | none => rw [hs] at h; simp at h
+  | some structs =>
+    rw [hs] at h
+    simp only [Option.bind_some] at h
+    exact globals_withStructs structs memoryAccess x declarations _ state' none k h
+      (fun _ hk => by cases hk) hfin
+
 /-- No function declaration other than the one at position `i` is named `f`
 (`j` is the position of the head of the list). -/
 def uniqueAt (f : FunName) (i : Nat) : List (Decl Word) → Nat → Bool
