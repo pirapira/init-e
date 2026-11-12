@@ -167,4 +167,157 @@ theorem htab_new_node_exec (hE : GuestEnv E) (parameters : List VarName) (body :
     refine WPs.ret (of_eval (w := v.free) (by lk [])) ?_
     exact ⟨_, _, _, _, rfl, Or.inl ⟨hf0, rfl, rfl, nf, hnf, rfl⟩⟩
 
+variable {m : Word → Option (PanValue Word)} {t : Word} {v : HtabV} {kind : Nat → NodeKind}
+  {rep : KeyRep}
+
+/-- A header store does not change a node cell. -/
+theorem rd_hdrSet_node (hlay : HtabLayout t v) {i o k : Nat} (hi : i ≤ v.nc.toNat) (ho : o < 32)
+    (hk : k < 88) (x w : Word) :
+    Rd (setCell m (t + BitVec.ofNat 64 k) x) (v.nodes + BitVec.ofNat 64 (i * 32 + o)) w ↔
+      Rd m (nodeField v i o) w := by
+  show Rd _ (nodeField v i o) w ↔ _
+  unfold Rd
+  rw [setCell_ne' _ (fun h => (node_ne_hdr hlay hi ho hk).mp h)]
+
+/-- A header store does not change an order slot. -/
+theorem rd_hdrSet_ord (hlay : HtabLayout t v) {p k : Nat} (hp : p ≤ v.nc.toNat) (hk : k < 88)
+    (x w : Word) :
+    Rd (setCell m (t + BitVec.ofNat 64 k) x) (v.order + BitVec.ofNat 64 (p * 8)) w ↔
+      Rd m (orderSlot v p) w := by
+  show Rd _ (orderSlot v p) w ↔ _
+  unfold Rd
+  rw [setCell_ne' _ (fun h => (ord_ne_hdr hlay hp hk).mp h)]
+
+/-- Key bits survive any change outside the key block. -/
+theorem keybit_frame (hlay : HtabLayout t v) (hk8 : v.keys.toNat % 8 = 0)
+    (hkl : v.kl.toNat ≤ v.st.toNat) (hkl8 : v.kl.toNat * 8 < 2 ^ 64)
+    {m' : Word → Option (PanValue Word)}
+    (hK : ∀ a : Word, v.keys.toNat ≤ a.toNat → a.toNat < v.nodes.toNat → m' a = m a) {i : Nat}
+    (hi : i ≤ v.nc.toNat) {j : Word} {bit : Bool} (hj : j.toNat < (v.kl * 8#64).toNat)
+    (h : KeyBitIs 8#64 m (v.keys + BitVec.ofNat 64 i * v.st) j bit) :
+    KeyBitIs 8#64 m' (v.keys + BitVec.ofNat 64 i * v.st) j bit := by
+  obtain ⟨hkp, hkp'⟩ := keyptr_bounds hlay hi
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  have hmul : (v.kl * 8#64).toNat = v.kl.toNat * 8 := by
+    rw [BitVec.toNat_mul, h8]
+    exact Nat.mod_eq_of_lt hkl8
+  obtain ⟨-, -, -, h4⟩ := hlay
+  exact KeyBitIs.frame (lo := v.keys.toNat) (hi := v.nodes.toNat) hk8 (by omega) (by omega)
+    (by omega) hK h
+
+set_option maxHeartbeats 4000000 in
+/-- After `htab_new_node` the table is well formed again, and the node it
+returned is a free node that is not on the free list. -/
+theorem htab_new_node_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
+    {g g' : VarName → Option (PanValue Word)} {pv n : Word}
+    {m' : Word → Option (PanValue Word)}
+    (hrel : NewNodeRel m t v kind rep det g pv m' g' n) :
+    ∃ v' kind', HtabOKd m' t v' kind' rep det ∧ v'.kl = v.kl ∧ v'.st = v.st ∧ v'.cnt = v.cnt ∧
+      v'.root = v.root ∧ 1 ≤ n.toNat ∧ n.toNat < v'.next.toNat ∧ kind' n.toNat = .free ∧
+      (∃ fl, FreeChain m' v' kind' v'.free fl ∧ n.toNat ∉ fl) ∧
+      (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
+      v.next.toNat ≤ v'.next.toNat := by
+  rcases hrel with ⟨hf0, rfl, -, nf, hnf, rfl⟩ | ⟨hf0, rfl, m1, v1, ⟨hok1, e1, e2, e3, e4, e5, e6,
+    hle, -⟩, rfl⟩
+  · -- popped the free list
+    have hwf := hok.wf
+    have hlay := hwf.layout
+    have hnl := hwf.next_le
+    obtain ⟨fl, hfl⟩ := hwf.free_chain
+    cases fl with
+    | nil => exact absurd hfl hf0
+    | cons i rest =>
+      obtain ⟨hi, a, b, hki, hnot, f, hf, hc⟩ := hfl
+      subst hi
+      have := Rd.inj hf hnf
+      subst this
+      obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+      have hne : ∀ k, k < 88 → k ≠ 72 → t + BitVec.ofNat 64 k ≠ t + 72#64 :=
+        fun k hk hkk h => hkk ((hdr_eq_hdr hlay hk (by omega)).mp h)
+      have hmem := FreeChain.kind_mem rest f hc
+      have hchain : FreeChain (setCell m (t + 72#64) f)
+          ⟨v.kl, v.st, v.cp, v.nc, v.cnt, v.keys, v.nodes, v.order, v.root, v.next, f⟩ kind f
+          rest :=
+        FreeChain.congr (v := v) (kind := kind)
+          (v' := ⟨v.kl, v.st, v.cp, v.nc, v.cnt, v.keys, v.nodes, v.order, v.root, v.next, f⟩)
+          (Nat.le_refl v.next.toNat) rest f hc
+          (fun i hi => ⟨(hmem i hi).1, fun w hw =>
+            (rd_hdrSet_node hlay (by have := (hmem i hi).2.2; omega) (by omega) (k := 72)
+              (by omega) f w).mpr hw⟩)
+      refine ⟨⟨v.kl, v.st, v.cp, v.nc, v.cnt, v.keys, v.nodes, v.order, v.root, v.next, f⟩, kind,
+        ?_, rfl, rfl, rfl, rfl, a, b, hki, ⟨rest, hchain, hnot⟩, fun _ _ _ => rfl, Nat.le_refl _⟩
+      refine hok.reshape (Nat.le_refl _) (fun _ _ => rfl) (fun i h1 h2 => absurd h2 (by omega))
+        (Nat.le_refl _) hnl ⟨rest, hc⟩ hlay ?_ hok.keys8 hok.nodes8 hok.order8 ?_ ?_ ?_
+      · exact ⟨hkl.frame _ (hne 0 (by omega) (by omega)), hst.frame _ (hne 8 (by omega) (by omega)),
+          hcp.frame _ (hne 16 (by omega) (by omega)), hcnt.frame _ (hne 24 (by omega) (by omega)),
+          hkeys.frame _ (hne 32 (by omega) (by omega)), hnd.frame _ (hne 40 (by omega) (by omega)),
+          hord.frame _ (hne 48 (by omega) (by omega)), hroot.frame _ (hne 56 (by omega) (by omega)),
+          hnext.frame _ (hne 64 (by omega) (by omega)), Rd.here _ _ _,
+          hnc.frame _ (hne 80 (by omega) (by omega))⟩
+      · intro i o w hi ho _
+        exact rd_hdrSet_node hlay hi ho (k := 72) (by omega) f w
+      · intro p w hp
+        exact rd_hdrSet_ord hlay hp (k := 72) (by omega) f w
+      · intro i hi j bit hj hb
+        exact keybit_frame hlay hok.keys8 hok.kl_st hok.kl8
+          (fun a ha _ => setCell_key_hdr hlay (k := 72) (by omega) f ha) hi hj hb
+  · -- bumped `next`
+    have hwf := hok1.wf
+    have hlay := hwf.layout
+    have hnl := hwf.next_le
+    obtain ⟨l1, l2, l3, l4⟩ := id hlay
+    have h1 : (1#64 : Word).toNat = 1 := by decide
+    have hn1 : (v.next + 1#64).toNat = v.next.toNat + 1 := by
+      rw [BitVec.toNat_add, h1]
+      exact Nat.mod_eq_of_lt (by omega)
+    obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+    have hne : ∀ k, k < 88 → k ≠ 64 → t + BitVec.ofNat 64 k ≠ t + 64#64 :=
+      fun k hk hkk h => hkk ((hdr_eq_hdr hlay hk (by omega)).mp h)
+    obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := FreeChain.kind_mem fl _ hfl
+    have hchain : FreeChain (setCell m1 (t + 64#64) (v.next + 1#64))
+        ⟨v1.kl, v1.st, v1.cp, v1.nc, v1.cnt, v1.keys, v1.nodes, v1.order, v1.root, v.next + 1#64,
+          v1.free⟩ (fun i => if i = v.next.toNat then NodeKind.free else kind i) v1.free fl :=
+      FreeChain.congr (v := v1) (kind := kind)
+        (v' := ⟨v1.kl, v1.st, v1.cp, v1.nc, v1.cnt, v1.keys, v1.nodes, v1.order, v1.root,
+          v.next + 1#64, v1.free⟩)
+        (by rw [e5]; show v.next.toNat ≤ (v.next + 1#64).toNat; omega)
+        fl _ hfl (fun i hi => ⟨by
+            have := (hmem i hi).2.2
+            rw [e5] at this
+            rw [if_neg (by omega)]
+            exact (hmem i hi).1, fun w hw =>
+          (rd_hdrSet_node hlay (by have := (hmem i hi).2.2; omega) (by omega) (k := 64)
+            (by omega) _ w).mpr hw⟩)
+    refine ⟨⟨v1.kl, v1.st, v1.cp, v1.nc, v1.cnt, v1.keys, v1.nodes, v1.order, v1.root,
+        v.next + 1#64, v1.free⟩, (fun i => if i = v.next.toNat then NodeKind.free else kind i), ?_,
+      e1, e2, e3, e4, ?_, ?_, if_pos rfl, ⟨fl, hchain, ?_⟩, fun i _ hi => if_neg hi, ?_⟩
+    · refine hok1.reshape (Nat.le_refl _) (fun i hi => if_neg (by rw [e5] at hi; omega))
+        (fun i hi1 hi2 => by rw [e5] at hi1; rw [hn1] at hi2; exact if_pos (by omega))
+        (by rw [e5, hn1]; omega) (by rw [hn1]; omega) ⟨fl, hfl⟩ hlay ?_ hok1.keys8 hok1.nodes8
+        hok1.order8 ?_ ?_ ?_
+      · exact ⟨hkl.frame _ (hne 0 (by omega) (by omega)), hst.frame _ (hne 8 (by omega) (by omega)),
+          hcp.frame _ (hne 16 (by omega) (by omega)), hcnt.frame _ (hne 24 (by omega) (by omega)),
+          hkeys.frame _ (hne 32 (by omega) (by omega)), hnd.frame _ (hne 40 (by omega) (by omega)),
+          hord.frame _ (hne 48 (by omega) (by omega)), hroot.frame _ (hne 56 (by omega) (by omega)),
+          Rd.here _ _ _, hfree.frame _ (hne 72 (by omega) (by omega)),
+          hnc.frame _ (hne 80 (by omega) (by omega))⟩
+      · intro i o w hi ho _
+        exact rd_hdrSet_node hlay hi ho (k := 64) (by omega) _ w
+      · intro p w hp
+        exact rd_hdrSet_ord hlay hp (k := 64) (by omega) _ w
+      · intro i hi j bit hj hb
+        exact keybit_frame hlay hok1.keys8 hok1.kl_st hok1.kl8
+          (fun a ha _ => setCell_key_hdr hlay (k := 64) (by omega) _ ha) hi hj hb
+    · have := hok.wf.next_pos
+      omega
+    · show v.next.toNat < (v.next + 1#64).toNat
+      omega
+    · intro hin
+      have := (hmem _ hin).2.2
+      rw [e5] at this
+      omega
+    · show v.next.toNat ≤ (v.next + 1#64).toNat
+      omega
+
 end InitECandidate.Solver.GuestBound
