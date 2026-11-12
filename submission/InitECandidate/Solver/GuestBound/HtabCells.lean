@@ -117,4 +117,37 @@ theorem hdr_eq_hdr (hlay : HtabLayout t v) {k k' : Nat} (hk : k < 88) (hk' : k' 
   · rintro rfl
     rfl
 
+theorem align8_toNat (x : Word) : (RiscV.panRiscVByteAlign 8#64 x).toNat = x.toNat / 8 * 8 := by
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  unfold RiscV.panRiscVByteAlign
+  simp only [h8]
+  rw [if_neg (by decide)]
+  simp only [RiscV.panRiscV_log2_eight]
+  rw [BitVec.toNat_ofNat]
+  apply Nat.mod_eq_of_lt
+  have := x.isLt
+  omega
+
+/-- A key bit only depends on the cells of an aligned range holding the key. -/
+theorem KeyBitIs.frame {m m' : Word → Option (PanValue Word)} {kp j : Word} {bit : Bool}
+    {lo hi : Nat} (hlo8 : lo % 8 = 0) (hkp : lo ≤ kp.toNat)
+    (hhi : kp.toNat + j.toNat / 8 < hi) (hhi64 : hi ≤ 2 ^ 64)
+    (hframe : ∀ a : Word, lo ≤ a.toNat → a.toNat < hi → m' a = m a)
+    (h : KeyBitIs 8#64 m kp j bit) : KeyBitIs 8#64 m' kp j bit := by
+  intro a cell y hs hcell hy
+  refine h a cell y hs ?_ hy
+  have ha : a.toNat = j.toNat / 8 := by
+    unfold RiscV.panRiscVShift at hs
+    split at hs
+    · simp only [Option.some.injEq] at hs
+      subst hs
+      have h3 : (3#64 : Word).toNat = 3 := by decide
+      rw [h3, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    · cases hs
+  have hsum : (kp + a).toNat = kp.toNat + a.toNat := by
+    rw [BitVec.toNat_add]
+    exact Nat.mod_eq_of_lt (by omega)
+  rw [← hframe _ (by rw [align8_toNat, hsum]; omega) (by rw [align8_toNat, hsum]; omega)]
+  exact hcell
+
 end InitECandidate.Solver.GuestBound
