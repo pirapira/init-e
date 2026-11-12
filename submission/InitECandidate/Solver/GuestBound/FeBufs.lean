@@ -392,7 +392,8 @@ theorem WPs.fe_alloc_step (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body :
     {hp pv0 : Word} {All Cn : List Word}
     (he : E.eval s e = some (.word 384#64)) (hg : s.globals "heap_ptr" = some (.word hp))
     (hB : Bufs pv0 m0 Wr hp All Cn s.memory)
-    (h : ∀ hp' : Word, pv0.toNat ≤ hp.toNat → Bufs pv0 m0 Wr hp' (hp :: All) Cn s.memory →
+    (h : ∀ hp' : Word, pv0.toNat ≤ hp.toNat → hp.toNat + 384 ≤ hp'.toNat →
+      Bufs pv0 m0 Wr hp' (hp :: All) Cn s.memory →
       WPs E ⟨updatePanValueMap s.locals x (.word hp),
         updatePanValueMap s.globals "heap_ptr" (.word hp'), s.memory, s.ffi⟩ body
         (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
@@ -402,7 +403,49 @@ theorem WPs.fe_alloc_step (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body :
   simp only [List.cons.injEq, and_true] at hv
   subst v m ffi g
   rw [show (384#64 : Word).toNat = 384 by decide] at h1
-  exact h qv hB.ple (hB.alloc h1 h2.1 h2.2)
+  exact h qv hB.ple h1 (hB.alloc h1 h2.1 h2.2)
+
+/-- Back to the caller's view: its buffers and heap pointer, with whatever the
+callee made canonical among them. -/
+theorem Bufs.restrict {pv0 hp hp' : Word} {All All' Cn Cn' Cn2 : List Word}
+    (h0 : Bufs pv0 m0 Wr hp All Cn m) (h1 : Bufs pv0 m0 Wr hp' All' Cn' m')
+    (hsub : ∀ B ∈ Cn2, B ∈ All ∧ B ∈ Cn') : Bufs pv0 m0 Wr hp All Cn2 m' :=
+  ⟨h0.hpb, h0.hpa, h0.ple, h0.geo, h0.sep, fun B hB => (hsub B hB).1,
+    fun B hB => h1.can B (hsub B hB).2, h1.low⟩
+
+theorem hp_update_update (g : VarName → Option (PanValue Word)) (a b : PanValue Word) :
+    updatePanValueMap (updatePanValueMap g "heap_ptr" a) "heap_ptr" b =
+      updatePanValueMap g "heap_ptr" b := by
+  funext y
+  simp only [update_lookup]
+  split <;> rfl
+
+/-- `memcpy(d, s, 384); rest` between two different buffers. -/
+theorem WPs.fe_copy_step (hE : GuestEnv E) {eD eS eN : Exp Word} {rest : Prog Word}
+    {D S hp pv0 : Word} {All Cn : List Word}
+    (h1 : E.eval s eD = some (.word D)) (h2 : E.eval s eS = some (.word S))
+    (h3 : E.eval s eN = some (.word 384#64))
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All)
+    (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr) (hS : S ∈ Cn) (hne : D ≠ S)
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' →
+      WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    WPs E s (.seq (.call (some (none, none)) "memcpy" [eD, eS, eN]) rest) Q := by
+  refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
+  have h384 : (384#64 : Word).toNat = 384 := by decide
+  have gS := hB.geo S (hB.sub S hS)
+  have gD := hB.geo D hD
+  have hpb := hB.hpb
+  have hdis : D.toNat + 384 ≤ S.toNat ∨ S.toNat + 384 ≤ D.toNat := by
+    rcases hB.sep D hD S (hB.sub S hS) with heq | hd
+    · exact absurd heq hne
+    · exact hd
+  obtain ⟨hg, hf, hcopy⟩ := memcpy_ret hE hret h1 h2 h3
+    ⟨by rw [h384]; omega, by rw [h384]; omega, by rw [h384]; omega, by rw [h384]; omega⟩
+  subst g ffi
+  rw [h384] at hcopy
+  obtain ⟨c, hpc, hlc⟩ := (hB.can S hS).poly
+  exact h m1 (hB.write hD hDl (fun x _ hx => hcopy.cells x (by omega))
+    (CanonN.of_poly (PolyAt.of_copy (n := 12) hcopy gD.1 gS.1 (by omega) (by omega) hpc) hlc))
 
 end steps
 
