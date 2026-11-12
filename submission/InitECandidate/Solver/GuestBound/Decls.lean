@@ -121,11 +121,12 @@ theorem layout_withStructs (structs : StructContext)
     (declarations : List (Decl Word)) → (state state' : PanValueProgramState Word) →
     evalPanValueDeclarationsWithStructs structs state declarations
       (memoryAccess := memoryAccess) = some state' →
-    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory
+    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory ∧
+      state'.baseAddress = state.baseAddress
   | [], state, state', h => by
       simp only [evalPanValueDeclarationsWithStructs, Option.some.injEq] at h
       subst h
-      exact ⟨rfl, rfl⟩
+      exact ⟨rfl, rfl, rfl⟩
   | .name _ _ :: rest, state, state', h => by
       simp only [evalPanValueDeclarationsWithStructs] at h
       exact layout_withStructs structs memoryAccess rest state state' h
@@ -161,7 +162,8 @@ theorem layout_declarations (state state' : PanValueProgramState Word)
     (declarations : List (Decl Word)) (memoryAccess : Option (PanValueMemoryAccess Word))
     (h : evalPanValueDeclarations state declarations (memoryAccess := memoryAccess) =
       some state') :
-    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory := by
+    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory ∧
+      state'.baseAddress = state.baseAddress := by
   simp only [evalPanValueDeclarations, Option.bind_eq_bind] at h
   cases hs : collectPanValueStructs declarations state.structs with
   | none => rw [hs] at h; simp at h
