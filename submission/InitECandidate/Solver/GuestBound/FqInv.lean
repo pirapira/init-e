@@ -110,4 +110,36 @@ theorem fq_inv_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
       _ = bnR3 := Nat.one_mul _
   exact h3
 
+set_option exponentiation.threshold 1000 in
+/-- Dividing by the leading coefficient and multiplying back gives the same
+element: the step that cancels the top coefficient in `fq12_inv`. -/
+theorem mont_cancel {top lead linv d1 d2 : Nat} (ht : top < bnP) (hd2 : d2 < bnP)
+    (h1 : d1 * 2 ^ 256 % bnP = top * linv % bnP) (h2 : d2 * 2 ^ 256 % bnP = d1 * lead % bnP)
+    (h3 : linv * lead * 2 ^ 256 % bnP = bnR3 % bnP) : d2 = top := by
+  have e1 : d1 * 2 ^ 256 ≡ top * linv [MOD bnP] := h1
+  have e2 : d2 * 2 ^ 256 ≡ d1 * lead [MOD bnP] := h2
+  have e3 : linv * lead * 2 ^ 256 ≡ bnR3 [MOD bnP] := h3
+  have e4 : bnR3 ≡ 2 ^ 768 [MOD bnP] := by
+    show bnR3 % bnP = 2 ^ 768 % bnP
+    rw [bnR3_eq, Nat.mod_mod]
+  have key : d2 * 2 ^ 768 ≡ top * 2 ^ 768 [MOD bnP] := by
+    calc d2 * 2 ^ 768 = d2 * 2 ^ 256 * (2 ^ 256 * 2 ^ 256) := by ring
+      _ ≡ d1 * lead * (2 ^ 256 * 2 ^ 256) [MOD bnP] := e2.mul_right _
+      _ = d1 * 2 ^ 256 * (lead * 2 ^ 256) := by ring
+      _ ≡ top * linv * (lead * 2 ^ 256) [MOD bnP] := e1.mul_right _
+      _ = top * (linv * lead * 2 ^ 256) := by ring
+      _ ≡ top * bnR3 [MOD bnP] := e3.mul_left _
+      _ ≡ top * 2 ^ 768 [MOD bnP] := e4.mul_left _
+  have hcop : Nat.gcd bnP (2 ^ 768) = 1 := by
+    have h2 : Nat.Coprime bnP 2 := by
+      show Nat.gcd bnP 2 = 1
+      rw [Nat.gcd_comm, Nat.gcd_rec]
+      have : bnP % 2 = 1 := by decide
+      rw [this]
+      exact Nat.gcd_one_left 2
+    exact Nat.Coprime.pow_right 768 h2
+  have hmod : d2 % bnP = top % bnP := Nat.ModEq.cancel_right_of_coprime hcop key
+  rw [Nat.mod_eq_of_lt hd2, Nat.mod_eq_of_lt ht] at hmod
+  exact hmod
+
 end InitECandidate.Solver.GuestBound
