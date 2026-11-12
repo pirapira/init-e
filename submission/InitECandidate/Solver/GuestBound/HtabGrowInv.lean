@@ -16,7 +16,109 @@ open Flapjack
 variable {m m' : Word → Option (PanValue Word)} {t : Word} {v : HtabV} {kind : Nat → NodeKind}
   {rep : KeyRep}
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 4000000 in
+/-- The table invariant after moving the blocks, handing out more node indices
+(as free nodes off the free list) and replacing the free list by a sublist. -/
+theorem HtabOKd.reshape {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
+    {kind' : Nat → NodeKind} {cp' nc' K N O next' free' : Word} (hnc : v.nc.toNat ≤ nc'.toNat)
+    (hk : ∀ i, i < v.next.toNat → kind' i = kind i)
+    (hnew : ∀ i, v.next.toNat ≤ i → i < next'.toNat → kind' i = .free)
+    (hn1 : v.next.toNat ≤ next'.toNat) (hn2 : next'.toNat ≤ nc'.toNat + 1)
+    (hfl : ∃ fl, FreeChain m v kind free' fl)
+    (hlay : HtabLayout t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩)
+    (hhdr : HtabHdr m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩)
+    (hK8 : K.toNat % 8 = 0) (hN8 : N.toNat % 8 = 0) (hO8 : O.toNat % 8 = 0)
+    (hN : ∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → o < 32 → o % 8 = 0 →
+      (Rd m' (N + BitVec.ofNat 64 (i * 32 + o)) w ↔ Rd m (nodeField v i o) w))
+    (hO : ∀ (p : Nat) (w : Word), p ≤ v.nc.toNat →
+      (Rd m' (O + BitVec.ofNat 64 (p * 8)) w ↔ Rd m (orderSlot v p) w))
+    (hKey : ∀ i, i ≤ v.nc.toNat → ∀ (j : Word) (bit : Bool), j.toNat < (v.kl * 8#64).toNat →
+      KeyBitIs 8#64 m (v.keys + BitVec.ofNat 64 i * v.st) j bit →
+      KeyBitIs 8#64 m' (K + BitVec.ofNat 64 i * v.st) j bit) :
+    HtabOKd m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩ kind' rep det := by
+  have hwf := hok.wf
+  have hnl := hwf.next_le
+  have hcl := hwf.cnt_le
+  have hold : ∀ i, i < next'.toNat → kind' i ≠ .free → i < v.next.toNat := by
+    intro i hi hne
+    by_contra hge
+    exact hne (hnew i (by omega) hi)
+  have hPar : ∀ (i : Nat) (p : Word), ParentOkd m v kind det i p →
+      ParentOkd m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩ kind' det i
+        p := by
+    rintro i p ⟨h | ⟨a1, a2, a3, a4⟩, hd⟩
+    · exact ⟨Or.inl h, hd⟩
+    · exact ⟨Or.inr ⟨a1, Nat.lt_of_lt_of_le a2 hn1, (hk _ a2).trans a3,
+        a4.imp (fun h => (hN _ 8 _ (by omega) (by omega) (by omega)).mpr h)
+          (fun h => (hN _ 16 _ (by omega) (by omega) (by omega)).mpr h)⟩, hd⟩
+  have hCh : ∀ (i : Nat) (c : Word), ChildOk m v kind i c →
+      ChildOk m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩ kind' i c := by
+    rintro i c ⟨c1, c2, c3, c4⟩
+    exact ⟨c1, Nat.lt_of_lt_of_le c2 hn1, by rw [hk _ c2]; exact c3,
+      (hN _ 0 _ (by omega) (by omega) (by omega)).mpr c4⟩
+  refine ⟨⟨hhdr, hlay, ?_, hn2, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, hK8, hN8, hO8,
+    (by have := hok.nc_pos; show 1 ≤ nc'.toNat; omega), hok.kl_st, hok.kl8, ?_⟩
+  · show 1 ≤ next'.toNat
+    have := hwf.next_pos
+    omega
+  · show v.cnt.toNat ≤ nc'.toNat
+    omega
+  · rcases hwf.root_ok with h | ⟨r1, r2, r3, rd, r4⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨r1, Nat.lt_of_lt_of_le r2 hn1, by rw [hk _ r2]; exact r3, rd,
+        (hN v.root.toNat 0 _ (by omega) (by omega) (by omega)).mpr r4⟩
+  · obtain ⟨fl, hfl'⟩ := hfl
+    have hmem := hfl'.kind_mem
+    exact ⟨fl, FreeChain.congr (v := v) (kind := kind)
+      (v' := ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, next', free'⟩) hn1 fl _ hfl'
+      (fun i hi => ⟨(hk i (hmem i hi).2.2).trans (hmem i hi).1,
+        fun w hw => (hN _ 0 _ (by have := (hmem i hi).2.2; omega) (by omega) (by omega)).mpr hw⟩)⟩
+  · intro i hi1 hi2 hki
+    have hi2 : i < v.next.toNat := hold i hi2 (by rw [hki]; exact NodeKind.noConfusion)
+    rw [hk i hi2] at hki
+    obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hrest⟩ := hwf.internal_ok i hi1 hi2 hki
+    refine ⟨p, l, r, b, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
+      (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hl,
+      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hr,
+      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, hbne, fun hd => ?_⟩
+    obtain ⟨hpar, hcl', hcr', dl, dr, hlr⟩ := hrest hd
+    exact ⟨hPar i p hpar, hCh i l hcl', hCh i r hcr', dl, dr, hlr⟩
+  · intro i hi1 hi2 hki
+    have hi2 : i < v.next.toNat := hold i hi2 (by rw [hki]; exact NodeKind.noConfusion)
+    rw [hk i hi2] at hki
+    obtain ⟨p, val, pos, hp, hv, hpos, hb, hpar, hlt, hord⟩ := hwf.leaf_ok i hi1 hi2 hki
+    exact ⟨p, val, pos, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
+      (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hv,
+      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hpos,
+      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, fun hd => hPar i p (hpar hd), hlt,
+      (hO _ _ (by omega)).mpr hord⟩
+  · intro pos hpos
+    have hpos : pos < v.cnt.toNat := hpos
+    obtain ⟨i, hrd, i1, i2, ik, i16⟩ := hwf.order_ok pos hpos
+    exact ⟨i, (hO _ _ (by omega)).mpr hrd, i1, Nat.lt_of_lt_of_le i2 hn1, (hk _ i2).trans ik,
+      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr i16⟩
+  · intro i hi1 hi2 hki hd b l r hb hl hr
+    have hi2 : i < v.next.toNat := hold i hi2 (by rw [hki]; exact NodeKind.noConfusion)
+    rw [hk i hi2] at hki
+    have hb' := (hN _ 24 _ (by omega) (by omega) (by omega)).mp hb
+    have hl' := (hN _ 8 _ (by omega) (by omega) (by omega)).mp hl
+    have hr' := (hN _ 16 _ (by omega) (by omega) (by omega)).mp hr
+    obtain ⟨_, l0, r0, _, -, hl0, hr0, -, -, hrest⟩ := hwf.internal_ok i hi1 hi2 hki
+    obtain ⟨-, hcl', hcr', -⟩ := hrest hd
+    have el := Rd.inj hl0 hl'
+    have er := Rd.inj hr0 hr'
+    subst el er
+    have := hcl'.2.1
+    have := hcr'.2.1
+    obtain ⟨x1, x2, x3, x4, x5, x6⟩ := hok.bits i hi1 hi2 hki hd b l0 r0 hb' hl' hr'
+    exact ⟨x1, x2, x3, x4,
+      fun bl h => x5 bl ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h),
+      fun br h => x6 br ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h)⟩
+  · intro i hi1 hi2 hki j hj
+    have hi2 : i < v.next.toNat := hold i hi2 (by rw [hki]; exact NodeKind.noConfusion)
+    rw [hk i hi2] at hki
+    exact hKey i (by omega) j _ hj (hok.leaf_key i hi1 hi2 hki j hj)
+
 /-- The table invariant at new block addresses. -/
 theorem HtabOKd.transport {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
     {cp' nc' K N O : Word} (hnc : v.nc.toNat ≤ nc'.toNat)
@@ -30,79 +132,10 @@ theorem HtabOKd.transport {det : Nat → Prop} (hok : HtabOKd m t v kind rep det
     (hKey : ∀ i, i ≤ v.nc.toNat → ∀ (j : Word) (bit : Bool), j.toNat < (v.kl * 8#64).toNat →
       KeyBitIs 8#64 m (v.keys + BitVec.ofNat 64 i * v.st) j bit →
       KeyBitIs 8#64 m' (K + BitVec.ofNat 64 i * v.st) j bit) :
-    HtabOKd m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind rep det := by
-  have hwf := hok.wf
-  have hnl := hwf.next_le
-  have hcl := hwf.cnt_le
-  have hPar : ∀ (i : Nat) (p : Word), ParentOkd m v kind det i p →
-      ParentOkd m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind det i
-        p := by
-    rintro i p ⟨h | ⟨a1, a2, a3, a4⟩, hd⟩
-    · exact ⟨Or.inl h, hd⟩
-    · exact ⟨Or.inr ⟨a1, a2, a3,
-        a4.imp (fun h => (hN _ 8 _ (by omega) (by omega) (by omega)).mpr h)
-          (fun h => (hN _ 16 _ (by omega) (by omega) (by omega)).mpr h)⟩, hd⟩
-  have hCh : ∀ (i : Nat) (c : Word), ChildOk m v kind i c →
-      ChildOk m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind i c := by
-    rintro i c ⟨c1, c2, c3, c4⟩
-    exact ⟨c1, c2, c3, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr c4⟩
-  refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, hK8, hN8, hO8,
-    (by have := hok.nc_pos; show 1 ≤ nc'.toNat; omega), hok.kl_st, hok.kl8, ?_⟩
-  · show v.next.toNat ≤ nc'.toNat + 1
-    omega
-  · show v.cnt.toNat ≤ nc'.toNat
-    omega
-  · rcases hwf.root_ok with h | ⟨r1, r2, r3, rd, r4⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨r1, r2, r3, rd,
-        (hN v.root.toNat 0 _ (by omega) (by omega) (by omega)).mpr r4⟩
-  · obtain ⟨fl, hfl⟩ := hwf.free_chain
-    have hmem := hfl.kind_mem
-    exact ⟨fl, FreeChain.congr (v := v) (kind := kind)
-      (v' := ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩)
-      (Nat.le_refl v.next.toNat) fl _ hfl (fun i hi => ⟨(hmem i hi).1,
-      fun w hw => (hN _ 0 _ (by have := (hmem i hi).2.2; omega) (by omega) (by omega)).mpr hw⟩)⟩
-  · intro i hi1 hi2 hk
-    have hi2 : i < v.next.toNat := hi2
-    obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
-    refine ⟨p, l, r, b, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
-      (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hl,
-      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hr,
-      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, hbne, fun hd => ?_⟩
-    obtain ⟨hpar, hcl', hcr', dl, dr, hlr⟩ := hrest hd
-    exact ⟨hPar i p hpar, hCh i l hcl', hCh i r hcr', dl, dr, hlr⟩
-  · intro i hi1 hi2 hk
-    have hi2 : i < v.next.toNat := hi2
-    obtain ⟨p, val, pos, hp, hv, hpos, hb, hpar, hlt, hord⟩ := hwf.leaf_ok i hi1 hi2 hk
-    exact ⟨p, val, pos, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hp,
-      (hN _ 8 _ (by omega) (by omega) (by omega)).mpr hv,
-      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr hpos,
-      (hN _ 24 _ (by omega) (by omega) (by omega)).mpr hb, fun hd => hPar i p (hpar hd), hlt,
-      (hO _ _ (by omega)).mpr hord⟩
-  · intro pos hpos
-    have hpos : pos < v.cnt.toNat := hpos
-    obtain ⟨i, hrd, i1, i2, ik, i16⟩ := hwf.order_ok pos hpos
-    exact ⟨i, (hO _ _ (by omega)).mpr hrd, i1, i2, ik,
-      (hN _ 16 _ (by omega) (by omega) (by omega)).mpr i16⟩
-  · intro i hi1 hi2 hk hd b l r hb hl hr
-    have hi2 : i < v.next.toNat := hi2
-    have hb' := (hN _ 24 _ (by omega) (by omega) (by omega)).mp hb
-    have hl' := (hN _ 8 _ (by omega) (by omega) (by omega)).mp hl
-    have hr' := (hN _ 16 _ (by omega) (by omega) (by omega)).mp hr
-    obtain ⟨_, l0, r0, _, -, hl0, hr0, -, -, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
-    obtain ⟨-, hcl', hcr', -⟩ := hrest hd
-    have el := Rd.inj hl0 hl'
-    have er := Rd.inj hr0 hr'
-    subst el er
-    have := hcl'.2.1
-    have := hcr'.2.1
-    obtain ⟨x1, x2, x3, x4, x5, x6⟩ := hok.bits i hi1 hi2 hk hd b l0 r0 hb' hl' hr'
-    exact ⟨x1, x2, x3, x4,
-      fun bl h => x5 bl ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h),
-      fun br h => x6 br ((hN _ 24 _ (by omega) (by omega) (by omega)).mp h)⟩
-  · intro i hi1 hi2 hk j hj
-    have hi2 : i < v.next.toNat := hi2
-    exact hKey i (by omega) j _ hj (hok.leaf_key i hi1 hi2 hk j hj)
+    HtabOKd m' t ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind rep det :=
+  hok.reshape hnc (fun _ _ => rfl) (fun i h1 h2 => absurd h2 (by omega)) (Nat.le_refl _)
+    (by have := hok.wf.next_le; show v.next.toNat ≤ nc'.toNat + 1; omega) hok.wf.free_chain hlay
+    hhdr hK8 hN8 hO8 hN hO hKey
 
 theorem byteAt_aligned {M : Word → Option (PanValue Word)} {X : Word} {k : Nat}
     (hX8 : X.toNat % 8 = 0) (hX64 : X.toNat + 8 ≤ 2 ^ 64) (hk : k < 8) :
