@@ -1,4 +1,5 @@
-import InitECandidate.Solver.GuestBound.PairingCheck
+import InitECandidate.Solver.GuestBound.FnsH
+import InitECandidate.Solver.GuestBound.HeapFloor
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -53,3 +54,10 @@ open InitECandidate.Solver.GuestBound
 #print axioms WPc.ite_both
 #print axioms pc_round
 #print axioms bn254_pairing_check_cost
+#print axioms fq_mul_spec1
+#print axioms fun_heap_keep
+#print axioms fun_floor_keep
+#print axioms H.«bn254_pairing_check»
+#print axioms H.«pre_alt_bn128_pairing_check»
+#print axioms H.«run_precompile»
+#print axioms H.«frame_prologue»
