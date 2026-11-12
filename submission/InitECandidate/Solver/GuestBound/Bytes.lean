@@ -239,4 +239,30 @@ theorem CopyInv.word (h : CopyInv m0 dst src j m) (hj : j + 8 ≤ n) (hd : dst.t
     rw [setCell_ne' _ hne]
     exact h.cells A (by omega)
 
+/-- A 64-bit value is determined by its eight bytes. -/
+theorem nat_bytes_ext (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64)
+    (h0 : a / 256 ^ 0 % 256 = b / 256 ^ 0 % 256) (h1 : a / 256 ^ 1 % 256 = b / 256 ^ 1 % 256)
+    (h2 : a / 256 ^ 2 % 256 = b / 256 ^ 2 % 256) (h3 : a / 256 ^ 3 % 256 = b / 256 ^ 3 % 256)
+    (h4 : a / 256 ^ 4 % 256 = b / 256 ^ 4 % 256) (h5 : a / 256 ^ 5 % 256 = b / 256 ^ 5 % 256)
+    (h6 : a / 256 ^ 6 % 256 = b / 256 ^ 6 % 256) (h7 : a / 256 ^ 7 % 256 = b / 256 ^ 7 % 256) :
+    a = b := by
+  omega
+
+/-- Two cell values with the same bytes, read through aligned cells, are equal. -/
+theorem word_ext {A B w1 w2 : Word} (hA : A.toNat % 8 = 0) (hB : B.toNat % 8 = 0)
+    (hA64 : A.toNat + 8 ≤ 2 ^ 64) (hB64 : B.toNat + 8 ≤ 2 ^ 64)
+    (h : ∀ k, k < 8 → gb (off A k) w1 = gb (off B k) w2) : w1 = w2 := by
+  apply BitVec.eq_of_toNat_eq
+  have key : ∀ k, k < 8 → w1.toNat / 256 ^ k % 256 = w2.toNat / 256 ^ k % 256 := by
+    intro k hk
+    have := congrArg BitVec.toNat (h k hk)
+    rw [gb_toNat, gb_toNat, off_toNat (by omega), off_toNat (by omega)] at this
+    have e1 : (A.toNat + k) % 8 = k := by omega
+    have e2 : (B.toNat + k) % 8 = k := by omega
+    rw [e1, e2] at this
+    exact this
+  exact nat_bytes_ext _ _ w1.isLt w2.isLt (key 0 (by omega)) (key 1 (by omega))
+    (key 2 (by omega)) (key 3 (by omega)) (key 4 (by omega)) (key 5 (by omega))
+    (key 6 (by omega)) (key 7 (by omega))
+
 end InitECandidate.Solver.GuestBound
