@@ -118,10 +118,30 @@ theorem WPr.seq_store4_at (hE : GuestEnv E) {a val : Exp Word} {q : Prog Word}
   · rintro _ ⟨m, rfl, hm⟩
     exact hq m hm
 
+/-- The values of a three-element argument list. -/
+theorem evalArgs3_inv {e1 e2 e3 : Exp Word} {values : List (PanValue Word)}
+    (h : E.evalArgs s [e1, e2, e3] = some values) :
+    ∃ v1 v2 v3, E.eval s e1 = some v1 ∧ E.eval s e2 = some v2 ∧ E.eval s e3 = some v3 ∧
+      values = [v1, v2, v3] := by
+  simp only [evalArgs_cons, evalArgs_nil] at h
+  cases h1 : E.eval s e1 with
+  | none => rw [h1] at h; simp at h
+  | some v1 =>
+    cases h2 : E.eval s e2 with
+    | none => rw [h1, h2] at h; simp at h
+    | some v2 =>
+      cases h3 : E.eval s e3 with
+      | none => rw [h1, h2, h3] at h; simp at h
+      | some v3 =>
+        rw [h1, h2, h3] at h
+        simp at h
+        exact ⟨v1, v2, v3, rfl, rfl, rfl, h.symm⟩
+
 /-- `memcpy(dst, src, n); rest` where the destination is an owned range. -/
 theorem WPr.seq_memcpy_range (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {q : Prog Word}
-    {dst src nW hi : Word} {F : Assn} (h1 : E.eval s e1 = some (.word dst))
-    (h2 : E.eval s e2 = some (.word src)) (h3 : E.eval s e3 = some (.word nW))
+    {dst src nW hi : Word} {F : Assn} (h1 : ∀ y, E.eval s e1 = some y → y = .word dst)
+    (h2 : ∀ y, E.eval s e2 = some y → y = .word src)
+    (h3 : ∀ y, E.eval s e3 = some y → y = .word nW)
     (P : CpPre dst src nW) (hal : dst.toNat % 8 = 0) (hhi : dst.toNat + nW.toNat ≤ hi.toNat)
     (hpre : (Assn.Range dst hi ⋆ F).holds s) (htrap : ∀ r, Trap r → Q r)
     (hq : ∀ m, (Assn.Range dst hi ⋆ F).holds (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) →
@@ -137,9 +157,13 @@ theorem WPr.seq_memcpy_range (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {q : Prog W
     · exact Or.inl he
     have hparams := (fun_of_index 16 hE.functions (by guest_decl_at 16) (by decide +kernel)
       hlk).2
-    simp only [evalArgs_cons, evalArgs_nil, h1, h2, h3, Option.map_some,
-      Option.some.injEq] at hvalues
-    subst hvalues
+    obtain ⟨v1, v2, v3, g1, g2, g3, rfl⟩ := evalArgs3_inv hvalues
+    have := h1 _ g1
+    subst this
+    have := h2 _ g2
+    subst this
+    have := h3 _ g3
+    subst this
     rw [hparams] at hbind
     simp [bindPanValueParameters] at hbind
     exact Or.inr ⟨hra, memcpy_runs hE parameters cbody hlk ⟨cl, s.globals, s.memory, s.ffi⟩ r
