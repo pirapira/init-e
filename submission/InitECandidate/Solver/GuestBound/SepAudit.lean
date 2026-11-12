@@ -127,3 +127,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_mstore_frameM
 #print axioms op_mstore8_frameM
 #print axioms op_stop_frameM
+#print axioms op_return_frameM
+#print axioms op_revert_frameM
