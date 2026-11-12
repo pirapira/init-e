@@ -57,4 +57,46 @@ theorem del_keys_frame (hlay : HtabLayout t v) {Lw pos moved p g lc rc gl : Word
   split_ifs <;>
     simp (disch := omega) only [setCell_key_hdr hlay, setCell_key_node hlay, setCell_key_ord hlay]
 
+theorem toNat_of_eq_ofNat {x : Word} {n : Nat} (hn : n < 2 ^ 64) (h : x = BitVec.ofNat 64 n) :
+    x.toNat = n := by
+  rw [h, BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt hn
+
+variable {kind : Nat → NodeKind} {rep : KeyRep}
+
+/-- Address of the key of node `i`, inside the key block. -/
+theorem keyptr_bounds (hlay : HtabLayout t v) {i : Nat} (hi : i ≤ v.nc.toNat) :
+    (v.keys + BitVec.ofNat 64 i * v.st).toNat = v.keys.toNat + i * v.st.toNat ∧
+      v.keys.toNat + i * v.st.toNat + v.st.toNat ≤ v.nodes.toNat := by
+  obtain ⟨h1, h2, h3, h4⟩ := hlay
+  have hle : (i + 1) * v.st.toNat ≤ (v.nc.toNat + 1) * v.st.toNat :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hexp : (i + 1) * v.st.toNat = i * v.st.toNat + v.st.toNat := by ring
+  have hi64 : i < 2 ^ 64 := by have := v.nc.isLt; omega
+  have hmul : (BitVec.ofNat 64 i * v.st).toNat = i * v.st.toNat := by
+    rw [BitVec.toNat_mul, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hi64]
+    exact Nat.mod_eq_of_lt (by omega)
+  refine ⟨?_, by omega⟩
+  rw [BitVec.toNat_add, hmul]
+  exact Nat.mod_eq_of_lt (by omega)
+
+/-- Stored key bits survive any change outside the key block. -/
+theorem leaf_key_frame (hok : HtabOK m t v kind rep) {m' : Word → Option (PanValue Word)}
+    (hK : ∀ a : Word, v.keys.toNat ≤ a.toNat → a.toNat < v.nodes.toNat → m' a = m a)
+    (i : Nat) (hi1 : 1 ≤ i) (hi2 : i < v.next.toNat) (hk : kind i = .leaf) (j : Word)
+    (hj : j.toNat < (v.kl * 8#64).toNat) :
+    KeyBitIs 8#64 m' (v.keys + BitVec.ofNat 64 i * v.st) j (rep i j) := by
+  have hlay := hok.wf.layout
+  have hnl := hok.wf.next_le
+  obtain ⟨hkp, hkp'⟩ := keyptr_bounds hlay (i := i) (by omega)
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  have hkl8 : (v.kl * 8#64).toNat = v.kl.toNat * 8 := by
+    rw [BitVec.toNat_mul, h8]
+    exact Nat.mod_eq_of_lt hok.kl8
+  have := hok.kl_st
+  have := hok.keys8
+  obtain ⟨-, -, -, h4⟩ := hlay
+  exact KeyBitIs.frame (lo := v.keys.toNat) (hi := v.nodes.toNat) hok.keys8 (by omega) (by omega)
+    (by omega) hK (hok.leaf_key i hi1 hi2 hk j hj)
+
 end InitECandidate.Solver.GuestBound
