@@ -84,29 +84,6 @@ def TruncI (t : Word) (rep : KeyRep) (g : VarName → Option (PanValue Word)) (f
   s.globals = g ∧ s.ffi = f ∧ s.locals "t" = some (.word t) ∧
     ∃ v kind, HtabOK s.memory t v kind rep ∧ s.locals "stride" = some (.word v.st)
 
-theorem eval_add2_inv (hE : GuestEnv E) {a b : Exp Word} {wa wb : Word}
-    (ha : ∀ y, E.eval s a = some y → y = .word wa) (hb : ∀ y, E.eval s b = some y → y = .word wb) :
-    ∀ y, E.eval s (.op .add [a, b]) = some y → y = .word (wa + wb) := by
-  intro y hy
-  obtain ⟨va, vb, w, hva, hvb, hw, rfl⟩ := eval_op2_inv hE.word hy
-  have h1 := ha _ hva
-  have h2 := hb _ hvb
-  simp only [PanValue.word.injEq] at h1 h2
-  subst h1 h2
-  simp [wordOp] at hw
-  rw [← hw]
-
-/-- A word load whose address, if it evaluates, is `addr`. -/
-theorem eval_load_inv2 (hE : GuestEnv E) {a : Exp Word} {addr w : Word}
-    (ha : ∀ y, E.eval s a = some y → y = .word addr) (hw : Rd s.memory addr w) :
-    ∀ y, E.eval s (.load .one a) = some y → y = .word w := by
-  intro y hy
-  obtain ⟨addr', w', ha', rfl, hm⟩ := eval_load_one hE.mem hy
-  have := ha _ ha'
-  simp only [PanValue.word.injEq] at this
-  subst this
-  rw [Rd.inj hm hw]
-
 theorem ord_addr (hlay : HtabLayout t v) {iv : Word} (hi : iv.toNat ≤ v.nc.toNat) :
     v.order + iv * 8#64 = orderSlot v iv.toNat := by
   have hmul : (iv * 8#64).toNat = iv.toNat * 8 := by
