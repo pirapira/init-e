@@ -111,4 +111,55 @@ theorem store_four_inv (hE : GuestEnv E) {fuel : Nat} {s : St σ} {a v : Exp Wor
           obtain ⟨rfl, -⟩ := h
           exact Or.inl rfl
 
+/-- A four-word load reads four consecutive cells. -/
+theorem eval_load_four (hE : GuestEnv E) {s : St σ} {a : Exp Word} {x : PanValue Word}
+    (h : E.eval s (.load (.comb [.one, .one, .one, .one]) a) = some x) :
+    ∃ addr w0 w1 w2 w3, E.eval s a = some (.word addr) ∧
+      x = .rStruct [.word w0, .word w1, .word w2, .word w3] ∧
+      s.memory addr = some (.word w0) ∧ s.memory (addr + 8#64) = some (.word w1) ∧
+      s.memory (addr + 8#64 + 8#64) = some (.word w2) ∧
+      s.memory (addr + 8#64 + 8#64 + 8#64) = some (.word w3) := by
+  obtain ⟨access, hacc, -, hread⟩ := hE.mem.access
+  simp only [Env.eval, evalPanValueExp] at h
+  cases ha : evalPanValueExp E.structs s.locals s.globals s.memory E.baseAddress E.topAddress
+      E.bytesInWord a E.memoryAccess with
+  | none => rw [ha] at h; simp at h
+  | some av =>
+    rw [ha] at h
+    cases av with
+    | word addr =>
+      simp only [Option.bind_eq_bind, Option.bind_some, panValueFlatLoad] at h
+      split at h
+      · obtain ⟨k, hk⟩ : ∃ k, panValueFlatContextFuel E.structs +
+            panValueFlatShapeFuel (Shape.comb [.one, .one, .one, .one]) + 1 = k + 6 := by
+          refine ⟨panValueFlatContextFuel E.structs +
+            panValueFlatShapeFuel (Shape.comb [.one, .one, .one, .one]) + 1 - 6, ?_⟩
+          have : 5 ≤ panValueFlatShapeFuel (Shape.comb [.one, .one, .one, .one]) := by decide
+          omega
+        rw [hk, hacc, hE.bytes] at h
+        simp only [panValueFlatLoadFuel, panValueFlatLoadListFuel, panValueFlatReadWord,
+          Option.bind_eq_bind, Option.pure_def, shapeSizeWithContext] at h
+        cases h0 : access.readWord access.domain s.memory 8#64 addr with
+        | none => rw [h0] at h; simp at h
+        | some w0 =>
+          cases h1 : access.readWord access.domain s.memory 8#64
+              (panValueFlatOffset 8#64 addr 1) with
+          | none => rw [h0, h1] at h; simp at h
+          | some w1 =>
+            cases h2 : access.readWord access.domain s.memory 8#64
+                (panValueFlatOffset 8#64 (panValueFlatOffset 8#64 addr 1) 1) with
+            | none => rw [h0, h1, h2] at h; simp at h
+            | some w2 =>
+              cases h3 : access.readWord access.domain s.memory 8#64
+                  (panValueFlatOffset 8#64 (panValueFlatOffset 8#64
+                    (panValueFlatOffset 8#64 addr 1) 1) 1) with
+              | none => rw [h0, h1, h2, h3] at h; simp at h
+              | some w3 =>
+                rw [h0, h1, h2, h3] at h
+                simp only [Option.map_some, Option.bind_some, Option.some.injEq] at h
+                exact ⟨addr, w0, w1, w2, w3, ha, h.symm, hread _ _ _ _ h0, hread _ _ _ _ h1,
+                  hread _ _ _ _ h2, hread _ _ _ _ h3⟩
+      · cases h
+    | _ => simp at h
+
 end InitECandidate.Solver.GuestBound
