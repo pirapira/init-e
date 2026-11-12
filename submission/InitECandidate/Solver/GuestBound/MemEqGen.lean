@@ -229,4 +229,198 @@ theorem eq_cond (hE : GuestEnv E) (hn63 : nW.toNat < 2 ^ 63) (k : Word) (hk : k.
   rw [this] at hw
   simp [evalPanCmp, hl] at hw
 
+/-- The test `n == c` succeeded. -/
+theorem eq_nIs (hE : GuestEnv E) (hS : EqS m A B nW g f jb s) {c w : Word}
+    (hw : E.eval s (.cmp .equal (.var .local "n") (.const c)) = some (.word w)) (hne : ¬ w = 0) :
+    nW.toNat = c.toNat := by
+  have := eval_cmp_inv hE (of_eval (w := nW) (by lk [hS.2.2.2.2.2.1]))
+    (of_eval (eval_const _ c)) _ hw
+  simp only [PanValue.word.injEq] at this
+  by_contra hcn
+  apply hne
+  rw [this]
+  have : nW ≠ c := fun h => hcn (by rw [h])
+  simp [evalPanCmp, this]
+
+macro "bnd" : tactic => `(tactic| first | omega | (simp <;> omega) | simp)
+
+set_option hygiene false in
+macro "eqg" : tactic => `(tactic| first
+  | refine eqW_v hE P hS (by bnd) (by bnd) (by bnd) ?_
+  | refine eqW_c hE P hS _ (by bnd) (by bnd) (by bnd) ?_
+  | refine eqW_i hE P hS (by bnd) (by bnd) (by bnd) ?_
+  | refine eqW_ic hE P hS _ (by bnd) (by bnd) (by bnd) ?_
+  | refine eqB_c hE P hS _ (by bnd) ?_
+  | refine eqB_i hE P hS (by bnd) ?_
+  | refine eqB_ic hE P hS _ (by bnd) ?_)
+
+set_option maxHeartbeats 4000000 in
+/-- `memeq(a, b, n)` on equal bytes returns 1 if it returns, and changes nothing. -/
+theorem memeq_eq (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "memeq" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (A B nW : Word) (ha : s.locals "a" = some (.word A))
+    (hb : s.locals "b" = some (.word B)) (hn : s.locals "n" = some (.word nW))
+    (P : EqPre s.memory A B nW) (h : Runs E s body r) :
+    Stopped r ∨ ∃ l, r = .returned l s.globals s.memory s.ffi [.word 1#64] := by
+  have hbody := (fun_of_index 18 hE.functions (by guest_decl_at 18) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (fun r => ∃ l, r = .returned l s.globals s.memory s.ffi [.word 1#64]))
+    r h
+  refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
+  refine WPs.conseq (Q' := fun r => ∃ l, r = .returned l s.globals s.memory s.ffi [.word 1#64])
+    ?_ (by rintro r ⟨l, rfl⟩; exact ⟨_, rfl⟩)
+  have hS0 : EqS s.memory A B nW s.globals s.ffi 0
+      ⟨updatePanValueMap s.locals "i" (.word 0#64), s.globals, s.memory, s.ffi⟩ :=
+    ⟨rfl, rfl, rfl, by lk [ha], by lk [hb], by lk [hn], by lk []⟩
+  have hn63 := P.hn
+  have hret : ∀ (a : St σ) (jb : Nat) (Q' : Result σ → Prop),
+      EqS s.memory A B nW s.globals s.ffi jb a →
+      (∀ l, Q' (.returned l s.globals s.memory s.ffi [.word 1#64])) →
+      WPs E a (.return (.const 1#64)) Q' := by
+    intro a jb Q' hS hQ
+    refine WPs.ret (of_eval (eval_const _ _)) ?_
+    obtain ⟨hg, hm, hf, -⟩ := hS
+    rw [hg, hm, hf]
+    exact hQ _
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  have h32 : (32#64 : Word).toNat = 32 := by decide
+  have h1 : (1#64 : Word).toNat = 1 := by decide
+  refine WPs.seqG (fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧ jb ≤ nW.toNat)
+    ?_ ?_
+  · refine WPs.ite_both (fun w hw => ?_)
+    split
+    · exact WPs.skip ⟨0, hS0, Nat.zero_le _⟩
+    · rename_i hw0
+      have hal : A.toNat % 8 = 0 ∧ B.toNat % 8 = 0 := by
+        have hand : ∀ a b : Word, AndOp.and a b = a &&& b := fun _ _ => rfl
+        have hor : ∀ a b : Word, OrOp.or a b = a ||| b := fun _ _ => rfl
+        have hones : ∀ a : Word, a &&& 18446744073709551615#64 = a := by intro a; bv_decide
+        simp [evalF_cmp hE.word, evalF_op hE.word, evalArgs_cons, evalArgs_nil,
+          update_lookup, ha, hb, wordOp, hand, hor, hones, evalPanCmp] at hw
+        have hz : (A ||| B) &&& 7#64 = 0#64 := by
+          by_contra hne
+          rw [if_neg hne] at hw
+          exact hw0 hw.symm
+        exact or_and7 A B hz
+      obtain ⟨hA8, hB8⟩ := hal
+      have hS := hS0
+      -- n == 20
+      refine WPs.seqG (fun a => EqS s.memory A B nW s.globals s.ffi 0 a) ?_ ?_
+      · refine WPs.ite_both (fun w hw => ?_)
+        split
+        · exact WPs.skip hS
+        · rename_i hne
+          have hnn := eq_nIs hE hS hw hne
+          simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at hnn
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          exact hret _ 0 _ hS (fun l => ⟨l, rfl⟩)
+      intro a1 hS
+      -- n == 32
+      refine WPs.seqG (fun a => EqS s.memory A B nW s.globals s.ffi 0 a) ?_ ?_
+      · refine WPs.ite_both (fun w hw => ?_)
+        split
+        · exact WPs.skip hS
+        · rename_i hne
+          have hnn := eq_nIs hE hS hw hne
+          simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at hnn
+          eqg
+          eqg
+          eqg
+          eqg
+          exact hret _ 0 _ hS (fun l => ⟨l, rfl⟩)
+      intro a2 hS
+      -- n == 52
+      refine WPs.seqG (fun a => EqS s.memory A B nW s.globals s.ffi 0 a) ?_ ?_
+      · refine WPs.ite_both (fun w hw => ?_)
+        split
+        · exact WPs.skip hS
+        · rename_i hne
+          have hnn := eq_nIs hE hS hw hne
+          simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at hnn
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          eqg
+          exact hret _ 0 _ hS (fun l => ⟨l, rfl⟩)
+      intro a3 hS
+      -- word loops
+      refine WPs.seq (fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧ jb ≤ nW.toNat ∧
+          jb % 8 = 0)
+        (WPs.loop (I := fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧
+            jb ≤ nW.toNat ∧ jb % 8 = 0) ⟨0, hS, Nat.zero_le _, rfl⟩ ?_
+          (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)) ?_
+      · rintro a ⟨jb, hS, hj, hj8⟩ hct
+        have hle := eq_cond hE hn63 32#64 (by decide) hS hj hct
+        rw [h32] at hle
+        eqg
+        eqg
+        eqg
+        eqg
+        exact (eq_assign hE 32#64 hS (j := jb + 32) (by rw [h32])).conseq
+          (fun r ⟨l, g', m', f', hr, hS'⟩ => ⟨l, g', m', f', hr, jb + 32, hS', by omega, by omega⟩)
+      · rintro a4 ⟨jb0, hS, hj0, hj08⟩
+        refine WPs.loop (I := fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧
+            jb ≤ nW.toNat ∧ jb % 8 = 0) ⟨jb0, hS, hj0, hj08⟩ ?_
+          (fun a k ⟨jb, hI, hj, _⟩ _ => ⟨jb, hI, hj⟩)
+        rintro a ⟨jb, hS, hj, hj8⟩ hct
+        have hle := eq_cond hE hn63 8#64 (by decide) hS hj hct
+        rw [h8] at hle
+        eqg
+        exact (eq_assign hE 8#64 hS (j := jb + 8) (by rw [h8])).conseq
+          (fun r ⟨l, g', m', f', hr, hS'⟩ => ⟨l, g', m', f', hr, jb + 8, hS', by omega, by omega⟩)
+  · rintro a ⟨jb0, hS, hj0⟩
+    refine WPs.seq (fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧ jb ≤ nW.toNat)
+      (WPs.loop (I := fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧
+          jb ≤ nW.toNat) ⟨jb0, hS, hj0⟩ ?_ (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)) ?_
+    · rintro a ⟨jb, hS, hj⟩ hct
+      have hle := eq_cond hE hn63 8#64 (by decide) hS hj hct
+      rw [h8] at hle
+      eqg
+      eqg
+      eqg
+      eqg
+      eqg
+      eqg
+      eqg
+      eqg
+      exact (eq_assign hE 8#64 hS (j := jb + 8) (by rw [h8])).conseq
+        (fun r ⟨l, g', m', f', hr, hS'⟩ => ⟨l, g', m', f', hr, jb + 8, hS', by omega⟩)
+    · rintro a' ⟨jb1, hS, hj1⟩
+      refine WPs.seq (fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧ jb ≤ nW.toNat)
+        (WPs.loop (I := fun a => ∃ jb, EqS s.memory A B nW s.globals s.ffi jb a ∧
+            jb ≤ nW.toNat) ⟨jb1, hS, hj1⟩ ?_ (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)) ?_
+      · rintro a ⟨jb, hS, hj⟩ ⟨w, c, hcond, hw⟩
+        have hjt : (BitVec.ofNat 64 jb : Word).toNat = jb := by
+          rw [BitVec.toNat_ofNat]
+          exact Nat.mod_eq_of_lt (by omega)
+        have hc := eval_cmp_inv hE (op := .lower)
+          (of_eval (w := BitVec.ofNat 64 jb) (by lk [hS.2.2.2.2.2.2]))
+          (of_eval (w := nW) (by lk [hS.2.2.2.2.2.1])) _ (cond_of_eval hcond)
+        simp only [PanValue.word.injEq] at hc
+        have hlt : jb < nW.toNat := by
+          by_contra hge
+          have hnl : ¬ (BitVec.ofNat 64 jb : Word) < nW := by
+            rw [BitVec.lt_def, hjt]
+            exact hge
+          rw [hc] at hw
+          simp [evalPanCmp, hnl] at hw
+        eqg
+        exact (eq_assign hE 1#64 hS (j := jb + 1) (by rw [h1])).conseq
+          (fun r ⟨l, g', m', f', hr, hS'⟩ => ⟨l, g', m', f', hr, jb + 1, hS', by omega⟩)
+      · rintro a'' ⟨jb2, hS, -⟩
+        exact hret _ jb2 _ hS (fun l => ⟨l, rfl⟩)
+
 end InitECandidate.Solver.GuestBound
