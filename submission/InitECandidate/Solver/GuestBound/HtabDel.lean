@@ -431,4 +431,46 @@ theorem del_phaseB (hE : GuestEnv E) (hlay : HtabLayout t v)
     refine WPs.store hE (eval_addc hE 56#64 h_t) (of_eval (eval_const _ _)) ?_
     simp only [delB, if_pos heq]
 
+theorem eval_sub_inv (hE : GuestEnv E) {a : Exp Word} {wa k : Word}
+    (ha : ∀ y, E.eval s a = some y → y = .word wa) :
+    ∀ y, E.eval s (.op .sub [a, .const k]) = some y → y = .word (wa - k) := by
+  intro y hy
+  obtain ⟨va, vb, w, hva, hvb, hw, rfl⟩ := eval_op2_inv hE.word hy
+  have h1 := ha _ hva
+  simp only [PanValue.word.injEq] at h1
+  subst h1
+  simp only [eval_const, Option.some.injEq, PanValue.word.injEq] at hvb
+  subst hvb
+  simp [wordOp] at hw
+  rw [← hw]
+
+theorem guard_eq0 (hE : GuestEnv E) {a : Exp Word} {wa : Word}
+    (ha : ∀ y, E.eval s a = some y → y = .word wa) (hne : wa ≠ 0#64) :
+    ∀ x, E.eval s (.cmp .equal a (.const 0#64)) = some x → x = .word 0#64 := by
+  intro x hx
+  rw [eval_cmp_inv hE ha (of_eval (eval_const _ _)) x hx]
+  simp [evalPanCmp, hne]
+
+/-- Memory after the order fix and the count store. -/
+def delA (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV) (pos moved : Word) :
+    Word → Option (PanValue Word) :=
+  setCell (setCell (setCell m (orderSlot v pos.toNat) moved) (nodeField v moved.toNat 16) pos)
+    (t + 24#64) (v.cnt - 1#64)
+
+/-- Memory after `htab_del` of the leaf `Lw`. -/
+def delFinal (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
+    (Lw pos moved p g lc rc gl : Word) : Word → Option (PanValue Word) :=
+  setCell (setCell (delB (delA m t v pos moved) t v Lw v.root p g lc rc gl v.free)
+    (nodeField v Lw.toNat 0) (if v.root = Lw then v.free else p)) (t + 72#64) Lw
+
+/-- What `htab_del` read and wrote. -/
+def DelRel (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV) (Lw : Word)
+    (m' : Word → Option (PanValue Word)) : Prop :=
+  ∃ pos moved p g lc rc gl : Word,
+    Rd m (nodeField v Lw.toNat 16) pos ∧ Rd m (orderSlot v (v.cnt.toNat - 1)) moved ∧
+    (v.root ≠ Lw → Rd m (nodeField v Lw.toNat 0) p ∧ Rd m (nodeField v p.toNat 0) g ∧
+      Rd m (nodeField v p.toNat 8) lc ∧ Rd m (nodeField v p.toNat 16) rc ∧
+      (g ≠ 0#64 → Rd m (nodeField v g.toNat 8) gl)) ∧
+    m' = delFinal m t v Lw pos moved p g lc rc gl
+
 end InitECandidate.Solver.GuestBound
