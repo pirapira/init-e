@@ -427,4 +427,19 @@ theorem or_shl32 {x y : Word} (hx : x.toNat < 2 ^ 32) (hy : y.toNat < 2 ^ 32) :
   rw [← h]
   omega
 
+/-- Low halves plus `2^32` times high halves of the products give the products. -/
+theorem col_sum : ∀ (vals : List (Word × Word)),
+    (vals.map fun v => v.1.toNat * v.2.toNat % 2 ^ 32).sum +
+      2 ^ 32 * (vals.map fun v => v.1.toNat * v.2.toNat / 2 ^ 32).sum =
+    (vals.map fun v => v.1.toNat * v.2.toNat).sum
+  | [] => by simp
+  | v :: vs => by
+    have ih := col_sum vs
+    simp only [List.map_cons, List.sum_cons]
+    generalize (vs.map fun v => v.1.toNat * v.2.toNat % 2 ^ 32).sum = a at ih ⊢
+    generalize (vs.map fun v => v.1.toNat * v.2.toNat / 2 ^ 32).sum = b at ih ⊢
+    generalize (vs.map fun v => v.1.toNat * v.2.toNat).sum = c at ih ⊢
+    generalize v.1.toNat * v.2.toNat = t
+    omega
+
 end InitECandidate.Solver.GuestBound
