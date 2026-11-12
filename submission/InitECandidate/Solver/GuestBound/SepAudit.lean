@@ -1,6 +1,7 @@
 import InitECandidate.Solver.GuestBound.SepBinops
 import InitECandidate.Solver.GuestBound.SepPushWords
 import InitECandidate.Solver.GuestBound.SepFrameOps
+import InitECandidate.Solver.GuestBound.RunFramesLoop
 
 /-!
 # Axiom audit of the framed specifications
@@ -89,3 +90,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms «op_jumpi_frame»
 #print axioms «op_dup_frame»
 #print axioms «op_dupn_frame»
+#print axioms rf_body_wps
+#print axioms rf_loop
+#print axioms run_frames_bound
