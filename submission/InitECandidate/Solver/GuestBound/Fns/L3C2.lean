@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «htr_bytes_list» (hE : GuestEnv E) : FunCost E "htr_bytes_list" 4629881884326288734154985744732738686039822 := by
+  guest_cost 194
+
 theorem «decode_payload» (hE : GuestEnv E) : FunCost E "decode_payload" 3412647653636267050039 := by
   guest_cost 204
 
@@ -21,8 +24,5 @@ theorem «htr_list_roots» (hE : GuestEnv E) : FunCost E "htr_list_roots" 462988
 
 theorem «check_gas_limit» (hE : GuestEnv E) : FunCost E "check_gas_limit" 645636042579834306649 := by
   guest_cost 235
-
-theorem «mpt_init» (hE : GuestEnv E) : FunCost E "mpt_init" 396088675095972371527593718987244911461627 := by
-  guest_cost 247
 
 end InitECandidate.Solver.GuestBound.Fn

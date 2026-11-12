@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «p256_verify» (hE : GuestEnv E) : FunCost E "p256_verify" 2810168021537413716015300015177406302080731093535309989064508863473616198646201392848730603150443192043198709591130265538813113990389381174114330089675574744488986833259321253369 := by
+  guest_cost 644
+
+theorem «fe_sqr» (hE : GuestEnv E) : FunCost E "fe_sqr" 2929831179189280170520909548208116029472838 := by
+  guest_cost 662
+
 theorem «fp12_inv» (hE : GuestEnv E) : FunCost E "fp12_inv" 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763129876624049144365099840 := by
   guest_cost 753
 
@@ -18,11 +24,5 @@ theorem «g1_subgroup_check» (hE : GuestEnv E) : FunCost E "g1_subgroup_check" 
 
 theorem «g2_encode» (hE : GuestEnv E) : FunCost E "g2_encode" 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763131868872409104995657232 := by
   guest_cost 780
-
-theorem «g2_subgroup_check» (hE : GuestEnv E) : FunCost E "g2_subgroup_check" 733648783081543341316326735728921016271221 := by
-  guest_cost 781
-
-theorem «pair_miller_loop» (hE : GuestEnv E) : FunCost E "pair_miller_loop" 903789966542012604409711020783961724945933 := by
-  guest_cost 785
 
 end InitECandidate.Solver.GuestBound.Fn

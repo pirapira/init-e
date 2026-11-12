@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «compute_requests_hash» (hE : GuestEnv E) : FunCost E "compute_requests_hash" 2875726282848850955188099820656430185201803 := by
+  guest_cost 840
+
 theorem «fork_init» (hE : GuestEnv E) : FunCost E "fork_init" 5220428572859803110868 := by
   guest_cost 861
 

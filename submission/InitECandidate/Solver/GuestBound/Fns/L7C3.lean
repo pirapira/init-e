@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «frame_epilogue» (hE : GuestEnv E) : FunCost E "frame_epilogue" 445674223212454335088491484220825489660965659518482874630162 := by
+  guest_cost 582
+
 theorem «incorporate_child_on_success» (hE : GuestEnv E) : FunCost E "incorporate_child_on_success" 445674223212454335151103439734278166942450891678807712858278 := by
   guest_cost 592
 
@@ -21,8 +24,5 @@ theorem «ecp_linefunc» (hE : GuestEnv E) : FunCost E "ecp_linefunc" 2228373108
 
 theorem «fp12_final_exp» (hE : GuestEnv E) : FunCost E "fp12_final_exp" 17590158822243994565779307313826913223774137843035348425078820727870609079005958617191113459216199074862229351431252394784 := by
   guest_cost 757
-
-theorem «pair_accumulate» (hE : GuestEnv E) : FunCost E "pair_accumulate" 35180317644487989131558614627653826447548275686070696850157641455741218158011914381454862653284130661716636371292441945067 := by
-  guest_cost 786
 
 end InitECandidate.Solver.GuestBound.Fn

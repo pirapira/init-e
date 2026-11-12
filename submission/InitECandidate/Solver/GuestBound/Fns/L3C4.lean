@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «rlp_value_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_value_encoded_len" 4423670769972200025983100588445883433064 := by
+  guest_cost 286
+
 theorem «node_hash_cached» (hE : GuestEnv E) : FunCost E "node_hash_cached" 198044337547986185763796859493622455730720 := by
   guest_cost 288
 
@@ -21,8 +24,5 @@ theorem «tx_put_to» (hE : GuestEnv E) : FunCost E "tx_put_to" 4423670769972200
 
 theorem «access_list_payload_len» (hE : GuestEnv E) : FunCost E "access_list_payload_len" 163204645120053699895119891163176927022117274430015381962759 := by
   guest_cost 321
-
-theorem «tx_put_blob_hashes» (hE : GuestEnv E) : FunCost E "tx_put_blob_hashes" 81602322560026850021060936836511171621886893915215493070963 := by
-  guest_cost 323
 
 end InitECandidate.Solver.GuestBound.Fn

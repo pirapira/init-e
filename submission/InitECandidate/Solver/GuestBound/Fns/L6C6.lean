@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «g2_subgroup_check» (hE : GuestEnv E) : FunCost E "g2_subgroup_check" 733648783081543341316326735728921016271221 := by
+  guest_cost 781
+
+theorem «pair_miller_loop» (hE : GuestEnv E) : FunCost E "pair_miller_loop" 903789966542012604409711020783961724945933 := by
+  guest_cost 785
+
 theorem «map_fp_to_g1» (hE : GuestEnv E) : FunCost E "map_fp_to_g1" 125223911026905360968141175314448736553058 := by
   guest_cost 791
 

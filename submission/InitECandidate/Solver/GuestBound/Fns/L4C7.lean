@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_timestamp» (hE : GuestEnv E) : FunCost E "op_timestamp" 3394200909562557497607 := by
+  guest_cost 556
+
+theorem «op_number» (hE : GuestEnv E) : FunCost E "op_number" 3394200909562557497607 := by
+  guest_cost 557
+
 theorem «op_gaslimit» (hE : GuestEnv E) : FunCost E "op_gaslimit" 3394200909562557497607 := by
   guest_cost 558
 
@@ -18,11 +24,5 @@ theorem «op_slotnum» (hE : GuestEnv E) : FunCost E "op_slotnum" 33942009095625
 
 theorem «emit_transfer_log» (hE : GuestEnv E) : FunCost E "emit_transfer_log" 18446744073709551617306 := by
   guest_cost 567
-
-theorem «frame_open» (hE : GuestEnv E) : FunCost E "frame_open" 2286697505708706474607081300897739053204923 := by
-  guest_cost 578
-
-theorem «p256_ec_add_affine» (hE : GuestEnv E) : FunCost E "p256_ec_add_affine" 62922842615220608188300899316580035876260663796040102121656673855386238593135155962131196081297277786149319510469179036656666972036465252758613114785552706505 := by
-  guest_cost 640
 
 end InitECandidate.Solver.GuestBound.Fn

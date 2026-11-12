@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «g2_mul» (hE : GuestEnv E) : FunCost E "g2_mul" 733648783081543341316326735728921016271067 := by
+  guest_cost 776
+
+theorem «g2_normalize» (hE : GuestEnv E) : FunCost E "g2_normalize" 17590158822243994565779307313826913223774137843035348425078820727870609079005956738832448055635763122128991538186352371949 := by
+  guest_cost 777
+
 theorem «pair_ell» (hE : GuestEnv E) : FunCost E "pair_ell" 16011773855979891468073 := by
   guest_cost 784
 

@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_coinbase» (hE : GuestEnv E) : FunCost E "op_coinbase" 4593239274353678352848 := by
+  guest_cost 555
+
 theorem «op_prevrandao» (hE : GuestEnv E) : FunCost E "op_prevrandao" 4593239274353678352844 := by
   guest_cost 560
 
@@ -21,8 +24,5 @@ theorem «compute_contract_address» (hE : GuestEnv E) : FunCost E "compute_cont
 
 theorem «compute_create2_contract_address» (hE : GuestEnv E) : FunCost E "compute_create2_contract_address" 396088675095972371537776321715932583953478 := by
   guest_cost 597
-
-theorem «modexp» (hE : GuestEnv E) : FunCost E "modexp" 140975144370780065510673072558987694109981212295363849463120131187587275056684490636824402764760206 := by
-  guest_cost 630
 
 end InitECandidate.Solver.GuestBound.Fn

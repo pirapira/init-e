@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «fp6_add» (hE : GuestEnv E) : FunCost E "fp6_add" 1607 := by
+  guest_cost 741
+
 theorem «fp6_sub» (hE : GuestEnv E) : FunCost E "fp6_sub" 1607 := by
   guest_cost 742
 
@@ -21,8 +24,5 @@ theorem «fp6_mul_v» (hE : GuestEnv E) : FunCost E "fp6_mul_v" 1018260272868767
 
 theorem «fp12_set_one» (hE : GuestEnv E) : FunCost E "fp12_set_one" 7304910653188982440045 := by
   guest_cost 748
-
-theorem «fp12_frob» (hE : GuestEnv E) : FunCost E "fp12_frob" 115013 := by
-  guest_cost 754
 
 end InitECandidate.Solver.GuestBound.Fn

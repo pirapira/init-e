@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «tx_put_blob_hashes» (hE : GuestEnv E) : FunCost E "tx_put_blob_hashes" 81602322560026850021060936836511171621886893915215493070963 := by
+  guest_cost 323
+
 theorem «get_transaction_hash» (hE : GuestEnv E) : FunCost E "get_transaction_hash" 198044337547986185763796859493622455730601 := by
   guest_cost 330
 
@@ -21,8 +24,5 @@ theorem «acct_empty» (hE : GuestEnv E) : FunCost E "acct_empty" 122 := by
 
 theorem «ws_account_leaf» (hE : GuestEnv E) : FunCost E "ws_account_leaf" 3013008832985606767726339391250552639830895274334406207081693 := by
   guest_cost 365
-
-theorem «ws_get_code» (hE : GuestEnv E) : FunCost E "ws_get_code" 9647647150550095495873 := by
-  guest_cost 370
 
 end InitECandidate.Solver.GuestBound.Fn

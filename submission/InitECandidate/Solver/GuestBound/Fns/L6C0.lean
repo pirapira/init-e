@@ -17,13 +17,13 @@ theorem «fn_mul» (hE : GuestEnv E) : FunCost E "fn_mul" 1146341683449430335252
 theorem «fn_add» (hE : GuestEnv E) : FunCost E "fn_add" 7642277889662868901684283441393090292752954264254653112650630706585535747458430 := by
   guest_cost 163
 
+theorem «htr_payload» (hE : GuestEnv E) : FunCost E "htr_payload" 2887251224386134619093768045307067080090336193529571959203454638244795224 := by
+  guest_cost 210
+
+theorem «htr_requests» (hE : GuestEnv E) : FunCost E "htr_requests" 6832499697872803493165954489425911571864264387908629561586516424 := by
+  guest_cost 217
+
 theorem «header_hash» (hE : GuestEnv E) : FunCost E "header_hash" 308636106797291186478565167761259096970305 := by
   guest_cost 230
-
-theorem «calculate_blob_gas_price» (hE : GuestEnv E) : FunCost E "calculate_blob_gas_price" 70487572185390032761068244696740998731002734659311275220476410934685378874933176763902441222575521 := by
-  guest_cost 233
-
-theorem «nodedb_build» (hE : GuestEnv E) : FunCost E "nodedb_build" 4098947433207502540159511255715197562158467062433523727073732 := by
-  guest_cost 253
 
 end InitECandidate.Solver.GuestBound.Fn

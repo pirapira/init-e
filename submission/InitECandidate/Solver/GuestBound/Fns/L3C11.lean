@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «op_callvalue» (hE : GuestEnv E) : FunCost E "op_callvalue" 3394200909562557497592 := by
+  guest_cost 535
+
 theorem «op_calldataload» (hE : GuestEnv E) : FunCost E "op_calldataload" 10422410401645896663720 := by
   guest_cost 536
 
@@ -21,8 +24,5 @@ theorem «op_blobhash» (hE : GuestEnv E) : FunCost E "op_blobhash" 459323927435
 
 theorem «op_blockhash» (hE : GuestEnv E) : FunCost E "op_blockhash" 7987440183916235850518 := by
   guest_cost 554
-
-theorem «op_coinbase» (hE : GuestEnv E) : FunCost E "op_coinbase" 4593239274353678352848 := by
-  guest_cost 555
 
 end InitECandidate.Solver.GuestBound.Fn

@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «tx_put_u256» (hE : GuestEnv E) : FunCost E "tx_put_u256" 4423670769972200030963721488347462369995 := by
+  guest_cost 318
+
+theorem «tx_put_access_list» (hE : GuestEnv E) : FunCost E "tx_put_access_list" 1505297160085110542596697682996707496698914371167607204343670844179182772027515 := by
+  guest_cost 322
+
 theorem «auth_payload_len» (hE : GuestEnv E) : FunCost E "auth_payload_len" 8847341539944400051966201176891766867542 := by
   guest_cost 324
 
@@ -18,11 +24,5 @@ theorem «op_lt» (hE : GuestEnv E) : FunCost E "op_lt" 3394200909562557497735 :
 
 theorem «op_gt» (hE : GuestEnv E) : FunCost E "op_gt" 3394200909562557497738 := by
   guest_cost 487
-
-theorem «op_slt» (hE : GuestEnv E) : FunCost E "op_slt" 3394200909562557497735 := by
-  guest_cost 488
-
-theorem «op_sgt» (hE : GuestEnv E) : FunCost E "op_sgt" 3394200909562557497738 := by
-  guest_cost 489
 
 end InitECandidate.Solver.GuestBound.Fn

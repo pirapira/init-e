@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «mpt_init» (hE : GuestEnv E) : FunCost E "mpt_init" 396088675095972371527593718987244911461627 := by
+  guest_cost 247
+
 theorem «mpt_nibble_key» (hE : GuestEnv E) : FunCost E "mpt_nibble_key" 198044337547986185769478456668324997628535 := by
   guest_cost 270
 
@@ -21,8 +24,5 @@ theorem «_collapse_branch» (hE : GuestEnv E) : FunCost E "_collapse_branch" 72
 
 theorem «_delete_ext_finish» (hE : GuestEnv E) : FunCost E "_delete_ext_finish" 6788401819125114995166 := by
   guest_cost 277
-
-theorem «rlp_value_encoded_len» (hE : GuestEnv E) : FunCost E "rlp_value_encoded_len" 4423670769972200025983100588445883433064 := by
-  guest_cost 286
 
 end InitECandidate.Solver.GuestBound.Fn

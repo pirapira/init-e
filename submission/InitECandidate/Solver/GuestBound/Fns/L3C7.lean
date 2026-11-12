@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «stack_push_bool» (hE : GuestEnv E) : FunCost E "stack_push_bool" 3394200909562557497542 := by
+  guest_cost 456
+
 theorem «memory_gas_cost» (hE : GuestEnv E) : FunCost E "memory_gas_cost" 140 := by
   guest_cost 457
 
@@ -21,8 +24,5 @@ theorem «op_add» (hE : GuestEnv E) : FunCost E "op_add" 3394200909562557497714
 
 theorem «op_mul» (hE : GuestEnv E) : FunCost E "op_mul" 3394200909562557498364 := by
   guest_cost 476
-
-theorem «op_sub» (hE : GuestEnv E) : FunCost E "op_sub" 3394200909562557497730 := by
-  guest_cost 477
 
 end InitECandidate.Solver.GuestBound.Fn

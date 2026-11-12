@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «pair_doubling_step» (hE : GuestEnv E) : FunCost E "pair_doubling_step" 3394200909562557699623 := by
+  guest_cost 782
+
 theorem «pair_addition_step» (hE : GuestEnv E) : FunCost E "pair_addition_step" 3394200909562557790663 := by
   guest_cost 783
 
@@ -21,8 +24,5 @@ theorem «iso_horner_fp2» (hE : GuestEnv E) : FunCost E "iso_horner_fp2" 856574
 
 theorem «bls_lib_init» (hE : GuestEnv E) : FunCost E "bls_lib_init" 5452 := by
   guest_cost 801
-
-theorem «pre_identity» (hE : GuestEnv E) : FunCost E "pre_identity" 106 := by
-  guest_cost 823
 
 end InitECandidate.Solver.GuestBound.Fn

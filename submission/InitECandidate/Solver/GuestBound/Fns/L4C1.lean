@@ -19,10 +19,10 @@ theorem «ec_add» (hE : GuestEnv E) : FunCost E "ec_add" 54203 := by
 theorem «ec_to_affine» (hE : GuestEnv E) : FunCost E "ec_to_affine" 30695324935920150244834432415953077492823340235014657121219810944657691536250775610 := by
   guest_cost 175
 
-theorem «decode_stateless_input» (hE : GuestEnv E) : FunCost E "decode_stateless_input" 19977823831827444403211 := by
-  guest_cost 207
+theorem «htr_plist_chunks» (hE : GuestEnv E) : FunCost E "htr_plist_chunks" 156518202490284225809346516521914534925290517928219939 := by
+  guest_cost 189
 
-theorem «htr_withdrawal» (hE : GuestEnv E) : FunCost E "htr_withdrawal" 9259763768652577468322589062411894705357751 := by
-  guest_cost 208
+theorem «htr_pcontainer» (hE : GuestEnv E) : FunCost E "htr_pcontainer" 156518202490284225809346516521915032987380508086113590 := by
+  guest_cost 191
 
 end InitECandidate.Solver.GuestBound.Fn

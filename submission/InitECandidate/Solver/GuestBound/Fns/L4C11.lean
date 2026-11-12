@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «iso_map_g2» (hE : GuestEnv E) : FunCost E "iso_map_g2" 3433086646069937232303475 := by
+  guest_cost 795
+
+theorem «kzg_decompress_g1» (hE : GuestEnv E) : FunCost E "kzg_decompress_g1" 268178765343589461430566 := by
+  guest_cost 797
+
 theorem «bls_precompiles_init» (hE : GuestEnv E) : FunCost E "bls_precompiles_init" 7088 := by
   guest_cost 811
 
@@ -18,8 +24,5 @@ theorem «logs_bloom» (hE : GuestEnv E) : FunCost E "logs_bloom" 67390995936118
 
 theorem «encode_logs» (hE : GuestEnv E) : FunCost E "encode_logs" 1505297160085110542596697682996707496898660120550198082403478587304829536698602 := by
   guest_cost 835
-
-theorem «encode_withdrawal_rlp» (hE : GuestEnv E) : FunCost E "encode_withdrawal_rlp" 26542024619833200164439446036802822996930 := by
-  guest_cost 838
 
 end InitECandidate.Solver.GuestBound.Fn

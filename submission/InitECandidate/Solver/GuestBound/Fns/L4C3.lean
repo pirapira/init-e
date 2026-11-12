@@ -7,6 +7,12 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «htr_bexit» (hE : GuestEnv E) : FunCost E "htr_bexit" 13889645652978866202463481494672319293949170 := by
+  guest_cost 215
+
+theorem «rlp_put_u256» (hE : GuestEnv E) : FunCost E "rlp_put_u256" 4423670769972200030963721488347462369995 := by
+  guest_cost 228
+
 theorem «mpt_get» (hE : GuestEnv E) : FunCost E "mpt_get" 3013008832985606767726339391250552639833736072921757478030677 := by
   guest_cost 271
 
@@ -18,11 +24,5 @@ theorem «_node_rlp_begin» (hE : GuestEnv E) : FunCost E "_node_rlp_begin" 8847
 
 theorem «node_write_ref» (hE : GuestEnv E) : FunCost E "node_write_ref" 198044337547986185773979462222310128222887 := by
   guest_cost 289
-
-theorem «tx_put_u256» (hE : GuestEnv E) : FunCost E "tx_put_u256" 4423670769972200030963721488347462369995 := by
-  guest_cost 318
-
-theorem «tx_put_access_list» (hE : GuestEnv E) : FunCost E "tx_put_access_list" 1505297160085110542596697682996707496698914371167607204343670844179182772027515 := by
-  guest_cost 322
 
 end InitECandidate.Solver.GuestBound.Fn

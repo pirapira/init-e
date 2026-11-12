@@ -7,6 +7,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+theorem «ws_get_code» (hE : GuestEnv E) : FunCost E "ws_get_code" 9647647150550095495873 := by
+  guest_cost 370
+
 theorem «bal_init» (hE : GuestEnv E) : FunCost E "bal_init" 1427 := by
   guest_cost 411
 
@@ -21,8 +24,5 @@ theorem «validate_block_access_list_gas_limit» (hE : GuestEnv E) : FunCost E "
 
 theorem «stack_push_word» (hE : GuestEnv E) : FunCost E "stack_push_word" 3394200909562557497538 := by
   guest_cost 455
-
-theorem «stack_push_bool» (hE : GuestEnv E) : FunCost E "stack_push_bool" 3394200909562557497542 := by
-  guest_cost 456
 
 end InitECandidate.Solver.GuestBound.Fn
