@@ -156,8 +156,10 @@ theorem WPs.guard0 {c : Exp Word} {p q : Prog Word}
     (hc : ∀ x, E.eval s c = some x → x = .word 0#64) (h : WPs E s q Q) :
     WPs E s (.seq (.ite c p .skip) q) Q := by
   refine WPs.seq (fun s' => s' = s) (WPs.ite hc ?_) (fun s' hs' => hs' ▸ h)
-  rw [if_pos rfl]
-  exact WPs.skip ⟨_, _, _, _, rfl, rfl⟩
+  split
+  · exact WPs.skip ⟨_, _, _, _, rfl, rfl⟩
+  · rename_i hne
+    exact absurd rfl hne
 
 /-- Sequencing when the first part only changes memory. -/
 theorem WPs.seq_mem {p q : Prog Word} (P : (Word → Option (PanValue Word)) → Prop)
@@ -222,9 +224,9 @@ theorem del_phaseA (hE : GuestEnv E) {t : Word} {v : HtabV} (hlay : HtabLayout t
     refine WPs.dec (eval_load_rd hE (eval_ord hE hlay (idx := "count") hcnc (by lk [])
       (by lk [h_count])) hmoved) ?_
     refine WPs.seq_store hE (eval_ord hE hlay (idx := "pos") hpnc (by lk [])
-      (by lk [h_pos])) (of_eval (by lk [])) ?_
+      (by lk [h_pos])) (of_eval (w := moved) (by lk [])) ?_
     refine WPs.store hE (eval_node hE hlay (idx := "moved") hmnc (by lk [h_nodes])
-      (by lk []) 16#64 (by decide)) (of_eval (by lk [h_pos])) ?_
+      (by lk []) 16#64 (by decide)) (of_eval (w := pos) (by lk [h_pos])) ?_
     simp only [restorePanValueFfiLocal]
     rw [restore_update, restore_update]
     rfl
