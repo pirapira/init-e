@@ -17,7 +17,7 @@ variable {σ : Type} {E : Env σ}
 
 /-- The locals in `G` hold words not above the end of the heap. -/
 def GoodL (G : List VarName) (l : VarName → Option (PanValue Word)) : Prop :=
-  ∀ x, x ∈ G → ∃ w : Word, l x = some (.word w) ∧ w.toNat ≤ 2952790016
+  ∀ x, x ∈ G → ∃ w : Word, l x = some (.word w) ∧ InHeap w
 
 /-- The heap pointer is in the heap, and so are the good locals of results
 that keep running. -/
@@ -404,7 +404,24 @@ theorem alloc_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
     simp only at hrest
     rw [runs_dec] at hrest
     split at hrest
-    · split at hrest
+    · rename_i vq hvq
+      have hal : ∀ yv : Word, vq = .word yv → yv.toNat % 8 = 0 := by
+        intro yv hyv
+        subst hyv
+        obtain ⟨va, vb, w, -, hvb, hw, hwe⟩ := eval_op2_inv hE.word hvq
+        simp only [PanValue.word.injEq] at hwe
+        subst hwe
+        simp [evalF_op hE.word, evalArgs_cons, evalArgs_nil, wordsProj_cons, wordsProj_nil,
+          wordOp] at hvb
+        subst hvb
+        simp [wordOp] at hw
+        rw [← hw]
+        have hm8 := and_m8 va
+        have e1 : (0#64 - 8#64 : Word) = 18446744073709551608#64 := by decide
+        have e2 : ~~~(0 : BitVec 64) = 18446744073709551615#64 := by decide
+        rw [e1, e2] at hm8
+        omega
+      split at hrest
       · obtain ⟨r2, h2, rfl⟩ := hrest
         rw [st_globals_restore]
         obtain ⟨rb, hb, hrest2⟩ := runs_seq.mp h2
@@ -421,11 +438,13 @@ theorem alloc_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
           · rename_i x y hx hy
             simp only [Option.some.injEq, PanValue.word.injEq] at hx hc0
             subst hx
-            have hle : y.toNat ≤ 2952790016 := by
+            have hle : InHeap y := by
               have := lower_zero hc0
               rw [BitVec.lt_def] at this
               have hE' : (2952790016#64 : Word).toNat = 2952790016 := by decide
-              omega
+              refine ⟨by omega, hal y ?_⟩
+              rw [evalF_local] at hy
+              simpa [updatePanValueMap] using hy
             obtain ⟨r3, h3, hrest3⟩ := runs_seq.mp hrest2
             rw [runs_assign_global, hy] at h3
             simp only at h3
@@ -463,7 +482,7 @@ theorem alloc_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
 theorem heap_release_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "heap_release" E.functions = some (parameters, body))
     (s : St σ) (r : Result σ) (hs : HeapOk s.globals)
-    (hm : ∃ w : Word, s.locals "m" = some (.word w) ∧ w.toNat ≤ 2952790016)
+    (hm : ∃ w : Word, s.locals "m" = some (.word w) ∧ InHeap w)
     (h : Runs E s body r) : HeapOk r.st.globals := by
   obtain ⟨pv, hp, -⟩ := hs
   obtain ⟨w, hw, hle⟩ := hm
@@ -487,7 +506,7 @@ theorem HPost.of_error {G : List VarName} {s : St σ} {r : Result σ} (herr : r.
 /-- Good locals after binding `x`. -/
 theorem goodL_bind {G G' : List VarName} {l : VarName → Option (PanValue Word)} {x : VarName}
     {v : PanValue Word} (h : GoodL G l)
-    (hx : x ∈ G' → ∃ w : Word, v = .word w ∧ w.toNat ≤ 2952790016)
+    (hx : x ∈ G' → ∃ w : Word, v = .word w ∧ InHeap w)
     (hsub : ∀ y, y ∈ G' → y ≠ x → y ∈ G) : GoodL G' (updatePanValueMap l x v) := by
   intro y hy
   by_cases hyx : y = x
@@ -501,7 +520,7 @@ theorem goodL_bind {G G' : List VarName} {l : VarName → Option (PanValue Word)
 /-- The invariant after the scope of a declaration of `x` ends. -/
 theorem hpost_restore {G G' : List VarName} {x : VarName} {old : Option (PanValue Word)}
     {rb : Result σ} (hsub : ∀ y, y ∈ G → y ≠ x → y ∈ G')
-    (hold : x ∈ G → ∃ w : Word, old = some (.word w) ∧ w.toNat ≤ 2952790016)
+    (hold : x ∈ G → ∃ w : Word, old = some (.word w) ∧ InHeap w)
     (h : HPost G' rb) : HPost G (restorePanValueFfiLocal x old rb) := by
   have key : ∀ l : VarName → Option (PanValue Word), GoodL G' l →
       GoodL G (restorePanValueLocal l x old) := by
@@ -905,7 +924,7 @@ theorem hk_sound (hE : GuestEnv E)
                 · exact heapOk_update _ hn hH
                 · have : name = "heap_ptr" := by simpa using hn
                   subst this
-                  exact ⟨2701131776#64, by simp [updatePanValueMap], by decide⟩
+                  exact ⟨2701131776#64, by simp [updatePanValueMap], by decide, by decide⟩
               · cases hval
           · exact hH
         · exact hH

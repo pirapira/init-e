@@ -209,16 +209,19 @@ theorem alloc_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     subst hrest
     simp only [restorePanValueFfiLocal, AllocPost]
 
-/-- The heap pointer is a word inside the heap. -/
+/-- An aligned address not above the end of the heap. -/
+def InHeap (w : Word) : Prop := w.toNat ≤ 2952790016 ∧ w.toNat % 8 = 0
+
+/-- The heap pointer is an aligned word inside the heap. -/
 def HeapOk (g : VarName → Option (PanValue Word)) : Prop :=
-  ∃ p : Word, g "heap_ptr" = some (.word p) ∧ p.toNat ≤ 2952790016
+  ∃ p : Word, g "heap_ptr" = some (.word p) ∧ InHeap p
 
 /-- A returning `alloc` keeps the heap pointer inside the heap. -/
 theorem AllocPost.heapOk {pv nv : Word} {s : St σ} {l g : VarName → Option (PanValue Word)}
     {m : Word → Option (PanValue Word)} {f : FfiState σ} {vs : List (PanValue Word)}
     (h : AllocPost pv nv s (.returned l g m f vs)) : HeapOk g := by
-  obtain ⟨-, -, -, qv, rfl, -, hq, -⟩ := h
-  exact ⟨qv, by simp [updatePanValueMap], hq⟩
+  obtain ⟨-, -, -, qv, rfl, -, hq, hq8⟩ := h
+  exact ⟨qv, by simp [updatePanValueMap], hq, hq8⟩
 
 /-- `heap_mark` returns the heap pointer and changes nothing. -/
 theorem heap_mark_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)

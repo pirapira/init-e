@@ -19,7 +19,7 @@ theorem guest_initial_heapOk (state : PanValueProgramState Word)
       (memoryAccess := some Guest.guestMemoryAccess) = some state) :
     HeapOk state.globals :=
   ⟨0#64, globals_declarations Guest.guestInitialState state Guest.Software.guestAst
-    (some Guest.guestMemoryAccess) "heap_ptr" 0#64 hdecl (by decide +kernel), by decide⟩
+    (some Guest.guestMemoryAccess) "heap_ptr" 0#64 hdecl (by decide +kernel), by decide, by decide⟩
 
 /-- A bound on `main` from states with the heap pointer in the heap and the
 initial memory bounds every stepped run of the guest that does not end in `.error`. -/
