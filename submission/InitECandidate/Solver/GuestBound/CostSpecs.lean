@@ -158,4 +158,139 @@ theorem words_of_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   · rintro l g m ffi ev ⟨l', t, hC, -⟩
     cases hC
 
+set_option maxHeartbeats 1000000 in
+/-- `memory_gas_cost(size)`: a result other than `2^64 - 1` means `size < 2^37`. -/
+theorem memory_gas_cost_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "memory_gas_cost" E.functions = some (parameters, body))
+    (c : St σ) (size : Word) (hs : c.locals "size" = some (.word size)) :
+    WPr E c body (fun r => ∃ l t, r = .returned l c.globals c.memory c.ffi [.word t] ∧
+      (t ≠ 18446744073709551615#64 → size.toNat < 2 ^ 37)) := by
+  have hbody := (fun_of_index 457 hE.functions (by guest_decl_at 457) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine WPr.decCall_spec (fun rb => ∃ l w cv, rb = .returned l c.globals c.memory c.ffi
+      [.word w] ∧ (cv = 18446744073709551615#64 ∨
+        (cv.toNat % 32 = 0 ∧ size.toNat ≤ cv.toNat ∧ cv.toNat < size.toNat + 32)) ∧
+      w.toNat = cv.toNat / 32) ?_ ?_ ?_ ?_
+  · intro parameters cbody values cl hlk hvalues hbind
+    have hparams := (fun_of_index 443 hE.functions (by guest_decl_at 443) (by decide +kernel)
+      hlk).2
+    have hvals : values = [.word size] := by
+      simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local, hs]
+        at hvalues
+      exact hvalues.symm
+    subst hvals
+    rw [hparams] at hbind
+    simp [bindPanValueParameters] at hbind
+    exact words_of_runs hE parameters cbody hlk ⟨cl, c.globals, c.memory, c.ffi⟩ size
+      (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+  rotate_left
+  · rintro l g m ffi exc v ⟨l', w, cv, hC, -⟩
+    cases hC
+  · rintro l g m ffi ev ⟨l', w, cv, hC, -⟩
+    cases hC
+  rintro l g m ffi v ⟨l', w, cv, hC, hcv, hw⟩
+  injection hC with _ hg hm hf hv'
+  subst hg hm hf
+  simp only [List.cons.injEq, and_true] at hv'
+  subst hv'
+  refine WPr.decCall_spec (fun rb => ∃ l lo hi, rb = .returned l c.globals c.memory c.ffi
+      [.rStruct [.word lo, .word hi]] ∧ hi.toNat * 2 ^ 64 + lo.toNat = w.toNat * w.toNat)
+    ?_ ?_ ?_ ?_
+  · intro parameters cbody values cl hlk hvalues hbind r hr
+    have hparams := (fun_of_index 59 hE.functions (by guest_decl_at 59) (by decide +kernel)
+      hlk).2
+    have hvals : values = [.word w, .word w] := by
+      simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+        update_lookup] at hvalues
+      exact hvalues.symm
+    subst hvals
+    rw [hparams] at hbind
+    simp [bindPanValueParameters] at hbind
+    exact Or.inr (mul64x64_runs hE parameters cbody hlk ⟨cl, c.globals, c.memory, c.ffi⟩ r w w
+      (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+      (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hr)
+  rotate_left
+  · rintro l g m ffi exc v ⟨l', lo, hi, hC, -⟩
+    cases hC
+  · rintro l g m ffi ev ⟨l', lo, hi, hC, -⟩
+    cases hC
+  rintro l2 g m ffi v ⟨l', lo, hi, hC, hmul⟩
+  injection hC with _ hg hm hf hv'
+  subst hg hm hf
+  simp only [List.cons.injEq, and_true] at hv'
+  subst hv'
+  refine WPr.seq (fun s' => s' = ⟨updatePanValueMap (updatePanValueMap c.locals "w" (.word w))
+      "sq" (.rStruct [.word lo, .word hi]), c.globals, c.memory, c.ffi⟩ ∧ hi = 0#64)
+    (WPr.ite_both (fun w' hw' => ?_)) ?_
+  · have hcv' := eval_cmp_inv hE (op := .notEqual)
+      (of_eval (w := hi) (by simp (config := { decide := true }) [evalF_rField, eval_local,
+        update_lookup]))
+      (of_eval (w := 0#64) (eval_const _ _)) _ hw'
+    simp only [PanValue.word.injEq] at hcv'
+    split
+    · rename_i h0
+      rw [h0] at hcv'
+      refine WPr.skip ⟨rfl, ?_⟩
+      by_contra hne
+      simp [evalPanCmp, hne] at hcv'
+    · refine WPr.ret (w := 18446744073709551615#64) (of_eval (eval_const _ _)) ?_
+      simp only [restorePanValueFfiLocal]
+      exact ⟨_, _, rfl, fun h => absurd rfl h⟩
+  rintro _ ⟨rfl, hhi⟩
+  have hsmall : size.toNat < 2 ^ 37 := by
+    subst hhi
+    have hww : w.toNat * w.toNat < 2 ^ 64 := by
+      have := lo.isLt
+      simp at hmul
+      omega
+    have hw32 : w.toNat < 2 ^ 32 := by
+      by_contra hge
+      have : 2 ^ 32 * 2 ^ 32 ≤ w.toNat * w.toNat := Nat.mul_le_mul (by omega) (by omega)
+      omega
+    rcases hcv with hmax | ⟨h1, h2, h3⟩
+    · rw [hmax] at hw
+      simp at hw
+      omega
+    · omega
+  refine WPr.decCall_spec (fun rb => ∃ l t, rb = .returned l c.globals c.memory c.ffi [.word t])
+    ?_ ?_ ?_ ?_
+  · intro parameters cbody values cl hlk hvalues hbind
+    have hparams := (fun_of_index 441 hE.functions (by guest_decl_at 441) (by decide +kernel)
+      hlk).2
+    obtain ⟨v1, v2, g1, g2, rfl⟩ := evalArgs2_inv hvalues
+    obtain ⟨x1, rfl⟩ : ∃ x : Word, v1 = .word x := by
+      rw [evalF_panOp] at g1
+      split at g1
+      · simp only [Option.map_eq_some_iff] at g1
+        obtain ⟨x, -, rfl⟩ := g1
+        exact ⟨x, rfl⟩
+      · cases g1
+    obtain ⟨x2, rfl⟩ : ∃ x : Word, v2 = .word x := by
+      rw [evalF_shift hE.word] at g2
+      split at g2
+      · simp only [Option.map_eq_some_iff] at g2
+        obtain ⟨x, -, rfl⟩ := g2
+        exact ⟨x, rfl⟩
+      · cases g2
+    rw [hparams] at hbind
+    simp [bindPanValueParameters] at hbind
+    exact WPr.conseq (add_sat_exact hE parameters cbody hlk ⟨cl, c.globals, c.memory, c.ffi⟩ x1 x2
+      (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+      (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]))
+      (fun r ⟨l, t, hr, _⟩ => ⟨l, t, hr⟩)
+  · rintro l3 g m ffi v ⟨l', t, hC⟩
+    injection hC with _ hg hm hf hv'
+    subst hg hm hf
+    simp only [List.cons.injEq, and_true] at hv'
+    subst hv'
+    refine WPr.ret (w := t) (of_eval (by lk [])) ?_
+    simp only [restorePanValueFfiLocal]
+    exact ⟨_, _, rfl, fun _ => hsmall⟩
+  · rintro l3 g m ffi exc v ⟨l', t, hC⟩
+    cases hC
+  · rintro l3 g m ffi ev ⟨l', t, hC⟩
+    cases hC
+
 end InitECandidate.Solver.GuestBound
