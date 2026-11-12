@@ -1,6 +1,7 @@
 import InitECandidate.Solver.GuestBound.WorldRestore
 import InitECandidate.Solver.GuestBound.WorldAssn
 import InitECandidate.Solver.GuestBound.WorldRollback
+import InitECandidate.Solver.GuestBound.WorldBlob
 
 /-! Axioms of the world-state layer results. -/
 
@@ -20,3 +21,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms HeapW.node_add
 #print axioms NodesOK.store_child
 #print axioms rollback_world
+#print axioms WorldTJ.alloc
+#print axioms WorldTJ.write_free
+#print axioms WorldTJ.release
