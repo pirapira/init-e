@@ -82,4 +82,226 @@ theorem term_wp (hE : GuestEnv E) {x y : Exp Word} {rest : Prog Word}
     have : X.toNat * Y.toNat < 2 ^ 32 * 2 ^ 32 := Nat.mul_lt_mul'' hXb hYb
     exact Nat.mod_eq_of_lt (by omega)
 
+/-- Locals agree except for `pr`, `L` and `H`. -/
+def PLH (l l' : VarName → Option (PanValue Word)) : Prop :=
+  ∀ z, z ≠ "pr" → z ≠ "L" → z ≠ "H" → l' z = l z
+
+theorem PLH.trans {l l' l'' : VarName → Option (PanValue Word)} (h : PLH l l') (h' : PLH l' l'') :
+    PLH l l'' := fun z a b c => (h' z a b c).trans (h z a b c)
+
+/-- The products of one column. -/
+def termsProg : List (Exp Word × Exp Word) → Prog Word → Prog Word
+  | [], rest => rest
+  | (x, y) :: ts, rest => termStmts x y (termsProg ts rest)
+
+/-- Operands of a product: 32-bit values, stable while `pr`, `L`, `H` change. -/
+def TermVal (E : Env σ) (g : VarName → Option (PanValue Word))
+    (m : Word → Option (PanValue Word)) (f : FfiState σ)
+    (l : VarName → Option (PanValue Word)) (t : Exp Word × Exp Word) (v : Word × Word) : Prop :=
+  (∀ l', PLH l l' → E.eval ⟨l', g, m, f⟩ t.1 = some (.word v.1) ∧
+    E.eval ⟨l', g, m, f⟩ t.2 = some (.word v.2)) ∧ v.1.toNat < 2 ^ 32 ∧ v.2.toNat < 2 ^ 32
+
+theorem terms_wp (hE : GuestEnv E) {g : VarName → Option (PanValue Word)}
+    {m : Word → Option (PanValue Word)} {f : FfiState σ} {rest : Prog Word} :
+    ∀ (ts : List (Exp Word × Exp Word)) (vals : List (Word × Word))
+      (l : VarName → Option (PanValue Word)) (Lw Hw pw : Word),
+      List.Forall₂ (TermVal E g m f l) ts vals → l "pr" = some (.word pw) →
+      l "L" = some (.word Lw) → l "H" = some (.word Hw) →
+      Lw.toNat + ts.length * 2 ^ 32 ≤ 2 ^ 64 → Hw.toNat + ts.length * 2 ^ 32 ≤ 2 ^ 64 →
+      (∀ l' Lw' Hw' pw', PLH l l' → l' "pr" = some (.word pw') → l' "L" = some (.word Lw') →
+        l' "H" = some (.word Hw') →
+        Lw'.toNat = Lw.toNat + (vals.map fun v => v.1.toNat * v.2.toNat % 2 ^ 32).sum →
+        Hw'.toNat = Hw.toNat + (vals.map fun v => v.1.toNat * v.2.toNat / 2 ^ 32).sum →
+        WPs E ⟨l', g, m, f⟩ rest Q) →
+      WPs E ⟨l, g, m, f⟩ (termsProg ts rest) Q
+  | [], [], l, Lw, Hw, pw, _, hpr, hL, hH, _, _, h => by
+    exact h l Lw Hw pw (fun _ _ _ _ => rfl) hpr hL hH (by simp) (by simp)
+  | [], _ :: _, _, _, _, _, hF, _, _, _, _, _, _ => by cases hF
+  | _ :: _, [], _, _, _, _, hF, _, _, _, _, _, _ => by cases hF
+  | (x, y) :: ts, (X, Y) :: vals, l, Lw, Hw, pw, hF, hpr, hL, hH, hLb, hHb, h => by
+    obtain ⟨⟨hev, hXb, hYb⟩, hF'⟩ := List.forall₂_cons.mp hF
+    obtain ⟨hx, hy⟩ := hev l (fun _ _ _ _ => rfl)
+    have hx : E.eval ⟨l, g, m, f⟩ x = some (.word X) := hx
+    have hy : E.eval ⟨l, g, m, f⟩ y = some (.word Y) := hy
+    have hXb : X.toNat < 2 ^ 32 := hXb
+    have hYb : Y.toNat < 2 ^ 32 := hYb
+    simp only [List.length_cons] at hLb hHb
+    have hq : X.toNat * Y.toNat / 2 ^ 32 < 2 ^ 32 := by
+      have : X.toNat * Y.toNat < 2 ^ 32 * 2 ^ 32 := Nat.mul_lt_mul'' hXb hYb
+      omega
+    have hr : X.toNat * Y.toNat % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
+    have e : (ts.length + 1) * 2 ^ 32 = ts.length * 2 ^ 32 + 2 ^ 32 := by ring
+    show WPs E ⟨l, g, m, f⟩ (termStmts x y (termsProg ts rest)) Q
+    refine term_wp hE hx hy hpr hL hH hXb hYb (by omega) (by omega)
+      (fun l1 Lw1 Hw1 pw1 hfr hpr1 hL1 hH1 eL eH => ?_)
+    refine terms_wp hE ts vals l1 Lw1 Hw1 pw1
+      (hF'.imp (fun t v ⟨hv, b1, b2⟩ => ⟨fun l' hl' => hv l' (PLH.trans hfr hl'), b1, b2⟩)) hpr1
+      hL1 hH1 (by omega) (by omega) (fun l' Lw' Hw' pw' hfr' hpr' hL' hH' eL' eH' => ?_)
+    refine h l' Lw' Hw' pw' (PLH.trans hfr hfr') hpr' hL' hH' ?_ ?_
+    · simp only [List.map_cons, List.sum_cons]
+      omega
+    · simp only [List.map_cons, List.sum_cons]
+      omega
+
+theorem mont_digit (dg : Nat) :
+    (dg + dg * 3834012553 % 2 ^ 32 * 3632069959 % 2 ^ 32) % 2 ^ 32 = 0 := by
+  omega
+
+set_option maxRecDepth 100000 in
+theorem colEndA_num (Lw Hw cw : Word) (hLb : Lw.toNat < 2 ^ 37) (hHb : Hw.toNat < 2 ^ 37)
+    (hcb : cw.toNat < 2 ^ 38) :
+    ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64).toNat < 2 ^ 32 ∧
+    (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))).toNat < 2 ^ 38 ∧
+    2 ^ 32 * (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))).toNat =
+      Lw.toNat + cw.toNat + 2 ^ 32 * Hw.toNat + ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64).toNat * 3632069959 := by
+  have hcolN : (Lw + cw).toNat = Lw.toNat + cw.toNat := by
+    rw [BitVec.toNat_add]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hdgN : ((Lw + cw) &&& 4294967295#64).toNat = (Lw.toNat + cw.toNat) % 2 ^ 32 := by rw [and32_toNat, hcolN]
+  have hk : (3834012553#64 : Word).toNat = 3834012553 := rfl
+  have hmN : ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64).toNat = ((Lw + cw) &&& 4294967295#64).toNat * 3834012553 % 2 ^ 32 := by
+    rw [and32_toNat, BitVec.toNat_mul, hk]
+    omega
+  have hmb : ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64).toNat < 2 ^ 32 := by
+    rw [hmN]
+    exact Nat.mod_lt _ (by norm_num)
+  have hprN : (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64).toNat = ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64).toNat * 3632069959 := mul32_toNat hmb (by
+    rw [show (3632069959#64 : Word).toNat = 3632069959 from rfl]
+    norm_num)
+  generalize ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) = mv at hmN hmb hprN ⊢
+  generalize ((Lw + cw) &&& 4294967295#64) = dg at hdgN hmN ⊢
+  have hcol2N : (dg + ((mv * 3632069959#64) &&& 4294967295#64)).toNat =
+      dg.toNat + (mv * 3632069959#64).toNat % 2 ^ 32 := by
+    rw [BitVec.toNat_add, and32_toNat]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hcN : (((Lw + cw) >>> (32 : Nat)) + (Hw + (((dg + ((mv * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) +
+      ((mv * 3632069959#64) >>> (32 : Nat))))).toNat = (Lw.toNat + cw.toNat) / 2 ^ 32 + Hw.toNat +
+      (dg.toNat + (mv * 3632069959#64).toNat % 2 ^ 32) / 2 ^ 32 +
+      (mv * 3632069959#64).toNat / 2 ^ 32 := by
+    have hX := (mv * 3632069959#64).isLt
+    have b1 : (Lw.toNat + cw.toNat) / 2 ^ 32 < 2 ^ 7 := by omega
+    have b2 : (dg.toNat + (mv * 3632069959#64).toNat % 2 ^ 32) / 2 ^ 32 < 2 := by omega
+    have b3 : (mv * 3632069959#64).toNat / 2 ^ 32 < 2 ^ 32 := by omega
+    rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_add, shr32_toNat, shr32_toNat,
+      shr32_toNat, hcolN, hcol2N]
+    generalize (Lw.toNat + cw.toNat) / 2 ^ 32 = a at b1 ⊢
+    generalize (dg.toNat + (mv * 3632069959#64).toNat % 2 ^ 32) / 2 ^ 32 = b at b2 ⊢
+    generalize (mv * 3632069959#64).toNat / 2 ^ 32 = c at b3 ⊢
+    omega
+  rw [hcN]
+  refine ⟨hmb, by omega, by omega⟩
+
+/-- Locals agree outside the names in `S`. -/
+def Keep (S : List VarName) (l l' : VarName → Option (PanValue Word)) : Prop :=
+  ∀ z, z ∉ S → l' z = l z
+
+/-- End of one of the first eight columns: choose the digit `mk` that clears
+the column, and carry. -/
+def colEndA (mk : VarName) (rest : Prog Word) : Prog Word :=
+  .seq (.assign .local "col" (.op .add [.var .local "L", .var .local "c"]))
+  (.seq (.assign .local "dg" (.op .and [.var .local "col", .const 4294967295#64]))
+  (.seq (.assign .local mk (.op .and [.panOp .mul [.var .local "dg", .const 3834012553#64],
+    .const 4294967295#64]))
+  (.seq (.assign .local "pr" (.panOp .mul [.var .local mk, .const 3632069959#64]))
+  (.seq (.assign .local "col2" (.op .add [.var .local "dg",
+    .op .and [.var .local "pr", .const 4294967295#64]]))
+  (.seq (.assign .local "c" (.op .add [.shift .lsr (.var .local "col") (.const 32#64),
+    .var .local "H", .shift .lsr (.var .local "col2") (.const 32#64),
+    .shift .lsr (.var .local "pr") (.const 32#64)]))
+  (.seq (.assign .local "L" (.const 0#64)) (.seq (.assign .local "H" (.const 0#64)) rest)))))))
+
+set_option maxHeartbeats 8000000 in
+theorem colEndA_wp (hE : GuestEnv E) {mk : VarName} {rest : Prog Word}
+    {l g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} {Lw Hw cw w1 w2 w3 w4 w5 : Word}
+    (hmk : (["col", "dg", "pr", "col2", "c", "L", "H"].contains mk) = false)
+    (hL : l "L" = some (.word Lw)) (hH : l "H" = some (.word Hw)) (hc : l "c" = some (.word cw))
+    (hcol : l "col" = some (.word w1)) (hdg : l "dg" = some (.word w2))
+    (hm0 : l mk = some (.word w3)) (hpr : l "pr" = some (.word w4))
+    (hcol2 : l "col2" = some (.word w5))
+    (hLb : Lw.toNat < 2 ^ 37) (hHb : Hw.toNat < 2 ^ 37) (hcb : cw.toNat < 2 ^ 38)
+    (h : ∀ l' cw' mw pw', Keep ["col", "dg", mk, "pr", "col2", "c", "L", "H"] l l' →
+      l' "c" = some (.word cw') → l' mk = some (.word mw) → l' "L" = some (.word 0#64) →
+      l' "H" = some (.word 0#64) → l' "pr" = some (.word pw') →
+      (∃ w, l' "col" = some (.word w)) → (∃ w, l' "dg" = some (.word w)) →
+      (∃ w, l' "col2" = some (.word w)) → mw.toNat < 2 ^ 32 → cw'.toNat < 2 ^ 38 →
+      2 ^ 32 * cw'.toNat = Lw.toNat + cw.toNat + 2 ^ 32 * Hw.toNat + mw.toNat * 3632069959 →
+      WPs E ⟨l', g, m, f⟩ rest Q) :
+    WPs E ⟨l, g, m, f⟩ (colEndA mk rest) Q := by
+  have n1 : (mk == "col") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n2 : (mk == "dg") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n3 : (mk == "pr") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n4 : (mk == "col2") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n5 : (mk == "c") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n6 : (mk == "L") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have n7 : (mk == "H") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r1 : ("col" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r2 : ("dg" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r3 : ("pr" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r4 : ("col2" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r5 : ("c" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r6 : ("L" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  have r7 : ("H" == mk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd hmk (by decide)
+  unfold colEndA
+  refine WPs.seq (fun a => a = ⟨updatePanValueMap l "col" (.word (Lw + cw)), g, m, f⟩)
+    (WPs.assign (old := w1) hcol (of_eval (w := Lw + cw) (by ev [hL, hc]))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw)))
+      "dg" (.word ((Lw + cw) &&& 4294967295#64)), g, m, f⟩)
+    (WPs.assign (old := w2) (by lk [hdg]) (of_eval (w := (Lw + cw) &&& 4294967295#64)
+      (by ev []; rfl)) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨updatePanValueMap (updatePanValueMap (updatePanValueMap l "col"
+      (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk
+      (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64)), g, m, f⟩)
+    (WPs.assign (old := w3) (by lk [hm0, n1, n2])
+      (of_eval (w := (((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64)
+        (by ev [evalPanOp]; rfl)) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))), g, m, f⟩)
+    (WPs.assign (old := w4) (by lk [hpr, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])
+      (of_eval (w := (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64)) (by ev [evalPanOp, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))) "col2" (.word (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)))), g, m, f⟩)
+    (WPs.assign (old := w5) (by lk [hcol2, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])
+      (of_eval (w := (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64))) (by ev [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]; rfl)) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))) "col2" (.word (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))))), g, m, f⟩)
+    (WPs.assign (old := cw) (by lk [hc, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])
+      (of_eval (w := (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat)))))) (by
+        ev [evalF_shift hE.word, shift32, hH, eval_const, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))) "col2" (.word (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))))) "L" (.word 0#64)), g, m, f⟩)
+    (WPs.assign (old := Lw) (by lk [hL, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) (of_eval (eval_const _ _))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))) "col2" (.word (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))))) "L" (.word 0#64)) "H" (.word 0#64)), g, m, f⟩)
+    (WPs.assign (old := Hw) (by lk [hH, n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) (of_eval (eval_const _ _))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  obtain ⟨hmb, hcb', heq⟩ := colEndA_num Lw Hw cw hLb hHb hcb
+  refine h (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) "dg" (.word ((Lw + cw) &&& 4294967295#64))) mk (.word ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64))) "pr" (.word (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64))) "col2" (.word (((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))))) "L" (.word 0#64)) "H" (.word 0#64))
+    (((Lw + cw) >>> (32 : Nat)) + (Hw + (((((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)) >>> (32 : Nat)) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) >>> (32 : Nat))))) ((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) (((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) (fun z hz => ?_) (by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) (by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7])
+    (by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) (by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) (by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]) ⟨(Lw + cw), by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]⟩
+    ⟨((Lw + cw) &&& 4294967295#64), by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]⟩
+    ⟨(((Lw + cw) &&& 4294967295#64) + ((((((Lw + cw) &&& 4294967295#64) * 3834012553#64) &&& 4294967295#64) * 3632069959#64) &&& 4294967295#64)), by lk [n1, n2, n3, n4, n5, n6, n7, r1, r2, r3, r4, r5, r6, r7]⟩ hmb hcb' heq
+  simp only [List.mem_cons, List.mem_nil_iff, or_false, not_or] at hz
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := hz
+  simp [update_lookup, a1, a2, a3, a4, a5, a6, a7, a8]
+
 end InitECandidate.Solver.GuestBound
