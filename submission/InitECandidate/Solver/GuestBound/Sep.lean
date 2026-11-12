@@ -118,11 +118,13 @@ abbrev Assn := Heap → Prop
 
 namespace Assn
 
+/-- Separating conjunction: the heap splits into disjoint parts for `P` and `Q`. -/
 def sep (P Q : Assn) : Assn := fun h =>
   ∃ h1 h2, Heap.Disj h1 h2 ∧ h = Heap.union h1 h2 ∧ P h1 ∧ Q h2
 
 def emp : Assn := fun h => h = Heap.empty
 
+/-- A fact that owns nothing. -/
 def pure (φ : Prop) : Assn := fun h => φ ∧ h = Heap.empty
 
 /-- The cell or global `k` holds `v`. -/
