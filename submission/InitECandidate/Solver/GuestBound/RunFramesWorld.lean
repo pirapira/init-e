@@ -1,0 +1,81 @@
+import InitECandidate.Solver.GuestBound.WorldAssn
+import InitECandidate.Solver.GuestBound.WorldRollback
+
+/-!
+# The `run_frames` bound over the concrete world assertion
+
+`run_frames_bound_A`: the bound with `W := WorldA D`; `state_restore` is
+discharged by `restore_spec`. What remains assumed: the unproved handlers,
+the two cost bounds, and the `finish_child` branch (`ChildSpec`).
+
+`rollback_framed`: `rollback_child_access(child)` in the form `ChildSpec`
+needs, on the child's access cells and the world.
+-/
+
+namespace InitECandidate.Solver.GuestBound
+open Flapjack
+
+variable {σ : Type} {E : Env σ}
+
+/-- `run_frames` from a chain of frames over the world `WorldA D`. -/
+theorem run_frames_bound_A (D : Word → Prop) (hE : GuestEnv E)
+    (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
+    (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (hC : ChildSpec E (WorldA D) D)
+    (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
+    (s : St σ) (k : Nat) (hI : chainInv (WorldA D) D k s.globals s.memory) (fuel : Nat)
+    (r : Result σ) (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
+    n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
+  run_frames_bound_world (WorldA D) D hE hrest BD BF costD costF (restore_spec hE D) hC
+    parameters body hlookup s k hI fuel r n hrun hne
+
+theorem rollback_raises (hE : GuestEnv E) :
+    FunRaises E (fun x => x == "TrapErr") "rollback_child_access" :=
+  raiseFn_sound _ hE.functions 8 "rollback_child_access"
+    (show raiseFn (fun x => x == "TrapErr") Guest.Software.guestAst 8 "rollback_child_access" =
+      true by decide +kernel)
+
+/-- `rollback_child_access(child)` on the child's access cells and the world. -/
+theorem rollback_framed (hE : GuestEnv E) (D : Word → Prop) (parameters : List VarName)
+    (body : Prog Word)
+    (hlookup : lookupPanFunction "rollback_child_access" E.functions = some (parameters, body))
+    (s : St σ) (child : Word) (A : AccSt) (R : Assn)
+    (hc : s.locals "child" = some (.word child)) (hlo : 2952790016 ≤ child.toNat)
+    (hhi : child.toNat + 280 ≤ 2 ^ 62) (hD : D A.t1 ∧ D A.t2)
+    (h : (AccCells child A ⋆ WorldA D ⋆ R).holds s) :
+    WPr E s body (fun r => Trap r ∨ ∃ l g m, r = .returned l g m s.ffi [.word 0#64] ∧
+      (AccCells child A ⋆ WorldA D ⋆ R).holds (⟨l, g, m, s.ffi⟩ : St σ)) := by
+  intro r hr
+  have hcells := h
+  unfold AccCells at hcells
+  have r1 : Rd s.memory (child + 168#64) A.t1 := Assn.mem_at hcells (by look)
+  have r3 : Rd s.memory (child + 176#64) A.t2 := Assn.mem_at hcells (by look)
+  have r2 : Rd s.memory (child + 264#64) A.n1 := Assn.mem_at hcells (by look)
+  have r4 : Rd s.memory (child + 272#64) A.n2 := Assn.mem_at hcells (by look)
+  have hw : (WorldA D ⋆ (AccCells child A ⋆ R)).holds s := Assn.holds_perm h (by ac_rfl)
+  have hW : WorldTJ D s.globals s.memory := Assn.region_elim hw
+  rcases rollback_raises hE parameters body hlookup s r hr with he | hra
+  · exact Or.inl he
+  rcases rollback_world hE parameters body hlookup D s r child A.t1 A.n1 A.t2 A.n2 hc hlo hhi r1
+    r2 r3 r4 hD.1 hD.2 hW hr with hst | ⟨l, m', rfl, hW', hm⟩
+  · cases r with
+    | error l g m f => exact Or.inl rfl
+    | raised l g m f e v =>
+      have he : e = "TrapErr" := by simpa [RaiseIn] using hra
+      exact Or.inr (Or.inl he)
+    | finalFfi l g m f ev => exact Or.inr (Or.inl trivial)
+    | _ => exact absurd hst (fun h => h)
+  · refine Or.inr (Or.inr ⟨l, s.globals, m', rfl, ?_⟩)
+    have hw' : (WorldA D ⋆ (AccCells child A ⋆ R)).holds (⟨l, s.globals, m', s.ffi⟩ : St σ) := by
+      refine Assn.region_change hw (worldP_local D) (fun k hk => ?_) hW'
+      cases k with
+      | mem a =>
+        show m' a = s.memory a
+        refine hm a ?_
+        by_contra hc'
+        exact hk ⟨by omega, by omega⟩
+      | glob x => rfl
+    exact Assn.holds_perm hw' (by ac_rfl)
+
+end InitECandidate.Solver.GuestBound

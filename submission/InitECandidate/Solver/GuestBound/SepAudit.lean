@@ -7,6 +7,7 @@ import InitECandidate.Solver.GuestBound.RfInstance
 import InitECandidate.Solver.GuestBound.RfInstanceM
 import InitECandidate.Solver.GuestBound.SepFinish
 import InitECandidate.Solver.GuestBound.SepDom
+import InitECandidate.Solver.GuestBound.RunFramesWorld
 
 /-!
 # Axiom audit of the framed specifications
@@ -141,3 +142,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_swapn_frame
 #print axioms op_exchange_frame
 #print axioms op_clz_frame
+#print axioms run_frames_bound_A
+#print axioms rollback_framed
