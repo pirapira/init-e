@@ -25,7 +25,7 @@ structure HtabOK (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
     ∀ j : Word, j.toNat < (v.kl * 8#64).toNat →
       KeyBitIs 8#64 m (v.keys + BitVec.ofNat 64 i * v.st) j (rep i j)
 
-variable {s : St σ} {Q : Result σ → Prop}
+variable {s : St σ} {Q : Result σ → Prop} {t : Word} {v : HtabV}
 
 theorem of_eval {e : Exp Word} {w : Word} (h : E.eval s e = some (.word w)) :
     ∀ y, E.eval s e = some y → y = .word w := by
@@ -230,5 +230,205 @@ theorem del_phaseA (hE : GuestEnv E) {t : Word} {v : HtabV} (hlay : HtabLayout t
     simp only [restorePanValueFfiLocal]
     rw [restore_update, restore_update]
     rfl
+
+theorem eval_cmp_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {wa wb : Word}
+    (ha : ∀ y, E.eval s a = some y → y = .word wa) (hb : ∀ y, E.eval s b = some y → y = .word wb) :
+    ∀ x, E.eval s (.cmp op a b) = some x → x = .word (evalPanCmp op wa wb) := by
+  intro x hx
+  rw [evalF_cmp hE.word] at hx
+  cases hea : E.eval s a with
+  | none => rw [hea] at hx; cases hx
+  | some ya =>
+    have := ha ya hea
+    subst this
+    cases heb : E.eval s b with
+    | none => rw [hea, heb] at hx; cases hx
+    | some yb =>
+      have := hb yb heb
+      subst this
+      rw [hea, heb] at hx
+      exact (Option.some.inj hx).symm
+
+theorem Rd.frame {m : Word → Option (PanValue Word)} {a a' w : Word} (x : Word)
+    (h : Rd m a w) (hne : a ≠ a') : Rd (setCell m a' x) a w := by
+  rw [rd_setCell, if_neg hne]
+  exact h
+
+theorem Rd.here (m : Word → Option (PanValue Word)) (a x : Word) : Rd (setCell m a x) a x := by
+  rw [rd_setCell, if_pos rfl]
+
+theorem update_same (l : VarName → Option (PanValue Word)) (x : VarName) (v : PanValue Word)
+    (h : l x = some v) : updatePanValueMap l x v = l := by
+  funext y
+  simp only [update_lookup]
+  by_cases hy : (y == x) = true
+  · rw [if_pos hy, beq_iff_eq.mp hy, h]
+  · rw [if_neg hy]
+
+theorem update_update (l : VarName → Option (PanValue Word)) (x : VarName)
+    (v v' : PanValue Word) :
+    updatePanValueMap (updatePanValueMap l x v) x v' = updatePanValueMap l x v' := by
+  funext y
+  simp only [update_lookup]
+  by_cases hy : (y == x) = true
+  · simp only [hy, if_true]
+  · simp only [hy]
+    rfl
+
+/-- The cell that links to the parent `p` of the deleted leaf. -/
+def delX (t : Word) (v : HtabV) (g gl p : Word) : Word :=
+  if g = 0#64 then t + 56#64 else if gl = p then nodeField v g.toNat 8 else nodeField v g.toNat 16
+
+/-- Memory after unlinking the leaf `Lw` (order already fixed). -/
+def delB (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
+    (Lw rootv p g lc rc gl fr : Word) : Word → Option (PanValue Word) :=
+  if rootv = Lw then setCell m (t + 56#64) 0#64
+  else
+    setCell (setCell (setCell (setCell m (nodeField v (if lc = Lw then rc else lc).toNat 0) g)
+      (delX t v g gl p) (if lc = Lw then rc else lc)) (nodeField v p.toNat 0) fr) (t + 72#64) p
+
+theorem delX_ne_free (hlay : HtabLayout t v) {g gl p : Word} (hg : g.toNat ≤ v.nc.toNat) :
+    t + 72#64 ≠ delX t v g gl p := by
+  unfold delX
+  split
+  · exact fun h => by have := (hdr_eq_hdr hlay (k := 72) (k' := 56) (by omega) (by omega)).mp h; omega
+  · split
+    · exact fun h => (hdr_ne_node hlay hg (by omega) (by omega)).mp h
+    · exact fun h => (hdr_ne_node hlay hg (by omega) (by omega)).mp h
+
+set_option maxHeartbeats 2000000 in
+/-- The unlink of `htab_del`: the root is cleared, or the sibling of the leaf
+takes the place of their parent, which goes to the free list. -/
+theorem del_phaseB (hE : GuestEnv E) (hlay : HtabLayout t v)
+    {Lw rootv p g lc rc gl fr : Word} (h_t : s.locals "t" = some (.word t))
+    (h_nodes : s.locals "nodes" = some (.word v.nodes))
+    (h_leaf : s.locals "leaf" = some (.word Lw)) (hroot : Rd s.memory (t + 56#64) rootv)
+    (hLnc : Lw.toNat ≤ v.nc.toNat) (hfr : Rd s.memory (t + 72#64) fr)
+    (hsp : rootv ≠ Lw → Rd s.memory (nodeField v Lw.toNat 0) p ∧ p.toNat ≤ v.nc.toNat ∧
+      Rd s.memory (nodeField v p.toNat 0) g ∧ g.toNat ≤ v.nc.toNat ∧
+      Rd s.memory (nodeField v p.toNat 8) lc ∧ Rd s.memory (nodeField v p.toNat 16) rc ∧
+      (if lc = Lw then rc else lc).toNat ≤ v.nc.toNat ∧
+      (g ≠ 0#64 → Rd s.memory (nodeField v g.toNat 8) gl)) :
+    WPs E s
+      (.ite (.cmp .equal (.var .local "leaf") (.load .one (.op .add [.var .local "t", .const 56#64])))
+        (.store (.op .add [.var .local "t", .const 56#64]) (.const 0#64))
+        (.dec "p" .one (.load .one (.op .add [.var .local "nodes", .panOp .mul [.var .local "leaf", .const 32#64], .const 0#64]))
+          (.dec "g" .one (.load .one (.op .add [.var .local "nodes", .panOp .mul [.var .local "p", .const 32#64], .const 0#64]))
+            (.dec "s" .one (.load .one (.op .add [.var .local "nodes", .panOp .mul [.var .local "p", .const 32#64], .const 8#64]))
+              (.seq (.ite (.cmp .equal (.var .local "s") (.var .local "leaf"))
+                  (.assign .local "s" (.load .one (.op .add [.var .local "nodes", .panOp .mul [.var .local "p", .const 32#64], .const 16#64]))) .skip)
+                (.seq (.store (.op .add [.var .local "nodes", .panOp .mul [.var .local "s", .const 32#64], .const 0#64]) (.var .local "g"))
+                  (.seq (.ite (.cmp .equal (.var .local "g") (.const 0#64))
+                      (.store (.op .add [.var .local "t", .const 56#64]) (.var .local "s"))
+                      (.ite (.cmp .equal (.load .one (.op .add [.var .local "nodes", .panOp .mul [.var .local "g", .const 32#64], .const 8#64])) (.var .local "p"))
+                        (.store (.op .add [.var .local "nodes", .panOp .mul [.var .local "g", .const 32#64], .const 8#64]) (.var .local "s"))
+                        (.store (.op .add [.var .local "nodes", .panOp .mul [.var .local "g", .const 32#64], .const 16#64]) (.var .local "s"))))
+                    (.seq (.store (.op .add [.var .local "nodes", .panOp .mul [.var .local "p", .const 32#64], .const 0#64]) (.load .one (.op .add [.var .local "t", .const 72#64])))
+                      (.store (.op .add [.var .local "t", .const 72#64]) (.var .local "p"))))))))))
+      (fun r1 => r1 = .normal s.locals s.globals (delB s.memory t v Lw rootv p g lc rc gl fr)
+        s.ffi) := by
+  refine WPs.ite (w := evalPanCmp .equal Lw rootv) (eval_cmp_inv hE (of_eval (by lk [h_leaf]))
+    (eval_load_rd hE (eval_addc hE 56#64 h_t) hroot)) ?_
+  split
+  · rename_i h0
+    have hne : rootv ≠ Lw := by
+      intro h
+      subst h
+      simp [evalPanCmp] at h0
+    obtain ⟨hp, hpnc, hg, hgnc, hlc, hrc, hsnc, hgl⟩ := hsp hne
+    simp only [delB, if_neg hne]
+    refine WPs.dec (eval_load_rd hE (eval_node hE hlay (idx := "leaf") hLnc h_nodes h_leaf 0#64
+      (by decide)) hp) ?_
+    refine WPs.dec (eval_load_rd hE (eval_node hE hlay (idx := "p") hpnc (by lk [h_nodes])
+      (by lk []) 0#64 (by decide)) hg) ?_
+    refine WPs.dec (eval_load_rd hE (eval_node hE hlay (idx := "p") hpnc (by lk [h_nodes])
+      (by lk []) 8#64 (by decide)) hlc) ?_
+    refine WPs.seq (fun s' => s' = ⟨updatePanValueMap (updatePanValueMap (updatePanValueMap
+      s.locals "p" (.word p)) "g" (.word g)) "s" (.word (if lc = Lw then rc else lc)),
+      s.globals, s.memory, s.ffi⟩) ?_ ?_
+    · refine WPs.ite (w := evalPanCmp .equal lc Lw) (eval_cmp_inv hE (of_eval (by lk []))
+        (of_eval (by lk [h_leaf]))) ?_
+      split
+      · rename_i h1
+        have hlL : lc ≠ Lw := by
+          intro h
+          subst h
+          simp [evalPanCmp] at h1
+        refine WPs.skip ⟨_, _, _, _, rfl, ?_⟩
+        rw [if_neg hlL]
+      · rename_i h1
+        have hlL : lc = Lw := by
+          by_contra h
+          exact h1 (by simp [evalPanCmp, h])
+        refine WPs.assign (old := lc) (by lk []) (eval_load_rd hE (eval_node hE hlay (idx := "p")
+          hpnc (by lk [h_nodes]) (by lk []) 16#64 (by decide)) hrc) ⟨_, _, _, _, rfl, ?_⟩
+        rw [if_pos hlL, update_update]
+    · intro s' hs'
+      subst hs'
+      generalize (if lc = Lw then rc else lc) = sb at hsnc ⊢
+      refine WPs.seq_store hE (eval_node hE hlay (idx := "s") hsnc (by lk [h_nodes]) (by lk [])
+        0#64 (by decide)) (of_eval (w := g) (by lk [])) ?_
+      refine WPs.seq_mem (fun m' => m' = setCell (setCell s.memory (nodeField v sb.toNat 0) g)
+        (delX t v g gl p) sb) ?_ ?_
+      · refine WPs.ite (w := evalPanCmp .equal g 0#64) (eval_cmp_inv hE (of_eval (by lk []))
+          (of_eval (eval_const _ _))) ?_
+        split
+        · rename_i h2
+          have hg0 : g ≠ 0#64 := by
+            intro h
+            subst h
+            simp [evalPanCmp] at h2
+          have hgl' := (hgl hg0).frame (a' := nodeField v sb.toNat 0) g (by
+            intro h
+            have := (node_eq_node hlay hgnc hsnc (by omega) (by omega) (by omega)
+              (by omega)).mp h
+            omega)
+          refine WPs.ite (w := evalPanCmp .equal gl p) (eval_cmp_inv hE (eval_load_rd hE
+            (eval_node hE hlay (idx := "g") hgnc (by lk [h_nodes]) (by lk []) 8#64 (by decide))
+            hgl') (of_eval (by lk []))) ?_
+          split
+          · rename_i h3
+            have hglp : gl ≠ p := by
+              intro h
+              subst h
+              simp [evalPanCmp] at h3
+            refine WPs.store hE (eval_node hE hlay (idx := "g") hgnc (by lk [h_nodes])
+              (by lk []) 16#64 (by decide)) (of_eval (w := sb) (by lk [])) ⟨_, rfl, ?_⟩
+            simp only [delX, if_neg hg0, if_neg hglp]
+            rfl
+          · rename_i h3
+            have hglp : gl = p := by
+              by_contra h
+              exact h3 (by simp [evalPanCmp, h])
+            refine WPs.store hE (eval_node hE hlay (idx := "g") hgnc (by lk [h_nodes])
+              (by lk []) 8#64 (by decide)) (of_eval (w := sb) (by lk [])) ⟨_, rfl, ?_⟩
+            simp only [delX, if_neg hg0, if_pos hglp]
+            rfl
+        · rename_i h2
+          have hg0 : g = 0#64 := by
+            by_contra h
+            exact h2 (by simp [evalPanCmp, h])
+          refine WPs.store hE (eval_addc hE (a := t) 56#64 (by lk [h_t])) (of_eval (w := sb) (by lk []))
+            ⟨_, rfl, ?_⟩
+          simp only [delX, if_pos hg0]
+          rfl
+      · intro m' hm'
+        subst hm'
+        have hfr' : Rd (setCell (setCell s.memory (nodeField v sb.toNat 0) g) (delX t v g gl p)
+            sb) (t + 72#64) fr :=
+          (hfr.frame g (fun h => (hdr_ne_node hlay hsnc (by omega) (by omega)).mp h)).frame sb
+            (delX_ne_free hlay hgnc)
+        refine WPs.seq_store hE (eval_node hE hlay (idx := "p") hpnc (by lk [h_nodes]) (by lk [])
+          0#64 (by decide)) (eval_load_rd hE (eval_addc hE (a := t) 72#64 (by lk [h_t])) hfr') ?_
+        refine WPs.store hE (eval_addc hE (a := t) 72#64 (by lk [h_t])) (of_eval (w := p) (by lk [])) ?_
+        simp only [restorePanValueFfiLocal]
+        rw [restore_update, restore_update, restore_update]
+        rfl
+  · rename_i h0
+    have heq : rootv = Lw := by
+      by_contra h
+      exact h0 (by simp [evalPanCmp, Ne.symm h])
+    refine WPs.store hE (eval_addc hE 56#64 h_t) (of_eval (eval_const _ _)) ?_
+    simp only [delB, if_pos heq]
 
 end InitECandidate.Solver.GuestBound
