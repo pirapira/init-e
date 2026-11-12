@@ -21,7 +21,8 @@ theorem htab_new_ok (m : Word → Option (PanValue Word)) (t kl cp keys nodes or
     (h2 : keys.toNat + ((ncapOf cp + 1#64) * strideOf kl).toNat ≤ nodes.toNat)
     (h3 : nodes.toNat + ((ncapOf cp + 1#64) * 32#64).toNat ≤ order.toNat)
     (h4 : order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat)
-    (h5 : q4.toNat ≤ 2952790016) (h8 : keys.toNat % 8 = 0) (hkl : kl.toNat * 8 < 2 ^ 64)
+    (h5 : q4.toNat ≤ 2952790016) (h8 : keys.toNat % 8 = 0) (hn8 : nodes.toNat % 8 = 0)
+    (ho8 : order.toNat % 8 = 0) (hkl : kl.toNat * 8 < 2 ^ 64)
     (hcap : (ncapOf cp).toNat + 1 < 2 ^ 58)
     (hnw : ((ncapOf cp).toNat + 1) * (strideOf kl).toNat < 2 ^ 64) :
     HtabOK (htabHeader m t kl cp keys nodes order) t
@@ -39,7 +40,7 @@ theorem htab_new_ok (m : Word → Option (PanValue Word)) (t kl cp keys nodes or
   have hlay : HtabLayout t
       ⟨kl, strideOf kl, cp, ncapOf cp, 0#64, keys, nodes, order, 0#64, 1#64, 0#64⟩ :=
     ⟨h1, h2, h3, by show order.toNat + ((ncapOf cp).toNat + 1) * 8 ≤ 2952790016; omega⟩
-  refine ⟨htabWF_new m t kl cp keys nodes order hlay, ⟨?_⟩, h8, strideOf_ge kl hkl, hkl, ?_⟩
+  refine ⟨htabWF_new m t kl cp keys nodes order hlay, ⟨?_⟩, h8, hn8, ho8, strideOf_ge kl hkl, hkl, ?_⟩
   · intro i _ _ h
     cases h
   · intro i _ _ h

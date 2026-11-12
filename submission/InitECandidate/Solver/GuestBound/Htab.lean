@@ -113,7 +113,7 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
       keys.toNat + ((ncapOf cp + 1#64) * strideOf kl).toNat ≤ nodes.toNat ∧
       nodes.toNat + ((ncapOf cp + 1#64) * 32#64).toNat ≤ order.toNat ∧
       order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat ∧ q4.toNat ≤ 2952790016 ∧
-      keys.toNat % 8 = 0 := by
+      keys.toNat % 8 = 0 ∧ nodes.toNat % 8 = 0 ∧ order.toNat % 8 = 0 := by
   have hbody := (fun_of_index 128 hE.functions (by guest_decl_at 128) (by decide +kernel)
     hlookup).1
   subst hbody
@@ -129,7 +129,8 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
         (htabHeader s.memory pv kl cp q1 nodes order) s.ffi [.word pv] ∧
       q1.toNat + ((ncapOf cp + 1#64) * strideOf kl).toNat ≤ nodes.toNat ∧
       nodes.toNat + ((ncapOf cp + 1#64) * 32#64).toNat ≤ order.toNat ∧
-      order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat ∧ q4.toNat ≤ 2952790016 := by
+      order.toNat + ((ncapOf cp + 1#64) * 8#64).toNat ≤ q4.toNat ∧ q4.toNat ≤ 2952790016 ∧
+      nodes.toNat % 8 = 0 ∧ order.toNat % 8 = 0 := by
     obtain ⟨r2, h2, rfl⟩ := dec_word_runs (w := strideOf kl) (by ev [hk, strideOf]) h1
     obtain ⟨r3, h3, rfl⟩ := dec_word_runs (w := cp) (by ev [hc]) h2
     obtain ⟨r₁, hi, hrest⟩ := runs_seq.mp h3
@@ -157,14 +158,14 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
     · exact Or.inl (by repeat (first | exact hst | apply Stopped.restore))
     rcases decCall_alloc hE (nv := (ncapOf cp + 1#64) * strideOf kl) (pv := q1)
       (by ev [hlnc, hls]) (by simp [update_lookup]) hq1H h7 with hst |
-      ⟨q2, r4, hq2, hq2H, -, h8, rfl⟩
+      ⟨q2, r4, hq2, hq2H, hq28, h8, rfl⟩
     · exact Or.inl (by repeat (first | exact hst | apply Stopped.restore))
     rcases seq_store hE (addr := pv + 32#64) (w := q1) (by ev [hlt]) (by ev []) h8 with
       hst | h9
     · exact Or.inl (by repeat (first | exact hst | apply Stopped.restore))
     rcases decCall_alloc hE (nv := (ncapOf cp + 1#64) * 32#64) (pv := q2)
       (by ev [hlnc]) (by simp [update_lookup]) hq2H h9 with hst |
-      ⟨q3, r5, hq3, hq3H, -, h10, rfl⟩
+      ⟨q3, r5, hq3, hq3H, hq38, h10, rfl⟩
     · exact Or.inl (by repeat (first | exact hst | apply Stopped.restore))
     rcases seq_store hE (addr := pv + 40#64) (w := q2) (by ev [hlt]) (by ev []) h10 with
       hst | h11
@@ -193,11 +194,11 @@ theorem htab_new_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
       payload_word, if_true] at h17
     subst h17
     simp only [restorePanValueFfiLocal]
-    exact Or.inr ⟨_, q2, q3, q4, rfl, hq2, hq3, hq4, hq4H⟩
-  rcases key with hst | ⟨l, nodes, order, q4, rfl, hb1, hb2, hb3, hb4⟩
+    exact Or.inr ⟨_, q2, q3, q4, rfl, hq2, hq3, hq4, hq4H, hq28, hq38⟩
+  rcases key with hst | ⟨l, nodes, order, q4, rfl, hb1, hb2, hb3, hb4, hb5, hb6⟩
   · exact Or.inl hst.restore
   · have h88 : (88#64).toNat = 88 := by decide
-    exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4, hq18⟩
+    exact Or.inr ⟨_, q1, nodes, order, q4, rfl, by omega, hb1, hb2, hb3, hb4, hq18, hb5, hb6⟩
 
 theorem add_beq (t a b : Word) : (t + a == t + b) = (a == b) := by
   by_cases hab : a = b
