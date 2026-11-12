@@ -4,7 +4,7 @@ import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
 import InitECandidate.Solver.GuestBound.DispatchOps
 import InitECandidate.Solver.GuestBound.RfInstance
-import InitECandidate.Solver.GuestBound.SepExtendMem
+import InitECandidate.Solver.GuestBound.Mul64
 
 /-!
 # Axiom audit of the framed specifications
@@ -106,3 +106,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms run_frames_bound_frame
 #print axioms frame_mem_alloc_framed
 #print axioms extend_memory_framed
+#print axioms add_sat_exact
+#print axioms ceil32_runs
+#print axioms m64_nat
+#print axioms mul64x64_runs
