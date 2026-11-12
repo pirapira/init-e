@@ -1,4 +1,5 @@
 import InitECandidate.Solver.GuestBound.SepReturn
+import InitECandidate.Solver.GuestBound.SepSwap
 import InitECandidate.Solver.GuestBound.DispatchOps
 
 /-!
@@ -49,6 +50,14 @@ theorem op_revert_specM (hE : GuestEnv E) : HandlerSpecM E "op_revert" :=
   fun p b hl s M K e fv R X0 Y0 hok hY hgl hh =>
     op_revert_frameM hE p b hl s M K e fv R X0 Y0 hok hY hgl hh
 
+theorem op_swap_specM (hE : GuestEnv E) : HandlerSpecM E "op_swap" :=
+  HandlerSpec.toM (fun p b hl s M K e fv R X0 hok hh =>
+    op_swap_frame hE p b hl s M K e fv R X0 hok hh)
+
+theorem op_swapn_specM (hE : GuestEnv E) : HandlerSpecM E "op_swapn" :=
+  HandlerSpec.toM (fun p b hl s M K e fv R X0 hok hh =>
+    op_swapn_frame hE p b hl s M K e fv R X0 hok hh)
+
 /-- A leaf of the dispatcher, from the handler's memory-level theorem. -/
 theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Word))
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt) (Y0 : MemSt)
@@ -85,7 +94,8 @@ theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Wo
       (Or.inr ⟨fv', X, Y, n, hokX, hYX, hmX, hp, hn, Assn.holds_congr rfl rfl hh, _, _, _, rfl⟩)
 
 /-- The handlers proved by hand at the memory level. -/
-def memOps : List FunName := ["op_mload", "op_mstore", "op_mstore8", "op_stop", "op_return", "op_revert"]
+def memOps : List FunName := ["op_mload", "op_mstore", "op_mstore8", "op_stop", "op_return", "op_revert", "op_swap",
+  "op_swapn"]
 
 /-- The handlers still to be proved, at the memory level. -/
 def restOpsM : List FunName := restOps.filter (fun f => !memOps.contains f)
@@ -96,13 +106,15 @@ theorem handlers_provedM (hE : GuestEnv E) :
   rcases List.mem_append.mp hf with h1 | h2
   · exact (handlers_proved hE f h1).toM
   · simp only [memOps, List.mem_cons, List.not_mem_nil, or_false] at h2
-    rcases h2 with rfl | rfl | rfl | rfl | rfl | rfl
+    rcases h2 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     · exact op_mload_specM hE
     · exact op_mstore_specM hE
     · exact op_mstore8_specM hE
     · exact op_stop_specM hE
     · exact op_return_specM hE
     · exact op_revert_specM hE
+    · exact op_swap_specM hE
+    · exact op_swapn_specM hE
 
 /-- The dispatcher at the memory level. -/
 theorem op_dispatch_frameM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)

@@ -6,6 +6,7 @@ import InitECandidate.Solver.GuestBound.DispatchOps
 import InitECandidate.Solver.GuestBound.RfInstance
 import InitECandidate.Solver.GuestBound.RfInstanceM
 import InitECandidate.Solver.GuestBound.SepFinish
+import InitECandidate.Solver.GuestBound.SepDom
 
 /-!
 # Axiom audit of the framed specifications
@@ -135,3 +136,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms frame_epilogue_seq
 #print axioms finish_chain
 #print axioms run_frames_bound_world
+#print axioms Fr.reclaim
+#print axioms op_swap_frame
+#print axioms op_swapn_frame
