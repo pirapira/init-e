@@ -306,4 +306,83 @@ theorem subSeq_spec (hE : GuestEnv E) {a b xa xb : VarName} (h1 : a ≠ xa) (h2 
     · cases hassign2
   · cases hassign
 
+/-- The outer invariant of `modinv_bin`. -/
+def InvI (A M : Nat) (l : VarName → Option (PanValue Word)) : Prop :=
+  FourVal "m" M l ∧ ∃ U V X1 X2, FourVal "u" U l ∧ FourVal "v" V l ∧ FourVal "x1" X1 l ∧
+    FourVal "x2" X2 l ∧ X1 < M ∧ X2 < M ∧ U % M = X1 * A % M ∧ V % M = X2 * A % M
+
+theorem fourVal_restore {n : VarName} {k : Nat} {l : VarName → Option (PanValue Word)}
+    {old : Option (PanValue Word)} (hn : (n == "ult") = false) (h : FourVal n k l) :
+    FourVal n k (restorePanValueLocal l "ult" old) := by
+  refine fourVal_frame h ?_
+  simp only [restorePanValueLocal, hn, Bool.false_eq_true, if_false]
+
+set_option maxHeartbeats 8000000 in
+/-- Compare `u` and `v` and subtract the smaller from the larger. -/
+theorem cmpTail_spec (hE : GuestEnv E) {s : St σ} {r : Result σ} {A M : Nat}
+    (hI : InvI A M s.locals) (h : Runs E s cmpTail4 r) :
+    Stopped r ∨ ∃ l, r = .normal l s.globals s.memory s.ffi ∧ InvI A M l := by
+  obtain ⟨hm, U, V, X1, X2, hu, hv, hx1, hx2, hX1, hX2, hiu, hiv⟩ := hI
+  obtain ⟨u0, u1, u2, u3, hlu, hUv⟩ := id hu
+  obtain ⟨v0, v1, v2, v3, hlv, hVv⟩ := id hv
+  unfold cmpTail4 at h
+  rcases runs_decCall_inv h with herr | ⟨parameters, body, values, calleeLocals, rb, hlookup,
+    hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl (Stopped.of_error herr)
+  have hparams := (fun_of_index 46 hE.functions (by guest_decl_at 46) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hlu, hlv, Option.map_some,
+    Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  have hspec := u256_lt_spec hE parameters body hlookup
+    ⟨calleeLocals, s.globals, s.memory, s.ffi⟩ rb u0 u1 u2 u3 v0 v1 v2 v3
+    (by rw [← hbind]; simp [updatePanValueMap]) (by rw [← hbind]; simp [updatePanValueMap])
+    hcallee
+  subst hspec
+  obtain ⟨r', -, hrun', rfl⟩ := hout
+  rw [hUv, hVv] at hrun'
+  have up : ∀ (n : VarName) (k : Nat) (c : Word), (n == "ult") = false → FourVal n k s.locals →
+      FourVal n k (updatePanValueMap s.locals "ult" (PanValue.word c)) :=
+    fun n k c hn hf => hf.update_other hn
+  rw [runs_ite] at hrun'
+  simp only [evalF_cmp hE.word, evalF_local, eval_const, update_lookup, beq_self_eq_true,
+    if_true] at hrun'
+  by_cases hlt : U < V
+  · simp only [hlt, if_true, evalPanCmp] at hrun'
+    rcases subSeq_spec hE (a := "v") (b := "u") (xa := "x2") (xb := "x1") (by decide) (by decide)
+      (by decide)
+      (s := ⟨updatePanValueMap s.locals "ult" (PanValue.word 1#64), s.globals, s.memory, s.ffi⟩)
+      (up _ _ _ (by decide) hv) (up _ _ _ (by decide) hu) (up _ _ _ (by decide) hx2)
+      (up _ _ _ (by decide) hx1) (up _ _ _ (by decide) hm) (Nat.le_of_lt hlt) hX2 hX1 hrun'
+      with hst | ⟨l, rfl, hfv, hfx, hframe⟩
+    · exact Or.inl (Stopped.restore hst)
+    · refine Or.inr ⟨_, rfl, fourVal_restore (by decide) (fourVal_frame (up _ _ 1#64 (by decide) hm)
+          (hframe "m" (by decide) (by decide))), U, V - U, X1, _,
+        fourVal_restore (by decide) (fourVal_frame (up _ _ 1#64 (by decide) hu)
+          (hframe "u" (by decide) (by decide))),
+        fourVal_restore (by decide) hfv,
+        fourVal_restore (by decide) (fourVal_frame (up _ _ 1#64 (by decide) hx1)
+          (hframe "x1" (by decide) (by decide))),
+        fourVal_restore (by decide) hfx, hX1, by split <;> omega, hiu,
+        sub_inv hX1 (Nat.le_of_lt hlt) hiv hiu⟩
+  · simp only [hlt, if_false, evalPanCmp] at hrun'
+    rcases subSeq_spec hE (a := "u") (b := "v") (xa := "x1") (xb := "x2") (by decide) (by decide)
+      (by decide)
+      (s := ⟨updatePanValueMap s.locals "ult" (PanValue.word 0#64), s.globals, s.memory, s.ffi⟩)
+      (up _ _ _ (by decide) hu) (up _ _ _ (by decide) hv) (up _ _ _ (by decide) hx1)
+      (up _ _ _ (by decide) hx2) (up _ _ _ (by decide) hm) (Nat.le_of_not_lt hlt) hX1 hX2 hrun'
+      with hst | ⟨l, rfl, hfu, hfx, hframe⟩
+    · exact Or.inl (Stopped.restore hst)
+    · refine Or.inr ⟨_, rfl, fourVal_restore (by decide) (fourVal_frame (up _ _ 0#64 (by decide) hm)
+          (hframe "m" (by decide) (by decide))), U - V, V, _, X2,
+        fourVal_restore (by decide) hfu,
+        fourVal_restore (by decide) (fourVal_frame (up _ _ 0#64 (by decide) hv)
+          (hframe "v" (by decide) (by decide))),
+        fourVal_restore (by decide) hfx,
+        fourVal_restore (by decide) (fourVal_frame (up _ _ 0#64 (by decide) hx2)
+          (hframe "x2" (by decide) (by decide))), by split <;> omega, hX2,
+        sub_inv hX2 (Nat.le_of_not_lt hlt) hiu hiv, hiv⟩
+
 end InitECandidate.Solver.GuestBound
