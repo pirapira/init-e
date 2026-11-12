@@ -471,4 +471,467 @@ theorem heap_release_keeps (hE : GuestEnv E) (parameters : List VarName) (body :
   subst this
   exact ⟨w, by simp [PanValueFfiControlResult.st, updatePanValueMap], hle⟩
 
+theorem HPost.of_globals {s : St σ} {r : Result σ} (hg : r.st.globals = s.globals)
+    (hH : HeapOk s.globals) : HPost [] r := by
+  cases r <;> simp only [PanValueFfiControlResult.st] at hg <;> subst hg
+  all_goals first
+    | exact ⟨hH, fun _ h => by cases h⟩
+    | exact hH
+
+theorem HPost.of_error {G : List VarName} {s : St σ} {r : Result σ} (herr : r.isError = true)
+    (hg : r.st.globals = s.globals) (hH : HeapOk s.globals) : HPost G r := by
+  cases r <;> first
+    | (simp only [PanValueFfiControlResult.st] at hg; subst hg; exact hH)
+    | cases herr
+
+/-- Good locals after binding `x`. -/
+theorem goodL_bind {G G' : List VarName} {l : VarName → Option (PanValue Word)} {x : VarName}
+    {v : PanValue Word} (h : GoodL G l)
+    (hx : x ∈ G' → ∃ w : Word, v = .word w ∧ w.toNat ≤ 2952790016)
+    (hsub : ∀ y, y ∈ G' → y ≠ x → y ∈ G) : GoodL G' (updatePanValueMap l x v) := by
+  intro y hy
+  by_cases hyx : y = x
+  · subst hyx
+    obtain ⟨w, rfl, hle⟩ := hx hy
+    exact ⟨w, by simp [updatePanValueMap], hle⟩
+  · obtain ⟨w, hw, hle⟩ := h y (hsub y hy hyx)
+    have hne : (y == x) = false := by simpa using hyx
+    exact ⟨w, by simp only [updatePanValueMap, hne]; exact hw, hle⟩
+
+/-- The invariant after the scope of a declaration of `x` ends. -/
+theorem hpost_restore {G G' : List VarName} {x : VarName} {old : Option (PanValue Word)}
+    {rb : Result σ} (hsub : ∀ y, y ∈ G → y ≠ x → y ∈ G')
+    (hold : x ∈ G → ∃ w : Word, old = some (.word w) ∧ w.toNat ≤ 2952790016)
+    (h : HPost G' rb) : HPost G (restorePanValueFfiLocal x old rb) := by
+  have key : ∀ l : VarName → Option (PanValue Word), GoodL G' l →
+      GoodL G (restorePanValueLocal l x old) := by
+    intro l hl y hy
+    by_cases hyx : y = x
+    · subst hyx
+      obtain ⟨w, rfl, hle⟩ := hold hy
+      exact ⟨w, by simp [restorePanValueLocal], hle⟩
+    · obtain ⟨w, hw, hle⟩ := hl y (hsub y hy hyx)
+      have hne : (y == x) = false := by simpa using hyx
+      exact ⟨w, by simp only [restorePanValueLocal, hne]; exact hw, hle⟩
+  cases rb with
+  | normal l g m f => exact ⟨h.1, key l h.2⟩
+  | continued l g m f => exact ⟨h.1, key l h.2⟩
+  | broke l g m f => exact ⟨h.1, key l h.2⟩
+  | _ => exact h
+
+theorem mem_filter_ne {G : List VarName} {x y : VarName} :
+    y ∈ G.filter (· != x) ↔ y ∈ G ∧ y ≠ x := by
+  simp [List.mem_filter]
+
+theorem eval_baseAddr (s : St σ) : E.eval s .baseAddr = some (.word E.baseAddress) := by
+  simp [Env.eval, evalPanValueExp]
+
+set_option maxHeartbeats 4000000 in
+/-- Checked programs keep the heap pointer in the heap, provided every function
+body other than `alloc` and `heap_release` is checked. -/
+theorem hk_sound (hE : GuestEnv E)
+    (hfun : ∀ f parameters body, lookupPanFunction f E.functions = some (parameters, body) →
+      f ≠ "alloc" → f ≠ "heap_release" → hk [] body = true) :
+    ∀ (fuel : Nat) (p : Prog Word) (G : List VarName) (s : St σ) (r : Result σ) (n : Nat),
+      hk G p = true → HeapOk s.globals → GoodL G s.locals → E.run fuel s p = some (r, n) →
+      HPost G r := by
+  intro fuel
+  induction fuel using Nat.strongRecOn with
+  | _ fuel sih =>
+  cases fuel with
+  | zero =>
+    intro p G s r n _ _ _ hrun
+    simp [Env.run, evalPanValueFfiProgSteps] at hrun
+  | succ fuel =>
+    have ih := sih fuel (Nat.lt_succ_self fuel)
+    intro p G s r n hs hH hG hrun0
+    have hrun := hrun0
+    simp only [Env.run] at hrun
+    have hcal : ∀ (f : FunName) (arguments : List (Exp Word)), f ≠ "heap_release" →
+        ∀ values parameters body cl, E.evalArgs s arguments = some values →
+        lookupPanFunction f E.functions = some (parameters, body) →
+        bindPanValueParameters parameters values = some cl →
+        ∀ rb nb, E.run (fuel - 1) ⟨cl, s.globals, s.memory, s.ffi⟩ body = some (rb, nb) →
+          HeapOk rb.st.globals := by
+      intro f arguments hf values parameters body cl _ hlookup _ rb nb hrunb
+      by_cases hfa : f = "alloc"
+      · subst hfa
+        exact alloc_keeps hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ rb hH
+          (Runs.of_run hrunb)
+      · exact (sih (fuel - 1) (by omega) body [] ⟨cl, s.globals, s.memory, s.ffi⟩ rb nb
+          (hfun f parameters body hlookup hfa hf) hH (fun _ h => by cases h) hrunb).heapOk
+    cases p with
+    | seq first second =>
+      simp only [hk, Bool.and_eq_true] at hs
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases h₁ : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi first
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+      | none => rw [h₁] at hrun; simp at hrun
+      | some pair =>
+        obtain ⟨r₁, n₁⟩ := pair
+        rw [h₁] at hrun
+        have p₁ := ih first G s r₁ n₁ hs.1 hH hG h₁
+        cases r₁ with
+        | normal l g m f =>
+          simp only [Option.bind_eq_bind, Option.bind_some] at hrun
+          cases h₂ : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f second
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+          | none => rw [h₂] at hrun; simp at hrun
+          | some pair₂ =>
+            obtain ⟨r₂, n₂⟩ := pair₂
+            rw [h₂] at hrun
+            simp only [Option.bind_some, Option.pure_def, Option.some.injEq,
+              Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact ih second G ⟨l, g, m, f⟩ r₂ n₂ hs.2 p₁.1 p₁.2 h₂
+        | _ =>
+          simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
+            Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          exact p₁
+    | ite condition thenBranch elseBranch =>
+      simp only [hk, Bool.and_eq_true] at hs
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
+          s.locals s.globals s.memory condition E.memoryAccess with
+      | none =>
+        rw [hcond] at hrun
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        exact hH
+      | some pair =>
+        obtain ⟨c, k⟩ := pair
+        rw [hcond] at hrun
+        simp only [Option.elim_some] at hrun
+        by_cases hc : (c != 0) = true
+        · rw [if_pos hc] at hrun
+          cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi thenBranch
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+          | none => rw [hb] at hrun; simp at hrun
+          | some pair =>
+            obtain ⟨rb, nb⟩ := pair
+            rw [hb] at hrun
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact ih thenBranch G s rb nb hs.1 hH hG hb
+        · rw [if_neg hc] at hrun
+          cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi elseBranch
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+          | none => rw [hb] at hrun; simp at hrun
+          | some pair =>
+            obtain ⟨rb, nb⟩ := pair
+            rw [hb] at hrun
+            simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+              Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact ih elseBranch G s rb nb hs.2 hH hG hb
+    | dec name shape value body =>
+      simp only [hk] at hs
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hacc : panValueDecAccepted E.structs E.baseAddress E.topAddress E.bytesInWord
+          s.locals s.globals s.memory value E.memoryAccess shape with
+      | none =>
+        rw [hacc] at hrun
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        exact hH
+      | some accepted =>
+        rw [hacc] at hrun
+        simp only [Option.elim_some] at hrun
+        cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel (updatePanValueMap s.locals name accepted.1) s.globals s.memory s.ffi body
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+        | none => rw [hb] at hrun; simp at hrun
+        | some pair =>
+          obtain ⟨rb, nb⟩ := pair
+          rw [hb] at hrun
+          simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
+            Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          have pb := ih body (G.filter (· != name))
+            ⟨updatePanValueMap s.locals name accepted.1, s.globals, s.memory, s.ffi⟩ rb nb hs hH
+            (goodL_bind hG (fun h => absurd rfl (mem_filter_ne.mp h).2)
+              (fun y hy _ => (mem_filter_ne.mp hy).1)) hb
+          exact hpost_restore (fun y hy hne => mem_filter_ne.mpr ⟨hy, hne⟩) (fun h => hG name h) pb
+    | «while» condition body =>
+      have hsb : hk G body = true := by simpa only [hk] using hs
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcond : panValueIteCondition E.structs E.baseAddress E.topAddress E.bytesInWord
+          s.locals s.globals s.memory condition E.memoryAccess with
+      | none =>
+        rw [hcond] at hrun
+        simp only [Option.elim_none, Option.some.injEq, Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        exact hH
+      | some pair =>
+        obtain ⟨c, k⟩ := pair
+        rw [hcond] at hrun
+        simp only [Option.elim_some] at hrun
+        by_cases hc : (c == 0) = true
+        · rw [if_pos hc] at hrun
+          simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          exact ⟨hH, hG⟩
+        · rw [if_neg hc] at hrun
+          cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory s.ffi body
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+          | none => rw [hb] at hrun; simp at hrun
+          | some pair =>
+            obtain ⟨rb, nb⟩ := pair
+            rw [hb] at hrun
+            have pb := ih body G s rb nb hsb hH hG hb
+            have again : ∀ l g m f, HeapOk g → GoodL G l → (do
+                  let (loopResult, loopSteps) ← evalPanValueFfiProgSteps E.context E.primitive
+                    E.handler E.structs E.functions E.baseAddress E.topAddress E.bytesInWord
+                    fuel l g m f (.while condition body) (memoryAccess := E.memoryAccess)
+                    (contracts := E.contracts) (memoryHandler := E.memoryHandler)
+                  pure (loopResult, k + nb + loopSteps + 1)) = some (r, n) →
+                HPost G r := by
+              intro l g m f hg hl hrun
+              cases hl' : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                  E.functions E.baseAddress E.topAddress E.bytesInWord fuel l g m f
+                  (.while condition body) (memoryAccess := E.memoryAccess)
+                  (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
+              | none => rw [hl'] at hrun; simp at hrun
+              | some pair =>
+                obtain ⟨rl, nl⟩ := pair
+                rw [hl'] at hrun
+                simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+                  Option.some.injEq, Prod.mk.injEq] at hrun
+                obtain ⟨rfl, -⟩ := hrun
+                exact ih (.while condition body) G ⟨l, g, m, f⟩ _ nl hs hg hl hl'
+            cases rb with
+            | normal l g m f => exact again l g m f pb.1 pb.2 hrun
+            | continued l g m f => exact again l g m f pb.1 pb.2 hrun
+            | broke l g m f =>
+              simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+                Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              exact pb
+            | _ =>
+              simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+                Option.some.injEq, Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              exact pb
+    | call info f arguments =>
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcall : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs
+          E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory
+          s.ffi info f arguments (memoryAccess := E.memoryAccess)
+          (contracts := E.contracts) (memoryHandler := E.memoryHandler) with
+      | none => rw [hcall] at hrun; simp at hrun
+      | some pair =>
+        obtain ⟨rc, nc⟩ := pair
+        rw [hcall] at hrun
+        simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq,
+          Prod.mk.injEq] at hrun
+        obtain ⟨rfl, -⟩ := hrun
+        cases info with
+        | none =>
+          have hf : f ≠ "heap_release" := by simpa [hk] using hs
+          exact (callSteps_hk G fuel s arguments false _ nc hH hG (fun _ _ h => by cases h)
+            (hcal f arguments hf) (fun _ _ _ _ h => by cases h) hcall).1
+        | some pair =>
+          obtain ⟨dest, handler⟩ := pair
+          cases handler with
+          | none =>
+            simp only [hk, Bool.and_eq_true, Bool.or_eq_true] at hs
+            obtain ⟨hd, hfr⟩ := hs
+            refine (callSteps_hk G fuel s arguments false _ nc hH hG
+              (fun d h heq => by cases heq; exact hd) ?_ (fun _ _ _ _ h => by cases h) hcall).1
+            by_cases hf : f = "heap_release"
+            · subst hf
+              have hra : relArg G arguments = true := by
+                rcases hfr with h | h
+                · simp at h
+                · exact h
+              intro values parameters body cl hvalues hlookup hbind rb nb hrunb
+              unfold relArg at hra
+              split at hra
+              · rename_i m
+                obtain ⟨w, hw, hle⟩ := hG m (by simpa using hra)
+                have hparams := (fun_of_index 9 hE.functions (by guest_decl_at 9)
+                  (by decide +kernel) hlookup).2
+                simp only [evalArgs_cons, evalArgs_nil, evalF_local, hw, Option.map_some,
+                  Option.some.injEq] at hvalues
+                subst hvalues
+                rw [hparams] at hbind
+                simp [bindPanValueParameters] at hbind
+                exact heap_release_keeps hE parameters body hlookup
+                  ⟨cl, s.globals, s.memory, s.ffi⟩ rb hH
+                  ⟨w, by rw [← hbind]; simp [updatePanValueMap], hle⟩ (Runs.of_run hrunb)
+              · cases hra
+            · exact hcal f arguments hf
+          | some triple =>
+            obtain ⟨exc, hv, hp⟩ := triple
+            simp only [hk, Bool.and_eq_true] at hs
+            obtain ⟨⟨⟨hd, hf⟩, hhv⟩, hhp⟩ := hs
+            refine (callSteps_hk G fuel s arguments false _ nc hH hG
+              (fun d h heq => by cases heq; exact hd) (hcal f arguments (by simpa using hf)) ?_
+              hcall).1
+            intro d e v' p' heq v g m ffi r n hg hrunh
+            cases heq
+            exact sih (fuel - 1) (by omega) _ G _ r n hhp hg (goodL_update v hhv hG) hrunh
+    | decCall name shape f arguments body =>
+      rw [evalPanValueFfiProgSteps] at hrun
+      cases hcall : evalPanValueFfiCallSteps E.context E.primitive E.handler E.structs
+          E.functions E.baseAddress E.topAddress E.bytesInWord fuel s.locals s.globals s.memory
+          s.ffi none f arguments (memoryAccess := E.memoryAccess)
+          (contracts := E.contracts) (memoryHandler := E.memoryHandler)
+          (preserveReturnLocals := true) with
+      | none => rw [hcall] at hrun; simp at hrun
+      | some pair =>
+        obtain ⟨rc, nc⟩ := pair
+        rw [hcall] at hrun
+        have hfr : f ≠ "heap_release" := by
+          by_cases hm : f = "heap_mark"
+          · rw [hm]; decide
+          · have hm' : (f == "heap_mark") = false := by simpa using hm
+            simp only [hk, hm', Bool.false_eq_true, if_false, Bool.and_eq_true] at hs
+            simpa using hs.1
+        obtain ⟨hrc, hret⟩ := callSteps_hk G fuel s arguments true rc nc hH hG
+          (fun _ _ h => by cases h) (hcal f arguments hfr) (fun _ _ _ _ h => by cases h) hcall
+        simp only [Option.bind_eq_bind, Option.bind_some] at hrun
+        split at hrun
+        · split at hrun
+          · rename_i returnedLocals g m ffi value _
+            cases hb : evalPanValueFfiProgSteps E.context E.primitive E.handler E.structs
+                    E.functions E.baseAddress E.topAddress E.bytesInWord fuel (updatePanValueMap s.locals name value) g m ffi body
+                    (memoryAccess := E.memoryAccess) (contracts := E.contracts)
+                    (memoryHandler := E.memoryHandler) with
+            | none => rw [hb] at hrun; simp at hrun
+            | some pair =>
+              obtain ⟨rb, nb⟩ := pair
+              rw [hb] at hrun
+              simp only [Option.bind_some, Option.pure_def, Option.some.injEq,
+                Prod.mk.injEq] at hrun
+              obtain ⟨rfl, -⟩ := hrun
+              have hg : HeapOk g := hrc
+              by_cases hm : f = "heap_mark"
+              · subst hm
+                have hsb : hk (name :: G) body = true := by simpa [hk] using hs
+                obtain ⟨values, parameters, cbody, cl, lb, nb', -, hlookup, -, hrunc⟩ :=
+                  hret rfl _ _ _ _ _ rfl
+                obtain ⟨pv, hpv, hple⟩ := id hH
+                have hmark := heap_mark_runs hE parameters cbody hlookup
+                  ⟨cl, s.globals, s.memory, s.ffi⟩ _ pv hpv (Runs.of_run hrunc)
+                simp only [PanValueFfiControlResult.returned.injEq, List.cons.injEq,
+                  and_true] at hmark
+                obtain ⟨-, -, -, -, rfl⟩ := hmark
+                have pb := ih body (name :: G)
+                  ⟨updatePanValueMap s.locals name (.word pv), g, m, ffi⟩ rb nb hsb hg
+                  (goodL_bind hG (fun _ => ⟨pv, rfl, hple⟩)
+                    (fun y hy hne => (List.mem_cons.mp hy).resolve_left hne)) hb
+                exact hpost_restore (fun y hy _ => List.mem_cons_of_mem _ hy)
+                  (fun h => hG name h) pb
+              · have hm' : (f == "heap_mark") = false := by simpa using hm
+                simp only [hk, hm', Bool.false_eq_true, if_false, Bool.and_eq_true] at hs
+                have pb := ih body (G.filter (· != name))
+                  ⟨updatePanValueMap s.locals name value, g, m, ffi⟩ rb nb hs.2 hg
+                  (goodL_bind hG (fun h => absurd rfl (mem_filter_ne.mp h).2)
+                    (fun y hy _ => (mem_filter_ne.mp hy).1)) hb
+                exact hpost_restore (fun y hy hne => mem_filter_ne.mpr ⟨hy, hne⟩)
+                  (fun h => hG name h) pb
+          · simp only [Option.some.injEq, Prod.mk.injEq] at hrun
+            obtain ⟨rfl, -⟩ := hrun
+            exact hrc
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          exact hrc
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          exact hrc
+        · simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hrun
+          obtain ⟨rfl, -⟩ := hrun
+          exact hrc
+        · simp at hrun
+    | skip => exact plainLeaf_post rfl hH hG hrun0
+    | tick => exact plainLeaf_post rfl hH hG hrun0
+    | annot key text => exact plainLeaf_post rfl hH hG hrun0
+    | «break» => exact plainLeaf_post rfl hH hG hrun0
+    | «continue» => exact plainLeaf_post rfl hH hG hrun0
+    | «return» value => exact plainLeaf_post rfl hH hG hrun0
+    | raise exception value => exact plainLeaf_post rfl hH hG hrun0
+    | store address value => exact plainLeaf_post rfl hH hG hrun0
+    | store32 address value => exact plainLeaf_post rfl hH hG hrun0
+    | storeByte address value => exact plainLeaf_post rfl hH hG hrun0
+    | shMemStore size address value => exact plainLeaf_post rfl hH hG hrun0
+    | assign kind name value =>
+      cases kind with
+      | «local» =>
+        have hx : (!G.contains name) = true := by simpa only [hk] using hs
+        have hgl : r.st.globals = s.globals := (globalsKeeper E).leaf _ _ s r n rfl hrun0
+        rcases assign_local_inv hrun0 with herr | ⟨v, -, rfl⟩
+        · exact HPost.of_error herr hgl hH
+        · exact ⟨hH, goodL_update v hx hG⟩
+      | global =>
+        have hr := runs_assign_global.mp (Runs.of_run hrun0)
+        subst hr
+        split
+        · rename_i v hv
+          split
+          · show HeapOk (updatePanValueMap s.globals name v) ∧ GoodL G s.locals
+            refine ⟨?_, hG⟩
+            simp only [hk, Bool.or_eq_true] at hs
+            rcases hs with hne | hval
+            · exact heapOk_update v hne hH
+            · split at hval
+              · rename_i q
+                obtain ⟨w, hw, hle⟩ := hG q (by simpa using hval)
+                rw [evalF_local, hw] at hv
+                simp only [Option.some.injEq] at hv
+                subst hv
+                by_cases hn : (name != "heap_ptr") = true
+                · exact heapOk_update _ hn hH
+                · have : name = "heap_ptr" := by simpa using hn
+                  subst this
+                  exact ⟨w, by simp [updatePanValueMap], hle⟩
+              · rw [eval_baseAddr, hE.base] at hv
+                simp only [Option.some.injEq] at hv
+                subst hv
+                by_cases hn : (name != "heap_ptr") = true
+                · exact heapOk_update _ hn hH
+                · have : name = "heap_ptr" := by simpa using hn
+                  subst this
+                  exact ⟨2701131776#64, by simp [updatePanValueMap], by decide⟩
+              · cases hval
+          · exact hH
+        · exact hH
+    | primitive name operator arguments =>
+      have hx : (!G.contains name) = true := by simpa only [hk] using hs
+      have hr := runs_primitive.mp (Runs.of_run hrun0)
+      subst hr
+      repeat' split
+      all_goals first
+        | exact ⟨hH, goodL_update _ hx hG⟩
+        | exact hH
+    | shMemLoad size kind name address =>
+      cases kind with
+      | «local» =>
+        have hx : (!G.contains name) = true := by simpa only [hk] using hs
+        have hgl : r.st.globals = s.globals := (globalsKeeper E).leaf _ _ s r n rfl hrun0
+        rcases shMemLoad_local_inv hrun0 with herr | ⟨g, m, ffi, ev, rfl⟩ | ⟨w, ffi, rfl⟩
+        · exact HPost.of_error herr hgl hH
+        · have : g = s.globals := hgl
+          subst this
+          exact hH
+        · exact ⟨hH, goodL_update _ hx hG⟩
+      | global => simp [hk] at hs
+    | extCall function configuration configurationLength array arrayLength =>
+      have hGe : G = [] := by simpa [hk] using hs
+      subst hGe
+      exact HPost.of_globals ((globalsKeeper E).leaf _ _ s r n rfl hrun0) hH
+
 end InitECandidate.Solver.GuestBound
