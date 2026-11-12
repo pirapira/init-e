@@ -1,5 +1,7 @@
 import InitECandidate.Solver.GuestBound.FnsH
 import InitECandidate.Solver.GuestBound.HeapFloor
+import InitECandidate.Solver.GuestBound.Gas
+import InitECandidate.Solver.GuestBound.MemKeep
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -61,3 +63,18 @@ open InitECandidate.Solver.GuestBound
 #print axioms H.«pre_alt_bn128_pairing_check»
 #print axioms H.«run_precompile»
 #print axioms H.«frame_prologue»
+#print axioms H.«frame_start»
+#print axioms H.«start_child»
+#print axioms H.«generic_create»
+#print axioms H.«op_create»
+#print axioms H.«op_create2»
+#print axioms H.«generic_call»
+#print axioms H.«op_call»
+#print axioms H.«op_callcode»
+#print axioms H.«op_delegatecall»
+#print axioms H.«op_staticcall»
+#print axioms charge_gas_spec
+#print axioms WPr.ite_both
+#print axioms noStore_sound
+#print axioms htab_get_mem
+#print axioms nodedb_lookup_mem
