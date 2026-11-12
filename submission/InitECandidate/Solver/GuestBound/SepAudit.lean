@@ -8,6 +8,8 @@ import InitECandidate.Solver.GuestBound.RfInstanceM
 import InitECandidate.Solver.GuestBound.SepFinish
 import InitECandidate.Solver.GuestBound.SepDom
 import InitECandidate.Solver.GuestBound.RunFramesWorld
+import InitECandidate.Solver.GuestBound.SepCarve
+import InitECandidate.Solver.GuestBound.WorldSep
 
 /-!
 # Axiom audit of the framed specifications
@@ -147,3 +149,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_dispatch_chain
 #print axioms rfDispatch_stepC
 #print axioms run_frames_bound_chainC
+#print axioms range_carve
+#print axioms WPr.decCall_alloc_world
+#print axioms WPr.seq_memcpy_world
