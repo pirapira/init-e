@@ -1,4 +1,5 @@
-import InitECandidate.Solver.GuestBound.SepStack
+import InitECandidate.Solver.GuestBound.SepBinops
+import InitECandidate.Solver.GuestBound.SepPushWords
 
 /-!
 # Axiom audit of the framed specifications
@@ -23,3 +24,14 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_pop_framed
 #print axioms scratch_alloc_framed
 #print axioms stack_push_framed
+#print axioms binop_framed
+#print axioms pushLoad_framed
+#print axioms «op_add_framed»
+#print axioms «op_mul_framed»
+#print axioms «op_sub_framed»
+#print axioms «op_pc_framed»
+#print axioms «op_gas_framed»
+#print axioms «op_msize_framed»
+#print axioms «op_calldatasize_framed»
+#print axioms «op_codesize_framed»
+#print axioms «op_returndatasize_framed»
