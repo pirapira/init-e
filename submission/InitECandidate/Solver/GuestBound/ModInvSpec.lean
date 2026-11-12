@@ -385,4 +385,53 @@ theorem cmpTail_spec (hE : GuestEnv E) {s : St σ} {r : Result σ} {A M : Nat}
           (hframe "x2" (by decide) (by decide))), by split <;> omega, hX2,
         sub_inv hX2 (Nat.le_of_not_lt hlt) hiu hiv, hiv⟩
 
+/-- What `modinv_bin` returns: a number below `M` that inverts `A` modulo `M`. -/
+def RetQ (A M : Nat) (g : VarName → Option (PanValue Word))
+    (m : Word → Option (PanValue Word)) (f : FfiState σ) (r : Result σ) : Prop :=
+  ∃ l d0 d1 d2 d3, r = .returned l g m f [.rStruct [.word d0, .word d1, .word d2, .word d3]] ∧
+    limbsVal [d0, d1, d2, d3] < M ∧ limbsVal [d0, d1, d2, d3] * A % M = 1 % M
+
+theorem RetQ.restore {A M : Nat} {g : VarName → Option (PanValue Word)}
+    {m : Word → Option (PanValue Word)} {f : FfiState σ} {r : Result σ} {x : VarName}
+    {old : Option (PanValue Word)} (h : RetQ A M g m f r) :
+    RetQ A M g m f (restorePanValueFfiLocal x old r) := by
+  obtain ⟨l, d0, d1, d2, d3, rfl, rest⟩ := h
+  exact ⟨_, d0, d1, d2, d3, rfl, rest⟩
+
+set_option maxHeartbeats 8000000 in
+/-- One round of the outer loop: the invariant again, or the inverse returned. -/
+theorem outer_body_spec (hE : GuestEnv E) {a : St σ} {A M : Nat} (hI : InvI A M a.locals)
+    (hM : M % 2 = 1) {r : Result σ} (h : Runs E a outerBody4 r) :
+    Stopped r ∨ (∃ l, r = .normal l a.globals a.memory a.ffi ∧ InvI A M l) ∨
+      RetQ A M a.globals a.memory a.ffi r := by
+  refine (?_ : WPs E a outerBody4 (fun r => (∃ l, r = .normal l a.globals a.memory a.ffi ∧
+    InvI A M l) ∨ RetQ A M a.globals a.memory a.ffi r)) r h
+  obtain ⟨hm, U, V, X1, X2, hu, hv, hx1, hx2, hX1, hX2, hiu, hiv⟩ := hI
+  obtain ⟨u0, u1, u2, u3, hlu, hUv⟩ := id hu
+  obtain ⟨v0, v1, v2, v3, hlv, hVv⟩ := id hv
+  obtain ⟨p0, p1, p2, p3, hlx1, hX1v⟩ := id hx1
+  obtain ⟨q0, q1, q2, q3, hlx2, hX2v⟩ := id hx2
+  unfold outerBody4
+  refine retCheck4_wp hE hlu hlx1 ?_ (fun h1 => Or.inr ⟨_, p0, p1, p2, p3, rfl, by rw [hX1v]; exact hX1,
+    by rw [hX1v, ← hiu, ← hUv, h1]⟩)
+  refine retCheck4_wp hE hlv hlx2 ?_ (fun h1 => Or.inr ⟨_, q0, q1, q2, q3, rfl, by rw [hX2v]; exact hX2,
+    by rw [hX2v, ← hiv, ← hVv, h1]⟩)
+  refine halve_wp hE (x := "u") (y := "x1") (by decide) (by decide) (by decide) hu hx1 hm hM hX1
+    hiu (fun b hb => ?_)
+  obtain ⟨hg, hmm, hf, hfr, U', X1', hub, hx1b, hX1', hiu'⟩ := hb
+  have hvb : FourVal "v" V b.locals := fourVal_frame hv (hfr "v" (by decide) (by decide))
+  have hx2b : FourVal "x2" X2 b.locals := fourVal_frame hx2 (hfr "x2" (by decide) (by decide))
+  have hmb : FourVal "m" M b.locals := fourVal_frame hm (hfr "m" (by decide) (by decide))
+  refine halve_wp hE (x := "v") (y := "x2") (by decide) (by decide) (by decide) hvb hx2b hmb hM hX2
+    hiv (fun c hc => ?_)
+  obtain ⟨hg2, hmm2, hf2, hfr2, V', X2', hvc, hx2c, hX2', hiv'⟩ := hc
+  have huc : FourVal "u" U' c.locals := fourVal_frame hub (hfr2 "u" (by decide) (by decide))
+  have hx1c : FourVal "x1" X1' c.locals := fourVal_frame hx1b (hfr2 "x1" (by decide) (by decide))
+  have hmc : FourVal "m" M c.locals := fourVal_frame hmb (hfr2 "m" (by decide) (by decide))
+  intro r hr
+  rcases cmpTail_spec hE (A := A) (M := M) ⟨hmc, U', V', X1', X2', huc, hvc, hx1c, hx2c, hX1',
+    hX2', hiu', hiv'⟩ hr with hst | ⟨l, rfl, hI'⟩
+  · exact Or.inl hst
+  · exact Or.inr (Or.inl ⟨l, by rw [hg2, hmm2, hf2, hg, hmm, hf], hI'⟩)
+
 end InitECandidate.Solver.GuestBound
