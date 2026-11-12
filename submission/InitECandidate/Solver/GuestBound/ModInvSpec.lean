@@ -116,4 +116,99 @@ theorem retCheck4_wp (hE : GuestEnv E) {x y : VarName} {rest : Prog Word} {s : S
     rw [hc, if_pos (show (0#64 : Word) = 0 from rfl), runs_skip] at h1
     exact skip h1
 
+/-- Loop invariant of a halving loop of `modinv_bin`. -/
+def HalveI (x y : VarName) (A M : Nat) (s : St σ) (a : St σ) : Prop :=
+  a.globals = s.globals ∧ a.memory = s.memory ∧ a.ffi = s.ffi ∧
+    (∀ z, z ≠ x → z ≠ y → a.locals z = s.locals z) ∧
+    ∃ U X, FourVal x U a.locals ∧ FourVal y X a.locals ∧ X < M ∧ U % M = X * A % M
+
+set_option maxHeartbeats 8000000 in
+/-- `while (x.0 & 1) == 0 { x = x >> 1; y = mod_half(y, m); }; rest`. -/
+theorem halve_wp (hE : GuestEnv E) {x y : VarName} (hxy : x ≠ y) (hxm : x ≠ "m")
+    (hym : y ≠ "m") {rest : Prog Word} {s : St σ} {U X A M : Nat}
+    (hx : FourVal x U s.locals) (hy : FourVal y X s.locals) (hm : FourVal "m" M s.locals)
+    (hM : M % 2 = 1) (hXM : X < M) (hinv : U % M = X * A % M)
+    (hcont : ∀ a, HalveI x y A M s a → WPs E a rest Q) :
+    WPs E s (.seq (.while (evenGuard x) (halveBody4 x y)) rest) Q := by
+  refine WPs.seq (HalveI x y A M s) (WPs.loopG (I := HalveI x y A M s)
+    ⟨rfl, rfl, rfl, fun _ _ _ => rfl, U, X, hx, hy, hXM, hinv⟩ ?_
+    (fun a _ hI _ => ⟨_, _, _, _, rfl, hI⟩)) hcont
+  rintro ⟨la, ga, ma, fa⟩ ⟨hg, hmm, hf, hfr, U', X', hxa, hya, hXa, hia⟩ hct
+  simp only at hg hmm hf hfr hxa hya
+  subst hg hmm hf
+  have hma : FourVal "m" M la := fourVal_frame hm (hfr "m" (Ne.symm hxm) (Ne.symm hym))
+  obtain ⟨w0, w1, w2, w3, hlx, hUv⟩ := id hxa
+  obtain ⟨v0, v1, v2, v3, hly, hXv⟩ := id hya
+  obtain ⟨m0, m1, m2, m3, hlm, hMv⟩ := id hma
+  -- the guard says `x` is even
+  have hUe : U' % 2 = 0 := by
+    obtain ⟨w, c, hcond, hw⟩ := hct
+    have hev := cond_of_eval hcond
+    have := evenGuard_eval4 hE hlx hev
+    have hw0 : w ≠ 0 := by simpa using hw
+    have hpar := limbs_parity4 w0 w1 w2 w3
+    rw [hUv] at hpar
+    have : ¬ w0.toNat % 2 = 1 := fun h1 => hw0 (this.mpr h1)
+    omega
+  intro r hr
+  unfold halveBody4 at hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  rcases shrAssign_runs hE hxa h1 with herr | ⟨l1, rfl, hfour, hframe⟩
+  · cases r1 with
+    | error l g m f =>
+      simp only at hrest
+      subst hrest
+      exact Or.inl trivial
+    | _ => cases herr
+  simp only at hrest
+  have hly1 : l1 y = some (.rStruct [.word v0, .word v1, .word v2, .word v3]) := by
+    rw [hframe y (Ne.symm hxy)]
+    exact hly
+  have hlm1 : l1 "m" = some (.rStruct [.word m0, .word m1, .word m2, .word m3]) := by
+    rw [hframe "m" (Ne.symm hxm)]
+    exact hlm
+  rcases runs_call_inv (some (some (.local, y))) hrest with herr | ⟨ps, cb, vals, cl, rb, hl,
+    hvals, hbind, hcal, hout⟩
+  · exact Or.inl (Stopped.of_error herr)
+  have hparams := (fun_of_index 158 hE.functions (by guest_decl_at 158) (by decide +kernel)
+    hl).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hly1, hlm1, Option.map_some,
+    Option.some.injEq] at hvals
+  subst hvals
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  rcases mod_half_spec hE ps cb hl ⟨cl, s.globals, s.memory, s.ffi⟩ rb v0 v1 v2 v3 m0 m1 m2 m3
+    (by rw [← hbind]; simp [updatePanValueMap]) (by rw [← hbind]; simp [updatePanValueMap]) hcal
+    with hst | ⟨lr, d0, d1, d2, d3, rfl, hd⟩
+  · cases rb with
+    | raised lr g m f ex v =>
+      simp only [CallOutcome] at hout
+      subst hout
+      exact Or.inl trivial
+    | finalFfi lr g m f ev =>
+      simp only [CallOutcome] at hout
+      subst hout
+      exact Or.inl trivial
+    | error lr g m f =>
+      simp only [CallOutcome] at hout
+      exact Or.inl (Stopped.of_error hout)
+    | _ => exact absurd hst (fun h => h)
+  simp only [CallOutcome] at hout
+  rcases hout with herr | ⟨l', g', hassign, rfl⟩
+  · exact Or.inl (Stopped.of_error herr)
+  simp only [assignPanValueCallResult] at hassign
+  split at hassign
+  · simp only [Option.some.injEq, Prod.mk.injEq] at hassign
+    obtain ⟨rfl, rfl⟩ := hassign
+    rw [hXv, hMv] at hd
+    refine Or.inr ⟨rfl, rfl, rfl, ?_, U' / 2, _, hfour.update_other (by simpa using hxy),
+      ⟨d0, d1, d2, d3, by simp [updatePanValueMap], hd⟩, ?_, half_inv hM hUe hia⟩
+    · intro z hzx hzy
+      have : (z == y) = false := by simpa using hzy
+      simp only [updatePanValueMap, this]
+      rw [hframe z hzx]
+      exact hfr z hzx hzy
+    · split <;> omega
+  · cases hassign
+
 end InitECandidate.Solver.GuestBound
