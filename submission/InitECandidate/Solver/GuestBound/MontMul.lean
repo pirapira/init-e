@@ -100,4 +100,69 @@ theorem reduce_tail (hE : GuestEnv E) (s : St σ) (r : Result σ) (c0 c1 c2 c3 :
     simp only [bnP]
     omega
 
+theorem and32_lt (w : Word) : (w &&& 4294967295#64).toNat < 2 ^ 32 := by
+  rw [and32_toNat]
+  exact Nat.mod_lt _ (by norm_num)
+
+theorem shr32_lt (w : Word) : (w >>> (32 : Nat)).toNat < 2 ^ 32 := by
+  rw [shr32_toNat]
+  have := w.isLt
+  omega
+
+theorem eval_lo (hE : GuestEnv E) {s : St σ} {x : VarName} {ws : List (PanValue Word)} {i : Nat}
+    {w : Word} (hx : s.locals x = some (.rStruct ws)) (hi : ws[i]? = some (.word w)) :
+    E.eval s (.op .and [.rField i (.var .local x), .const 4294967295#64]) =
+      some (.word (w &&& 4294967295#64)) := by
+  simp [evalF_op hE.word, evalArgs_cons, evalArgs_nil, evalF_rField, evalF_local, hx, hi,
+    eval_const, wordsProj_cons, wordsProj_nil, wordOp]
+  rfl
+
+theorem eval_hi (hE : GuestEnv E) {s : St σ} {x : VarName} {ws : List (PanValue Word)} {i : Nat}
+    {w : Word} (hx : s.locals x = some (.rStruct ws)) (hi : ws[i]? = some (.word w)) :
+    E.eval s (.shift .lsr (.rField i (.var .local x)) (.const 32#64)) =
+      some (.word (w >>> (32 : Nat))) := by
+  simp [evalF_shift hE.word, evalF_rField, evalF_local, hx, hi, eval_const, shift32]
+
+theorem digits_val (a0 a1 a2 a3 : Word) :
+    (a0 &&& 4294967295#64).toNat * 1 + (a0 >>> (32 : Nat)).toNat * 2 ^ 32 + (a1 &&& 4294967295#64).toNat * 2 ^ 64 + (a1 >>> (32 : Nat)).toNat * 2 ^ 96 + (a2 &&& 4294967295#64).toNat * 2 ^ 128 + (a2 >>> (32 : Nat)).toNat * 2 ^ 160 + (a3 &&& 4294967295#64).toNat * 2 ^ 192 + (a3 >>> (32 : Nat)).toNat * 2 ^ 224 =
+      limbsVal [a0, a1, a2, a3] := by
+  simp only [limbsVal, and32_toNat, shr32_toNat]
+  omega
+
+set_option exponentiation.threshold 1000 in
+theorem mont_final {A B M R : Nat} (hA : A < bnP) (hB : B < bnP) (hM : M < 2 ^ 256)
+    (h : A * B + M * bnP = 2 ^ 256 * R) :
+    R < 2 * bnP ∧ (if R < bnP then R else R - bnP) < bnP ∧
+      (if R < bnP then R else R - bnP) * 2 ^ 256 % bnP = A * B % bnP := by
+  have h1 : A * B < bnP * bnP := Nat.mul_lt_mul'' hA hB
+  have hp : bnP < 2 ^ 255 := by decide
+  have hR : R < 2 * bnP := by
+    simp only [bnP] at *
+    omega
+  refine ⟨hR, ?_⟩
+  by_cases hlt : R < bnP
+  · rw [if_pos hlt]
+    refine ⟨hlt, ?_⟩
+    have e : R * 2 ^ 256 = A * B + M * bnP := by rw [h]; ring
+    rw [e, Nat.add_mul_mod_self_right]
+  · rw [if_neg hlt]
+    refine ⟨by omega, ?_⟩
+    have e : (R - bnP) * 2 ^ 256 + 2 ^ 256 * bnP = A * B + M * bnP := by
+      rw [h]
+      have : R = (R - bnP) + bnP := by omega
+      generalize R - bnP = d at this ⊢
+      rw [this]
+      ring
+    rw [← Nat.add_mul_mod_self_right ((R - bnP) * 2 ^ 256) (2 ^ 256) bnP, e,
+      Nat.add_mul_mod_self_right]
+
+theorem pk0 : (3632069959#64 : Word).toNat = 3632069959 := rfl
+theorem pk1 : (1008765974#64 : Word).toNat = 1008765974 := rfl
+theorem pk2 : (1752287885#64 : Word).toNat = 1752287885 := rfl
+theorem pk3 : (2541841041#64 : Word).toNat = 2541841041 := rfl
+theorem pk4 : (2172737629#64 : Word).toNat = 2172737629 := rfl
+theorem pk5 : (3092268470#64 : Word).toNat = 3092268470 := rfl
+theorem pk6 : (3778125865#64 : Word).toNat = 3778125865 := rfl
+theorem pk7 : (811880050#64 : Word).toNat = 811880050 := rfl
+
 end InitECandidate.Solver.GuestBound
