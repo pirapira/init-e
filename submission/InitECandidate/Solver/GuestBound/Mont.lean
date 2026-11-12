@@ -112,10 +112,11 @@ theorem terms_wp (hE : GuestEnv E) {g : VarName → Option (PanValue Word)}
         l' "H" = some (.word Hw') →
         Lw'.toNat = Lw.toNat + (vals.map fun v => v.1.toNat * v.2.toNat % 2 ^ 32).sum →
         Hw'.toNat = Hw.toNat + (vals.map fun v => v.1.toNat * v.2.toNat / 2 ^ 32).sum →
+        Lw'.toNat ≤ Lw.toNat + ts.length * 2 ^ 32 → Hw'.toNat ≤ Hw.toNat + ts.length * 2 ^ 32 →
         WPs E ⟨l', g, m, f⟩ rest Q) →
       WPs E ⟨l, g, m, f⟩ (termsProg ts rest) Q
   | [], [], l, Lw, Hw, pw, _, hpr, hL, hH, _, _, h => by
-    exact h l Lw Hw pw (fun _ _ _ _ => rfl) hpr hL hH (by simp) (by simp)
+    exact h l Lw Hw pw (fun _ _ _ _ => rfl) hpr hL hH (by simp) (by simp) (by simp) (by simp)
   | [], _ :: _, _, _, _, _, hF, _, _, _, _, _, _ => by cases hF
   | _ :: _, [], _, _, _, _, hF, _, _, _, _, _, _ => by cases hF
   | (x, y) :: ts, (X, Y) :: vals, l, Lw, Hw, pw, hF, hpr, hL, hH, hLb, hHb, h => by
@@ -136,8 +137,9 @@ theorem terms_wp (hE : GuestEnv E) {g : VarName → Option (PanValue Word)}
       (fun l1 Lw1 Hw1 pw1 hfr hpr1 hL1 hH1 eL eH => ?_)
     refine terms_wp hE ts vals l1 Lw1 Hw1 pw1
       (hF'.imp (fun t v ⟨hv, b1, b2⟩ => ⟨fun l' hl' => hv l' (PLH.trans hfr hl'), b1, b2⟩)) hpr1
-      hL1 hH1 (by omega) (by omega) (fun l' Lw' Hw' pw' hfr' hpr' hL' hH' eL' eH' => ?_)
-    refine h l' Lw' Hw' pw' (PLH.trans hfr hfr') hpr' hL' hH' ?_ ?_
+      hL1 hH1 (by omega) (by omega) (fun l' Lw' Hw' pw' hfr' hpr' hL' hH' eL' eH' bL' bH' => ?_)
+    refine h l' Lw' Hw' pw' (PLH.trans hfr hfr') hpr' hL' hH' ?_ ?_ (by simp only [List.length_cons]; omega)
+      (by simp only [List.length_cons]; omega)
     · simp only [List.map_cons, List.sum_cons]
       omega
     · simp only [List.map_cons, List.sum_cons]
@@ -377,5 +379,52 @@ theorem colEndB_wp (hE : GuestEnv E) {uk : VarName} {rest : Prog Word}
   simp only [List.mem_cons, List.mem_nil_iff, or_false, not_or] at hz
   obtain ⟨a1, a2, a3, a4, a5⟩ := hz
   simp [update_lookup, a1, a2, a3, a4, a5]
+
+theorem tv_var_var {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} {l : VarName → Option (PanValue Word)} {x y : VarName} {X Y : Word}
+    (hx : l x = some (.word X)) (hy : l y = some (.word Y))
+    (nx : (["pr", "L", "H"].contains x) = false) (ny : (["pr", "L", "H"].contains y) = false)
+    (bx : X.toNat < 2 ^ 32) (by' : Y.toNat < 2 ^ 32) :
+    TermVal E g m f l (.var .local x, .var .local y) (X, Y) := by
+  have ex : x ≠ "pr" ∧ x ≠ "L" ∧ x ≠ "H" := by
+    refine ⟨?_, ?_, ?_⟩ <;> (rintro rfl; exact absurd nx (by decide))
+  have ey : y ≠ "pr" ∧ y ≠ "L" ∧ y ≠ "H" := by
+    refine ⟨?_, ?_, ?_⟩ <;> (rintro rfl; exact absurd ny (by decide))
+  refine ⟨fun l' hl' => ⟨?_, ?_⟩, bx, by'⟩
+  · rw [evalF_local]
+    exact (hl' x ex.1 ex.2.1 ex.2.2).trans hx
+  · rw [evalF_local]
+    exact (hl' y ey.1 ey.2.1 ey.2.2).trans hy
+
+theorem tv_var_const {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} {l : VarName → Option (PanValue Word)} {x : VarName} {X : Word} (c : Word)
+    (hx : l x = some (.word X)) (nx : (["pr", "L", "H"].contains x) = false)
+    (bx : X.toNat < 2 ^ 32) (bc : c.toNat < 2 ^ 32) :
+    TermVal E g m f l (.var .local x, .const c) (X, c) := by
+  have ex : x ≠ "pr" ∧ x ≠ "L" ∧ x ≠ "H" := by
+    refine ⟨?_, ?_, ?_⟩ <;> (rintro rfl; exact absurd nx (by decide))
+  refine ⟨fun l' hl' => ⟨?_, eval_const _ _⟩, bx, bc⟩
+  rw [evalF_local]
+  exact (hl' x ex.1 ex.2.1 ex.2.2).trans hx
+
+/-- One column keeps everything outside the written names. -/
+theorem keep_step {S T : List VarName} {l0 l l' l'' : VarName → Option (PanValue Word)}
+    (h0 : Keep S l0 l) (h1 : PLH l l') (h2 : Keep T l' l'')
+    (hS : "pr" ∈ S ∧ "L" ∈ S ∧ "H" ∈ S) (hT : ∀ t ∈ T, t ∈ S) : Keep S l0 l'' := by
+  intro z hz
+  have a1 : z ≠ "pr" := fun e => hz (e ▸ hS.1)
+  have a2 : z ≠ "L" := fun e => hz (e ▸ hS.2.1)
+  have a3 : z ≠ "H" := fun e => hz (e ▸ hS.2.2)
+  have a4 : z ∉ T := fun h => hz (hT z h)
+  exact (h2 z a4).trans ((h1 z a1 a2 a3).trans (h0 z hz))
+
+theorem or_shl32 {x y : Word} (hx : x.toNat < 2 ^ 32) (hy : y.toNat < 2 ^ 32) :
+    (x ||| (y <<< (32 : Nat))).toNat = x.toNat + 2 ^ 32 * y.toNat := by
+  rw [BitVec.toNat_or, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, Nat.mod_eq_of_lt (by omega),
+    Nat.or_comm]
+  have h := Nat.shiftLeft_add_eq_or_of_lt hx y.toNat
+  rw [Nat.shiftLeft_eq] at h
+  rw [← h]
+  omega
 
 end InitECandidate.Solver.GuestBound
