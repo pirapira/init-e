@@ -3,6 +3,7 @@ import InitECandidate.Solver.GuestBound.WorldAssn
 import InitECandidate.Solver.GuestBound.WorldRollback
 import InitECandidate.Solver.GuestBound.WorldBlob
 import InitECandidate.Solver.GuestBound.WorldJset
+import InitECandidate.Solver.GuestBound.TrieNew
 
 /-! Axioms of the world-state layer results. -/
 
@@ -27,3 +28,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.release
 #print axioms HeapW.jpush
 #print axioms jset_world
+#print axioms node_new_ext_world
