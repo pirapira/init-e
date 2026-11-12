@@ -18,12 +18,11 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 set_option maxHeartbeats 128000000 in
 theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "bn254_miller_raw" E.functions = some (parameters, body))
-    (s : St σ) (r : Result σ) (Fn Fd Qp Pp Gt hp pv0 : Word)
+    (s : St σ) (r : Result σ) (Fn Fd Qp Pp hp pv0 : Word)
     (m0 : Word → Option (PanValue Word)) (Wr All Cn : List Word)
     (hfnum : s.locals "fnum" = some (.word Fn)) (hfden : s.locals "fden" = some (.word Fd))
     (hQ : s.locals "Q" = some (.word Qp)) (hP : s.locals "P" = some (.word Pp))
     (hg : s.globals "heap_ptr" = some (.word hp))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
@@ -66,7 +65,6 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   generalize hL : updatePanValueMap _ "d" (PanValue.word q5) = L
   generalize hG : updatePanValueMap _ "heap_ptr" (PanValue.word q6) = G
   have hGq : G "heap_ptr" = some (.word q6) := by rw [← hG]; lk []
-  have hgG : G "bn_gamma" = some (.word Gt) := by rw [← hG]; lk [hgm]
 LOOKUPS_L
   -- R = Q, nQ = -Q, fnum = fden = 1
   refine WPs.pt_copy_step hE (O := hp) (P := Qp) (by lk [L_R]) (by lk [L_Q]) (eval_const _ _) hB

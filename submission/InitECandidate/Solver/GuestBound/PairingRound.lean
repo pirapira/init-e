@@ -38,7 +38,7 @@ def RoundPost (st : St σ) (Qb Pb fnum fden anum aden res hp : Word) (r : Result
 
 set_option maxHeartbeats 256000000 in
 theorem pc_round (hE : GuestEnv E) {st : St σ}
-    {Gt g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp Pw iw nw mk : Word}
+    {g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp Pw iw nw mk : Word}
     (geo : PCGeo g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp)
     (l_pairs : st.locals "pairs" = some (.word Pw)) (l_i : st.locals "i" = some (.word iw))
     (l_nt : st.locals "nontrivial" = some (.word nw))
@@ -49,7 +49,6 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
     (l_anum : st.locals "anum" = some (.word anum)) (l_aden : st.locals "aden" = some (.word aden))
     (l_mark : st.locals "mark" = some (.word mk))
     (hG : st.globals "heap_ptr" = some (.word hp))
-    (hGm : st.globals "bn_gamma" = some (.word Gt))
     (hB : Bufs hp m0 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] [aden, anum] st.memory) :
     WPs E st PC_BODY (RoundPost st Qb Pb fnum fden anum aden res hp) := by
   have off := geo.off
@@ -308,7 +307,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
       try dsimp only
       refine WPs.seq_call_ret (fun vs g m7 ffi hret => ?_)
       obtain ⟨hg, hf, h12g⟩ := miller_ret hE hret (Fn := fnum) (Fd := fden) (Qp := Qb) (Pp := Pb)
-        (Gt := Gt) (by lk [L5_fnum]) (by lk [L5_fden]) (by lk [L5_Q]) (by lk [L5_P]) hG hGm h12f
+        (by lk [L5_fnum]) (by lk [L5_fden]) (by lk [L5_Q]) (by lk [L5_P]) hG h12f
         (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
         (Or.inr (by simp)) (Or.inr (by simp))
       subst g ffi

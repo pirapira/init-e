@@ -197,13 +197,12 @@ theorem cast_ret (hE : GuestEnv E) {e1 e2 : Exp Word} {O G1 : Word}
   · cases heq
     exact ⟨rfl, rfl, hfr, k0, k1, k2⟩
 
-theorem miller_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {Fn Fd Qp Pp Gt hp pv0 : Word}
+theorem miller_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {Fn Fd Qp Pp hp pv0 : Word}
     {All Cn : List Word}
     (h : CalleeRet E s "bn254_miller_raw" [e1, e2, e3, e4] vs g m ffi)
     (h1 : E.eval s e1 = some (.word Fn)) (h2 : E.eval s e2 = some (.word Fd))
     (h3 : E.eval s e3 = some (.word Qp)) (h4 : E.eval s e4 = some (.word Pp))
     (hg : s.globals "heap_ptr" = some (.word hp))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
@@ -219,11 +218,11 @@ theorem miller_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {Fn Fd Qp Pp Gt hp
   rw [hparams] at hbind
   simp [bindPanValueParameters] at hbind
   rcases bn254_miller_raw_bufs hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _
-    Fn Fd Qp Pp Gt hp pv0 m0 Wr All Cn
+    Fn Fd Qp Pp hp pv0 m0 Wr All Cn
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hg hgm hB0 qa qb qc pa pb pc hFn hFd wFn wFd
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hg hB0 qa qb qc pa pb pc hFn hFd wFn wFd
     hrun with hst | ⟨l', m', heq, hB⟩
   · exact absurd hst (fun h => h)
   · cases heq

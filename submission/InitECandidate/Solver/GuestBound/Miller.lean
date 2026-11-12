@@ -18,12 +18,11 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 set_option maxHeartbeats 128000000 in
 theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "bn254_miller_raw" E.functions = some (parameters, body))
-    (s : St σ) (r : Result σ) (Fn Fd Qp Pp Gt hp pv0 : Word)
+    (s : St σ) (r : Result σ) (Fn Fd Qp Pp hp pv0 : Word)
     (m0 : Word → Option (PanValue Word)) (Wr All Cn : List Word)
     (hfnum : s.locals "fnum" = some (.word Fn)) (hfden : s.locals "fden" = some (.word Fd))
     (hQ : s.locals "Q" = some (.word Qp)) (hP : s.locals "P" = some (.word Pp))
     (hg : s.globals "heap_ptr" = some (.word hp))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
@@ -66,7 +65,6 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   generalize hL : updatePanValueMap _ "d" (PanValue.word q5) = L
   generalize hG : updatePanValueMap _ "heap_ptr" (PanValue.word q6) = G
   have hGq : G "heap_ptr" = some (.word q6) := by rw [← hG]; lk []
-  have hgG : G "bn_gamma" = some (.word Gt) := by rw [← hG]; lk [hgm]
   have L_fnum : L "fnum" = some (.word (Fn)) := by rw [← hL]; lk [hfnum, hfden, hQ, hP]
   have L_fden : L "fden" = some (.word (Fd)) := by rw [← hL]; lk [hfnum, hfden, hQ, hP]
   have L_Q : L "Q" = some (.word (Qp)) := by rw [← hL]; lk [hfnum, hfden, hQ, hP]
@@ -250,31 +248,31 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   have La_nQ2 : la "nQ2" = some (.word (q3)) := (hloc _ (by decide)).trans L2_nQ2
   have La_n : la "n" = some (.word (q4)) := (hloc _ (by decide)).trans L2_n
   have La_d : la "d" = some (.word (q5)) := (hloc _ (by decide)).trans L2_d
-  refine WPs.fq12_frob_step hE (D := q2) (A := Qp) (Gt := Gt) (by lk [La_Q1])
-    (by lk [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l2) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q2) (A := Qp) (by lk [La_Q1])
+    (by lk [La_Q]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l2) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
-  refine WPs.fq12_frob_step hE (D := q2 + 384#64) (A := Qp + 384#64) (Gt := Gt) (by ev [La_Q1])
-    (by ev [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q2 + 384#64) (A := Qp + 384#64) (by ev [La_Q1])
+    (by ev [La_Q]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
-  refine WPs.fq12_frob_step hE (D := q2 + 768#64) (A := Qp + 768#64) (Gt := Gt) (by ev [evalPanOp, La_Q1])
-    (by ev [evalPanOp, La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q2 + 768#64) (A := Qp + 768#64) (by ev [evalPanOp, La_Q1])
+    (by ev [evalPanOp, La_Q]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
-  refine WPs.fq12_frob_step hE (D := q3) (A := q2) (Gt := Gt) (by lk [La_nQ2])
-    (by lk [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l3) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q3) (A := q2) (by lk [La_nQ2])
+    (by lk [La_Q1]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l3) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
-  refine WPs.fq12_frob_step hE (D := q3 + 384#64) (A := q2 + 384#64) (Gt := Gt) (by ev [La_nQ2])
-    (by ev [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q3 + 384#64) (A := q2 + 384#64) (by ev [La_nQ2])
+    (by ev [La_Q1]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_neg_step hE (D := q3 + 384#64) (A := q3 + 384#64) (eval_const _ _)
     (by ev [La_nQ2]) (by ev [La_nQ2]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
-  refine WPs.fq12_frob_step hE (D := q3 + 768#64) (A := q2 + 768#64) (Gt := Gt) (by ev [evalPanOp, La_nQ2])
-    (by ev [evalPanOp, La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+  refine WPs.fq12_frob_step hE (D := q3 + 768#64) (A := q2 + 768#64) (by ev [evalPanOp, La_nQ2])
+    (by ev [evalPanOp, La_Q1]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (fun m hB => ?_)
   try dsimp only
   refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := q2) (T := Pp)

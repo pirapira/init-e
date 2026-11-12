@@ -30,8 +30,8 @@ def frob(L,d,a,off,ind):
     o={0:"",384:" + 384#64",768:" + 768#64"}[off]
     ev={0:"by lk [{L}_{v}]",384:"by ev [{L}_{v}]",768:"by ev [evalPanOp, {L}_{v}]"}[off]
     wd={0:wr[d],384:"(Or.inl (by omega))",768:"(Or.inl (by omega))"}[off]
-    return (f"{ind}refine WPs.fq12_frob_step hE (D := {val[d]}{o}) (A := {val[a]}{o}) (Gt := Gt) ({ev.format(L=L,v=d)})\n"
-            f"{ind}  ({ev.format(L=L,v=a)}) hgG hB {MEM} {wd} {MEM}\n"
+    return (f"{ind}refine WPs.fq12_frob_step hE (D := {val[d]}{o}) (A := {val[a]}{o}) ({ev.format(L=L,v=d)})\n"
+            f"{ind}  ({ev.format(L=L,v=a)}) hB {MEM} {wd} {MEM}\n"
             f"{ind}  (fun m hB => ?_)\n{ind}try dsimp only\n")
 def neg(L,d,a,ind):
     return (f"{ind}refine WPs.fe_neg_step hE (D := {val[d]} + 384#64) (A := {val[a]} + 384#64) (eval_const _ _)\n"

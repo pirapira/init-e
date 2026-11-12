@@ -3,12 +3,15 @@ import InitECandidate.Solver.GuestBound.PairingRound
 /-!
 # `bn254_pairing_check`: step bound
 
-Once the constant table is set up (`bn_gamma` nonzero, pointing at canonical
-coefficients below the heap pointer), every non-error run of
-`bn254_pairing_check` takes at most `10^88` steps. The loop over the pairs has
-an unconditional cost; `fq12_inv` after it is bounded by `fq12_inv_cost`,
-whose precondition (a canonical operand) is what the loop invariant provides.
-This closes the two `fq12_inv` loops up to the start-up facts (issue #19).
+From any state whose heap pointer is an aligned word in the heap, every
+non-error run of `bn254_pairing_check` takes at most `10^88` steps. Nothing
+is assumed about the input bytes or about the `bn_gamma` table: the call of
+`bn254_init` may or may not allocate it, and its entries only ever reach
+`fq_mul` as second operands. The loop over the pairs has an unconditional
+cost; `fq12_inv` after it is bounded by `fq12_inv_cost`, whose precondition
+(a canonical operand) is what the loop invariant provides. This closes the
+two `fq12_inv` loops (issue #19) up to `HeapOk`, which every guest function
+keeps (`fun_heap_keep`).
 -/
 
 namespace InitECandidate.Solver.GuestBound
@@ -52,10 +55,8 @@ set_option maxHeartbeats 128000000 in
 theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
     (body : Prog Word)
     (hlookup : lookupPanFunction "bn254_pairing_check" E.functions = some (parameters, body))
-    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat) (Gt pv Pw : Word)
-    (hpairs : s.locals "pairs" = some (.word Pw))
-    (hgm : s.globals "bn_gamma" = some (.word Gt)) (hGt0 : Gt ≠ 0#64)
-    (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
+    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat) (Pw : Word)
+    (hpairs : s.locals "pairs" = some (.word Pw)) (hH : HeapOk s.globals)
     (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
   have hbody := (fun_of_index 691 hE.functions (by guest_decl_at 691) (by decide +kernel)
@@ -63,15 +64,20 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   subst hbody
   dsimp only at hrun
   refine WPc.steps (Q := fun _ => True) ?_ hrun hne
-  -- bn254_init is a no-op
-  refine WPc.seq_sub (fun st => st = s)
+  -- bn254_init keeps the locals and the heap pointer in the heap
+  refine WPc.seq_sub (fun st => st.locals = s.locals ∧ HeapOk st.globals)
     (WPc.of_costs (Costs.callDest none _ (Fn.«bn254_init» hE))
       (WPs.call_ret (fun vs g m ffi hret => ?_))) (by budget) ?_
-  · obtain ⟨hg, hm, hf⟩ := initnoop_ret hE hret hgm hGt0
-    subst g m ffi
-    rfl
+  · obtain ⟨parameters, body, values, cl, l, hlookup, -, -, fuel', n', hrun'⟩ := hret
+    exact ⟨rfl, fun_heap_keep hE (f := "bn254_init") (by decide) parameters body hlookup fuel'
+      ⟨cl, s.globals, s.memory, s.ffi⟩ _ n' hH hrun'⟩
   intro st' hst'
-  rw [hst']
+  obtain ⟨hl', pv, hp, hpH⟩ := hst'
+  have hpairs' : st'.locals "pairs" = some (.word Pw) := by rw [hl']; exact hpairs
+  clear hl' hpairs hH hrun hne
+  clear r n fuel s
+  revert st'
+  intro s hp hpairs
   refine WPc.decCall_sub (Fn.«heap_mark» hE) (by budget) (fun v g m ffi hret => ?_)
   obtain ⟨hg, hm, hf, hv⟩ := heap_mark_ret hE hret.ret hp
   simp only [List.cons.injEq, and_true] at hv
@@ -117,7 +123,6 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   generalize hL : updatePanValueMap _ "res" (PanValue.word q10) = L
   generalize hG : updatePanValueMap _ "heap_ptr" (PanValue.word q11) = G
   have hGq : G "heap_ptr" = some (.word q11) := by rw [← hG]; lk []
-  have hGg : G "bn_gamma" = some (.word Gt) := by rw [← hG]; lk [hgm]
   have L_pairs : L "pairs" = some (.word Pw) := by rw [← hL]; lk [hpairs]
   have L_g1 : L "g1" = some (.word pv) := by rw [← hL]; lk [hpairs]
   have L_g2 : L "g2" = some (.word q1) := by rw [← hL]; lk [hpairs]
@@ -193,7 +198,7 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
       ((hloc _ (by decide) (by decide)).trans L2_fden)
       ((hloc _ (by decide) (by decide)).trans L2_anum)
       ((hloc _ (by decide) (by decide)).trans L2_aden)
-      ((hloc _ (by decide) (by decide)).trans L2_mark) hGq hGg hB) ?_
+      ((hloc _ (by decide) (by decide)).trans L2_mark) hGq hB) ?_
     intro r hr
     cases r with
     | normal l g m f =>

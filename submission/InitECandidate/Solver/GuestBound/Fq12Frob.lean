@@ -8,7 +8,7 @@ entries of the `bn_gamma` table and writing coefficients `k`, `k + 6` of the
 destination (which may be the operand). The table entries are only ever the
 second operand of `fq_mul`, whose result is canonical as soon as the first
 operand is, so nothing is assumed about the table: not where it is, nor what
-it holds. Part of the canonicity chain for `fq12_inv` (issue #19).
+it holds, nor that `bn_gamma` is a word (a failed load ends the run). Part of the canonicity chain for `fq12_inv` (issue #19).
 -/
 
 namespace InitECandidate.Solver.GuestBound
@@ -61,9 +61,8 @@ def FrobI (L : VarName → Option (PanValue Word)) (s : St σ) (A D : Word) (st 
 set_option maxHeartbeats 16000000 in
 theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "fq12_frob" E.functions = some (parameters, body))
-    (s : St σ) (r : Result σ) (A D Gt : Word)
+    (s : St σ) (r : Result σ) (A D : Word)
     (ha : s.locals "a" = some (.word A)) (hd : s.locals "d" = some (.word D))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63)
     (hAD : D = A ∨ D.toNat + 384 ≤ A.toNat ∨ A.toNat + 384 ≤ D.toNat)
     (cA : CanonN s.memory A 12) (h : Runs E s body r) :
@@ -240,10 +239,9 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
 
 theorem fq12frob_ret (hE : GuestEnv E) {vs : List (PanValue Word)}
     {g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
-    {ffi : FfiState σ} {e1 e2 : Exp Word} {A D Gt : Word}
+    {ffi : FfiState σ} {e1 e2 : Exp Word} {A D : Word}
     (h : CalleeRet E s "fq12_frob" [e1, e2] vs g m ffi)
     (h1 : E.eval s e1 = some (.word D)) (h2 : E.eval s e2 = some (.word A))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63)
     (hAD : D = A ∨ D.toNat + 384 ≤ A.toNat ∨ A.toNat + 384 ≤ D.toNat)
     (cA : CanonN s.memory A 12) :
@@ -257,9 +255,9 @@ theorem fq12frob_ret (hE : GuestEnv E) {vs : List (PanValue Word)}
   subst hvalues
   rw [hparams] at hbind
   simp [bindPanValueParameters] at hbind
-  rcases fq12_frob_canon hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _ A D Gt
+  rcases fq12_frob_canon hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _ A D
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hgm bA bD hAD
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) bA bD hAD
     cA hrun with hst | ⟨l', m', heq, hfr, hc⟩
   · exact absurd hst (fun h => h)
   · cases heq
@@ -267,9 +265,8 @@ theorem fq12frob_ret (hE : GuestEnv E) {vs : List (PanValue Word)}
 
 /-- `fq12_frob(d, a); rest` over the `Bufs` invariant. -/
 theorem WPs.fq12_frob_step (hE : GuestEnv E) {eD eA : Exp Word} {rest : Prog Word}
-    {D A Gt hp pv0 : Word} {All Cn : List Word}
+    {D A hp pv0 : Word} {All Cn : List Word}
     (h1 : E.eval s eD = some (.word D)) (h2 : E.eval s eA = some (.word A))
-    (hgm : s.globals "bn_gamma" = some (.word Gt))
     (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All)
     (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr) (hA : A ∈ Cn)
     (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' →
@@ -279,7 +276,7 @@ theorem WPs.fq12_frob_step (hE : GuestEnv E) {eD eA : Exp Word} {rest : Prog Wor
   have gA := hB.geo A (hB.sub A hA)
   have gD := hB.geo D hD
   have hpb := hB.hpb
-  obtain ⟨hg, hf, hfr, hc⟩ := fq12frob_ret hE hret h1 h2 hgm (by omega) (by omega)
+  obtain ⟨hg, hf, hfr, hc⟩ := fq12frob_ret hE hret h1 h2 (by omega) (by omega)
     (hB.sep D hD A (hB.sub A hA)) (hB.can A hA)
   subst g ffi
   exact h m1 (hB.write hD hDl (fun x _ hx => hfr x hx) hc)
