@@ -121,7 +121,7 @@ theorem htab_set_exec (hE : GuestEnv E) (parameters : List VarName) (body : Prog
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     refine ⟨_, g1, _, setRoot v1 nl, kind1, _, rfl,
       set_root_ok hok1 (fun i => ⟨fun h => h.elim id False.elim, Or.inl⟩) (e4.trans hroot0)
-        ⟨hnl1, hnl2, by rw [hk1]; exact NodeKind.noConfusion⟩ hk1 hnl0, e1,
+        ⟨hnl1, hnl2, by rw [hk1]; exact NodeKind.noConfusion⟩ hk1 hnl0, e1, hloc1,
       ⟨pv1, hp1, hpH1, hend1, hpp1⟩, fun A hT hP hB => ?_⟩
     show setCell m1 (t + 56#64) nl A = s.memory A
     rw [setCell_ne' _ (NE (by rw [hdr_toNat hlay1 (k := 56) (by omega)]; omega))]
@@ -204,7 +204,7 @@ theorem htab_set_exec (hE : GuestEnv E) (parameters : List VarName) (body : Prog
       exact of_eval (by lk [hv])
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     refine ⟨_, s.globals, _, v, kind, rep, rfl, set_value_ok hok hL hLk, rfl,
-      ⟨pv, hp, hpH, hend, Nat.le_refl _⟩, fun A hT hP hB => ?_⟩
+      Or.inl ⟨rfl, rfl, rfl, rfl⟩, ⟨pv, hp, hpH, hend, Nat.le_refl _⟩, fun A hT hP hB => ?_⟩
     show setCell s.memory (nodeField v nv.toNat 8) val A = s.memory A
     rw [setCell_ne' _ (NE (by rw [node_toNat hlay hnvle (o := 8) (by omega)]; omega))]
 

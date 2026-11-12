@@ -20,6 +20,8 @@ def SetPost (m : Word → Option (PanValue Word)) (t pv : Word) (v : HtabV) (f :
     (r : Result σ) : Prop :=
   ∃ l g' m' v' kind' rep', r = .returned l g' m' f [.word 0#64] ∧ HtabOK m' t v' kind' rep' ∧
     v'.kl = v.kl ∧
+    ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+      pv.toNat ≤ v'.keys.toNat) ∧
     (∃ pv' : Word, g' "heap_ptr" = some (.word pv') ∧ InHeap pv' ∧
       v'.order.toNat + (v'.nc.toNat + 1) * 8 ≤ pv'.toNat ∧ pv.toNat ≤ pv'.toNat) ∧
     ∀ A : Word, (A.toNat + 8 ≤ t.toNat ∨ t.toNat + 88 ≤ A.toNat) →
@@ -299,7 +301,15 @@ theorem set_link_tail (hE : GuestEnv E) {t keyp val pv d L nw pw bn : Word} {v :
   refine WPs.ret (of_eval (eval_const _ _)) ?_
   refine ⟨_, g2, _, setRoot v2 (if pw = 0 then ni else v2.root), kind2,
     (fun i => if i = ni.toNat then rep nw.toNat else if i = nl.toNat then κ else rep i), rfl, ?_,
-    f1.trans e1, ⟨pv2, hp2, hpH2, hend2, by omega⟩, fun A hT hP hB => ?_⟩
+    f1.trans e1, ?hlocF, ⟨pv2, hp2, hpH2, hend2, by omega⟩, fun A hT hP hB => ?_⟩
+  case hlocF =>
+    show (v2.keys = v.keys ∧ v2.nodes = v.nodes ∧ v2.order = v.order ∧ v2.nc = v.nc) ∨
+      pv.toNat ≤ v2.keys.toNat
+    rcases hloc2 with ⟨a, b, c, d'⟩ | h'
+    · rcases hloc1 with ⟨a', b', c', d''⟩ | h''
+      · exact Or.inl ⟨a.trans a', b.trans b', c.trans c', d'.trans d''⟩
+      · exact Or.inr (by rw [a]; exact h'')
+    · exact Or.inr (by omega)
   · refine set_link_mem_ok (κ := κ) (lp := lp) (bn := bn) (d := d) hok2
       (fun i => ⟨fun h => h.elim Or.inr (fun h' => h'.elim Or.inl False.elim),
         fun h => h.elim (fun a => Or.inr (Or.inl a)) Or.inl⟩)
