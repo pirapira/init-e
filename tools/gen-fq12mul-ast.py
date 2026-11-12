@@ -17,15 +17,19 @@ def body(name):
 def flat(s): return re.sub(r'\s+',' ',s)
 b=flat(body('fq12_mul'))
 inner=bal(b,b.index('(Prog.while (Exp.cmp Cmp.notLower (Exp.var VarKind.local "iend")'))
+b2=flat(body('fq12_sqr'))
+inner2=bal(b2,b2.index('(Prog.while (Exp.cmp Cmp.lower (Exp.var VarKind.local "i")'))
 out='''import InitECandidate.Solver.GuestBound.Fq12Reduce
 
-/-! The inner loop of `fq12_mul`, cut out of `Guest/SoftwareAst.lean` by `tools/gen-fq12mul-ast.py`. -/
+/-! The inner loops of `fq12_mul` and `fq12_sqr`, cut out of `Guest/SoftwareAst.lean` by `tools/gen-fq12mul-ast.py`. -/
 
 namespace InitECandidate.Solver.GuestBound
 open Flapjack
 
 notation "FQM_INNER" => (%s : Prog Word)
 
+notation "FQS_INNER" => (%s : Prog Word)
+
 end InitECandidate.Solver.GuestBound
-''' % inner
+''' % (inner, inner2)
 open('submission/InitECandidate/Solver/GuestBound/Fq12MulAst.lean','w').write(out)
