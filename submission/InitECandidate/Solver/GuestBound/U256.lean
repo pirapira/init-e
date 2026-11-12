@@ -104,4 +104,39 @@ theorem u256_add_mod (hE : GuestEnv E) (parameters : List VarName) (body : Prog 
     subst this
     omega
 
+theorem payload_words5 (structs : StructContext) (d0 d1 d2 d3 d4 : Word) :
+    panValuePayloadWithinLimit structs
+      (.rStruct [.word d0, .word d1, .word d2, .word d3, .word d4]) = true := by
+  simp [panValuePayloadWithinLimit, panValuePayloadSizeFuel,
+    panValuePayloadSizeFuel.panValuePayloadSizeFieldsFuel, panValueFlatValueFuel,
+    panValueFlatValueFuel.panValueFlatValueListFuel]
+
+set_option maxHeartbeats 4000000 in
+/-- `u256_add_carry` adds exactly, with the carry as a fifth limb. -/
+theorem u256_add_carry_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "u256_add_carry" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (ha : s.locals "a" = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
+    (hb : s.locals "b" = some (.rStruct [.word b0, .word b1, .word b2, .word b3]))
+    (h : Runs E s body r) :
+    ∃ l d0 d1 d2 d3 d4, r = .returned l s.globals s.memory s.ffi
+        [.rStruct [.word d0, .word d1, .word d2, .word d3, .word d4]] ∧
+      limbsVal [d0, d1, d2, d3, d4] = limbsVal [a0, a1, a2, a3] + limbsVal [b0, b1, b2, b3] := by
+  have hbody := (fun_of_index 55 hE.functions (by guest_decl_at 55) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  simp (config := { decide := true }) only [runs_seq, runs_dec, runs_primitive', runs_return,
+    evalF_rStruct, evalF_rField,
+    evalF_local, eval_const, evalF_op hE.word, evalArgs_cons, evalArgs_nil, ha, hb,
+    hE.prim.addCarry, Option.map_some, List.getElem?_cons_zero, List.getElem?_cons_succ,
+    shape_word, shape_rStruct, shape_matches_self, wordsProj_nil, wordsProj_cons,
+    update_lookup, addCarryResult, List.map_cons, List.map_nil, if_true, if_false, wordOp,
+    List.foldr, restorePanValueFfiLocal, payload_words5, exists_eq_left] at h
+  refine ⟨_, _, _, _, _, _, h, ?_⟩
+  have := a0.isLt; have := a1.isLt; have := a2.isLt; have := a3.isLt
+  have := b0.isLt; have := b1.isLt; have := b2.isLt; have := b3.isLt
+  simp only [limbsVal, BitVec.toNat_ofNat, carry_in]
+  split_ifs <;> omega
+
 end InitECandidate.Solver.GuestBound
