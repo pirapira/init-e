@@ -95,7 +95,8 @@ theorem leaf_ok {det : Nat → Prop} (hok : HtabOKd m0 t v kind rep det) {n keyp
     (hslot : (v.keys + n * v.st).toNat = v.keys.toNat + n.toNat * v.st.toNat)
     {kind' : Nat → NodeKind} {rep' : KeyRep} {det' : Nat → Prop}
     (hkn : kind' n.toNat = .leaf) (hko : ∀ i, i ≠ n.toNat → kind' i = kind i)
-    (hrn : rep' n.toNat = srcBit m0 keyp) (hro : ∀ i, i ≠ n.toNat → rep' i = rep i)
+    (hrn : ∀ j : Word, j.toNat < (v.kl * 8#64).toNat → rep' n.toNat j = srcBit m0 keyp j)
+    (hro : ∀ i, i ≠ n.toNat → rep' i = rep i)
     (hdet : ∀ i, det' i ↔ (i = n.toNat ∨ det i)) :
     HtabOKd (leafMem mc t v n val) t
       ⟨v.kl, v.st, v.cp, v.nc, v.cnt + 1#64, v.keys, v.nodes, v.order, v.root, v.next, v.free⟩
@@ -362,7 +363,7 @@ theorem leaf_ok {det : Nat → Prop} (hok : HtabOKd m0 t v kind rep det) {n keyp
       exact Nat.mod_eq_of_lt (by omega)
     by_cases hin : i = n.toNat
     · subst hin
-      rw [hrn]
+      rw [hrn j hj]
       refine KeyBitIs.of_byte (fun x hx => ?_)
       have ha : j >>> (3 : Nat) = BitVec.ofNat 64 (j.toNat / 8) := by
         apply BitVec.eq_of_toNat_eq
@@ -392,5 +393,60 @@ theorem leaf_ok {det : Nat → Prop} (hok : HtabOKd m0 t v kind rep det) {n keyp
         have := Nat.mul_le_mul_right v.st.toNat (show n.toNat + 1 ≤ i by omega)
         have e : (n.toNat + 1) * v.st.toNat = n.toNat * v.st.toNat + v.st.toNat := by ring
         omega
+
+/-- The leaf stores and the key copy change nothing outside the table. -/
+theorem leafMem_frame (hlay : HtabLayout t v) {n keyp val : Word} (hnle : n.toNat ≤ v.nc.toNat)
+    (hcl : v.cnt.toNat ≤ v.nc.toNat) (hks : v.kl.toNat ≤ v.st.toNat)
+    (c : CopyInv m0 (v.keys + n * v.st) keyp v.kl.toNat mc)
+    (hslot : (v.keys + n * v.st).toNat = v.keys.toNat + n.toNat * v.st.toNat) (A : Word)
+    (hT : A.toNat + 8 ≤ t.toNat ∨ t.toNat + 88 ≤ A.toNat)
+    (hB : A.toNat + 8 ≤ v.keys.toNat ∨ v.order.toNat + (v.nc.toNat + 1) * 8 ≤ A.toNat) :
+    leafMem mc t v n val A = m0 A := by
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  have hmulS : n.toNat * v.st.toNat + v.st.toNat ≤ (v.nc.toNat + 1) * v.st.toNat := by
+    have := Nat.mul_le_mul_right v.st.toNat (show n.toNat + 1 ≤ v.nc.toNat + 1 by omega)
+    have e : (n.toNat + 1) * v.st.toNat = n.toNat * v.st.toNat + v.st.toNat := by ring
+    omega
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have h24 := hdr_toNat hlay (k := 24) (by omega)
+  unfold leafMem
+  rw [setCell_ne' _ (NE (by rw [h24]; omega)),
+    setCell_ne' _ (NE (by rw [ord_toNat hlay hcl]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 24) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 16) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 8) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 0) (by omega)]; omega))]
+  exact c.cells A (by rw [hslot]; omega)
+
+/-- `htab_new_node` changes only the header and fresh heap memory. -/
+theorem new_node_frame {det : Nat → Prop} {m m' : Word → Option (PanValue Word)}
+    (hok : HtabOKd m t v kind rep det) {g g' : VarName → Option (PanValue Word)} {pv n : Word}
+    (hrel : NewNodeRel m t v kind rep det g pv m' g' n) (A : Word)
+    (hT : A.toNat + 8 ≤ t.toNat ∨ t.toNat + 88 ≤ A.toNat)
+    (hP : A.toNat + 8 ≤ pv.toNat ∨ 2952790016 ≤ A.toNat) : m' A = m A := by
+  have hlay := hok.wf.layout
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have hH : ∀ k, k < 88 → (t + BitVec.ofNat 64 k).toNat = t.toNat + k :=
+    fun k hk => hdr_toNat hlay hk
+  rcases hrel with ⟨-, -, -, nf, -, rfl⟩ | ⟨-, -, m1, v1, ⟨-, -, -, -, -, -, -, -, hcase⟩, rfl⟩
+  · exact setCell_ne' _ (NE (by rw [hH 72 (by omega)]; omega))
+  · rw [setCell_ne' _ (NE (by rw [hH 64 (by omega)]; omega))]
+    rcases hcase with ⟨rfl, -, -⟩ | ⟨N, O, q, hR, -, -⟩
+    · rfl
+    · obtain ⟨m1', m2, m3, c1, c2, c3, rfl⟩ := hR.mem
+      have hmul : (v.nc.toNat + 1) * v.st.toNat ≤ (v.nc.toNat * 2 + 1) * v.st.toNat :=
+        Nat.mul_le_mul_right _ (by omega)
+      have := hR.hN
+      have := hR.hO
+      have := hR.hq
+      obtain ⟨hNle, -⟩ := hR.inN
+      obtain ⟨hOle, -⟩ := hR.inO
+      obtain ⟨hqle, -⟩ := hR.inq
+      rw [setCell_ne' _ (NE (by rw [hH 80 (by omega)]; omega)),
+        setCell_ne' _ (NE (by rw [hH 16 (by omega)]; omega)),
+        setCell_ne' _ (NE (by rw [hH 48 (by omega)]; omega)),
+        c3.cells A (by omega), setCell_ne' _ (NE (by rw [hH 40 (by omega)]; omega)),
+        c2.cells A (by omega), setCell_ne' _ (NE (by rw [hH 32 (by omega)]; omega)),
+        c1.cells A (by omega)]
 
 end InitECandidate.Solver.GuestBound
