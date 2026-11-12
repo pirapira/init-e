@@ -5,6 +5,7 @@ import InitECandidate.Solver.GuestBound.WorldBlob
 import InitECandidate.Solver.GuestBound.WorldJset
 import InitECandidate.Solver.GuestBound.TrieNew
 import InitECandidate.Solver.GuestBound.WorldNode
+import InitECandidate.Solver.GuestBound.TrieFreeze
 
 /-! Axioms of the world-state layer results. -/
 
@@ -36,3 +37,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms ImOK.node_add
 #print axioms ImOK.store_node
 #print axioms SegsOK.frame
+#print axioms WorldTJ.freeze
+#print axioms WorldTJ.seg
