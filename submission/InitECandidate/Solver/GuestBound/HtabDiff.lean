@@ -169,4 +169,201 @@ theorem fd_bit (hE : GuestEnv E) {xv : Word} {jj : Nat} (hjj : jj < 8)
       hx, hj, wordOp, RiscV.panRiscVShift, hand, hones, evalPanCmp, key] <;>
     try (have h0 := key 0; simpa using h0)
 
+/-- The compared keys do not wrap, and neither does the bit count. -/
+structure FdPre (A B nW : Word) : Prop where
+  hA : A.toNat + nW.toNat < 2 ^ 64
+  hB : B.toNat + nW.toNat < 2 ^ 64
+  hn : nW.toNat * 8 < 2 ^ 64
+
+/-- `d` is the first differing bit of the `n`-byte keys at `A` and `B`, or
+`n * 8` when all bytes are equal. -/
+def FdPost (m : Word → Option (PanValue Word)) (A B : Word) (n : Nat) (d : Word) : Prop :=
+  (d.toNat = n * 8 ∧ ∀ k, k < n → byteAt m (off A k) = byteAt m (off B k)) ∨
+  ∃ i j xa xb, i < n ∧ j < 8 ∧ d.toNat = i * 8 + j ∧
+    (∀ k, k < i → byteAt m (off A k) = byteAt m (off B k)) ∧
+    byteAt m (off A i) = some xa ∧ byteAt m (off B i) = some xb ∧
+    bitOf xa j ≠ bitOf xb j ∧ ∀ j', j' < j → bitOf xa j' = bitOf xb j'
+
+/-- Outer loop state: the first `jb` bytes are equal. -/
+def FdS (m : Word → Option (PanValue Word)) (A B nW : Word)
+    (g : VarName → Option (PanValue Word)) (f : FfiState σ) (jb : Nat) (a : St σ) : Prop :=
+  a.globals = g ∧ a.memory = m ∧ a.ffi = f ∧ a.locals "a" = some (.word A) ∧
+    a.locals "b" = some (.word B) ∧ a.locals "key_len" = some (.word nW) ∧
+    a.locals "i" = some (.word (BitVec.ofNat 64 jb)) ∧ jb ≤ nW.toNat ∧
+    ∀ k, k < jb → byteAt m (off A k) = byteAt m (off B k)
+
+/-- Inner loop state: the first `jj` bits of `xv` are clear. -/
+def FdJ (m : Word → Option (PanValue Word)) (g : VarName → Option (PanValue Word))
+    (f : FfiState σ) (xv : Word) (jb jj : Nat) (a : St σ) : Prop :=
+  a.globals = g ∧ a.memory = m ∧ a.ffi = f ∧
+    a.locals "i" = some (.word (BitVec.ofNat 64 jb)) ∧ a.locals "x" = some (.word xv) ∧
+    a.locals "j" = some (.word (BitVec.ofNat 64 jj)) ∧ jj ≤ 8 ∧
+    ∀ j', j' < jj → bitOf xv j' = false
+
+def FdQ (m : Word → Option (PanValue Word)) (A B nW : Word)
+    (g : VarName → Option (PanValue Word)) (f : FfiState σ) (r : Result σ) : Prop :=
+  ∃ l d, r = .returned l g m f [.word d] ∧ FdPost m A B nW.toNat d
+
+theorem less8 (jj : Nat) (h : jj ≤ 8) :
+    evalPanCmp .less (BitVec.ofNat 64 jj) (8#64 : Word) = if jj < 8 then 1#64 else 0#64 := by
+  interval_cases jj <;> rfl
+
+theorem ofNat_succ (j : Nat) : (BitVec.ofNat 64 j : Word) + 1#64 = BitVec.ofNat 64 (j + 1) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+set_option maxHeartbeats 4000000 in
+/-- `htab_first_diff(a, b, key_len)` returns the first differing bit. -/
+theorem htab_first_diff_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "htab_first_diff" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (A B nW : Word) (ha : s.locals "a" = some (.word A))
+    (hb : s.locals "b" = some (.word B)) (hn : s.locals "key_len" = some (.word nW))
+    (P : FdPre A B nW) (h : Runs E s body r) :
+    Stopped r ∨ ∃ l d, r = .returned l s.globals s.memory s.ffi [.word d] ∧
+      FdPost s.memory A B nW.toNat d := by
+  have hbody := (fun_of_index 130 hE.functions (by guest_decl_at 130) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  have hPA := P.hA
+  have hPn := P.hn
+  refine (?_ : WPs E s _ (FdQ s.memory A B nW s.globals s.ffi)) r h
+  refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
+  refine WPs.conseq (Q' := FdQ s.memory A B nW s.globals s.ffi) ?_
+    (by rintro r ⟨l, d, rfl, hd⟩; exact ⟨_, d, rfl, hd⟩)
+  have hS0 : FdS s.memory A B nW s.globals s.ffi 0
+      ⟨updatePanValueMap s.locals "i" (.word 0#64), s.globals, s.memory, s.ffi⟩ :=
+    ⟨rfl, rfl, rfl, by lk [ha], by lk [hb], by lk [hn], by lk [], Nat.zero_le _,
+      fun k hk => absurd hk (Nat.not_lt_zero _)⟩
+  have hjt : ∀ j : Nat, j ≤ nW.toNat → (BitVec.ofNat 64 j : Word).toNat = j := by
+    intro j hj
+    rw [BitVec.toNat_ofNat]
+    exact Nat.mod_eq_of_lt (by omega)
+  refine WPs.seqG (fun a => FdS s.memory A B nW s.globals s.ffi nW.toNat a)
+    (WPs.loopG (I := fun a => ∃ jb, FdS s.memory A B nW s.globals s.ffi jb a) ⟨0, hS0⟩ ?_ ?_) ?_
+  · -- one byte
+    rintro a ⟨jb, hg, hm, hf, hA', hB', hK, hI, hjn, hbytes⟩ ⟨w, c, hcond, hw⟩
+    have hc := eval_cmp_inv hE (op := .lower) (of_eval (w := BitVec.ofNat 64 jb) (by lk [hI]))
+      (of_eval (w := nW) (by lk [hK])) _ (cond_of_eval hcond)
+    simp only [PanValue.word.injEq] at hc
+    have hlt : jb < nW.toNat := by
+      by_contra hge
+      have hnl : ¬ (BitVec.ofNat 64 jb : Word) < nW := by
+        rw [BitVec.lt_def, hjt jb hjn]
+        exact hge
+      rw [hc] at hw
+      simp [evalPanCmp, hnl] at hw
+    refine WPs.dec_ev (fun v hv => ?_)
+    obtain ⟨xa, xb, hxa, hxb, rfl⟩ := fd_xor hE hA' hB' hI hm hv
+    have hxlt : (xa ^^^ xb).toNat < 256 := xor_lt _ _ (byteAt_lt hxa) (byteAt_lt hxb)
+    by_cases hx0 : xa ^^^ xb = 0#64
+    · have hab : xa = xb := BitVec.xor_eq_zero_iff.mp hx0
+      refine WPs.guard0 (fun y hy => by
+        rw [eval_cmp_inv hE (of_eval (w := xa ^^^ xb) (by lk [])) (of_eval (eval_const _ _)) y hy]
+        simp [evalPanCmp, hx0]) ?_
+      refine WPs.assign (old := BitVec.ofNat 64 jb) (by lk [hI])
+        (of_eval (w := BitVec.ofNat 64 (jb + 1)) (by ev [hI, ofNat_succ])) ?_
+      simp only [restorePanValueFfiLocal]
+      refine ⟨jb + 1, hg, hm, hf, ?_, ?_, ?_, ?_, by omega, ?_⟩
+      · simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hA']
+      · simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hB']
+      · simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hK]
+      · simp (config := { decide := true }) [restorePanValueLocal, update_lookup]
+      · intro k hk
+        by_cases hkj : k = jb
+        · subst hkj
+          rw [hxa, hxb, hab]
+        · exact hbytes k (by omega)
+    · refine WPs.seqG (fun _ => False) ?_ (fun _ hF => hF.elim)
+      refine WPs.ite (w := 1#64) (fun y hy => by
+        rw [eval_cmp_inv hE (of_eval (w := xa ^^^ xb) (by lk [])) (of_eval (eval_const _ _)) y hy]
+        simp [evalPanCmp, hx0]) ?_
+      split
+      · rename_i h10
+        exact absurd h10 (by decide)
+      refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
+      refine WPs.conseq (Q' := FdQ s.memory A B nW s.globals s.ffi) ?_
+        (by rintro r ⟨l, d, rfl, hd⟩; exact ⟨_, d, rfl, hd⟩)
+      refine WPs.loopG (I := fun a' => ∃ jj, FdJ s.memory s.globals s.ffi (xa ^^^ xb) jb jj a')
+        ⟨0, hg, hm, hf, by lk [hI], by lk [], by lk [], by omega,
+          fun j' hj' => absurd hj' (Nat.not_lt_zero _)⟩ ?_ ?_
+      · -- one bit
+        rintro a' ⟨jj, hg', hm', hf', hi', hx', hj', hj8, hbits⟩ ⟨w', c', hcond', hw'⟩
+        have hc' := eval_cmp_inv hE (op := .less)
+          (of_eval (w := BitVec.ofNat 64 jj) (by lk [hj'])) (of_eval (eval_const _ (8#64))) _
+          (cond_of_eval hcond')
+        simp only [PanValue.word.injEq] at hc'
+        rw [less8 jj hj8] at hc'
+        have hjj : jj < 8 := by
+          by_contra hge
+          rw [if_neg hge] at hc'
+          rw [hc'] at hw'
+          simp at hw'
+        by_cases hbit : bitOf (xa ^^^ xb) jj = true
+        · refine WPs.seqG (fun _ => False) ?_ (fun _ hF => hF.elim)
+          refine WPs.ite (w := 1#64) (of_eval (by rw [fd_bit hE hjj hx' hj', if_pos hbit])) ?_
+          split
+          · rename_i h10
+            exact absurd h10 (by decide)
+          refine WPs.ret (of_eval (w := BitVec.ofNat 64 jb * 8#64 + BitVec.ofNat 64 jj)
+            (by ev [evalPanOp, hi', hj'])) ?_
+          refine ⟨_, _, by rw [hg', hm', hf'], Or.inr ⟨jb, jj, xa, xb, hlt, hjj, ?_, hbytes, hxa,
+            hxb, ?_, ?_⟩⟩
+          · have h8 : (8#64 : Word).toNat = 8 := by decide
+            have hjj64 : (BitVec.ofNat 64 jj : Word).toNat = jj := by
+              rw [BitVec.toNat_ofNat]
+              exact Nat.mod_eq_of_lt (by omega)
+            have hmul : jb * 8 % 2 ^ 64 = jb * 8 := Nat.mod_eq_of_lt (by omega)
+            rw [BitVec.toNat_add, BitVec.toNat_mul, hjt jb hjn, hjj64, h8, hmul]
+            exact Nat.mod_eq_of_lt (by omega)
+          · rw [bitOf_xor] at hbit
+            intro heq
+            rw [heq] at hbit
+            simp at hbit
+          · intro j0 hj0
+            have := hbits j0 hj0
+            rw [bitOf_xor] at this
+            simpa using this
+        · have hbit' : bitOf (xa ^^^ xb) jj = false := by simpa using hbit
+          refine WPs.guard0 (of_eval (by rw [fd_bit hE hjj hx' hj', hbit']; rfl)) ?_
+          refine WPs.assign (old := BitVec.ofNat 64 jj) hj'
+            (of_eval (w := BitVec.ofNat 64 (jj + 1)) (by ev [hj', ofNat_succ])) ?_
+          refine ⟨jj + 1, hg', hm', hf', by lk [hi'], by lk [hx'], by lk [], by omega, ?_⟩
+          intro j0 hj0
+          by_cases h0 : j0 = jj
+          · rw [h0]; exact hbit'
+          · exact hbits j0 (by omega)
+      · -- all eight bits clear: impossible
+        rintro a' k ⟨jj, hg', hm', hf', hi', hx', hj', hj8, hbits⟩ hcond'
+        exfalso
+        have hc' := eval_cmp_inv hE (op := .less)
+          (of_eval (w := BitVec.ofNat 64 jj) (by lk [hj'])) (of_eval (eval_const _ (8#64))) _
+          (cond_of_eval hcond')
+        simp only [PanValue.word.injEq] at hc'
+        rw [less8 jj hj8] at hc'
+        have hj8' : jj = 8 := by
+          by_contra hne
+          rw [if_pos (by omega)] at hc'
+          cases hc'
+        obtain ⟨j0, hj0, hset⟩ := byte_bit _ hxlt hx0
+        rw [hbits j0 (by omega)] at hset
+        cases hset
+  · -- loop exit: all bytes compared
+    rintro a k ⟨jb, hg, hm, hf, hA', hB', hK, hI, hjn, hbytes⟩ hcond
+    have hc := eval_cmp_inv hE (op := .lower) (of_eval (w := BitVec.ofNat 64 jb) (by lk [hI]))
+      (of_eval (w := nW) (by lk [hK])) _ (cond_of_eval hcond)
+    simp only [PanValue.word.injEq] at hc
+    have hnl := lower_zero hc.symm
+    rw [BitVec.lt_def, hjt jb hjn] at hnl
+    have hjb : jb = nW.toNat := by omega
+    subst hjb
+    exact ⟨hg, hm, hf, hA', hB', hK, hI, hjn, hbytes⟩
+  · rintro a ⟨hg, hm, hf, hA', hB', hK, hI, hjn, hbytes⟩
+    refine WPs.ret (of_eval (w := nW * 8#64) (by ev [evalPanOp, hK])) ?_
+    refine ⟨_, _, by rw [hg, hm, hf], Or.inl ⟨?_, hbytes⟩⟩
+    have h8 : (8#64 : Word).toNat = 8 := by decide
+    rw [BitVec.toNat_mul, h8]
+    exact Nat.mod_eq_of_lt hPn
+
 end InitECandidate.Solver.GuestBound
