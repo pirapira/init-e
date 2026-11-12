@@ -4,7 +4,7 @@ import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
 import InitECandidate.Solver.GuestBound.DispatchOps
 import InitECandidate.Solver.GuestBound.RfInstance
-import InitECandidate.Solver.GuestBound.SepFrameMem
+import InitECandidate.Solver.GuestBound.SepExtendMem
 
 /-!
 # Axiom audit of the framed specifications
@@ -105,3 +105,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms rfSpec
 #print axioms run_frames_bound_frame
 #print axioms frame_mem_alloc_framed
+#print axioms extend_memory_framed
