@@ -46,6 +46,19 @@ def RecCells (cc : Word) (C : RecSt) : Assn :=
     .mem (cc + 80#64) ↦ .word C.osize ⋆ .mem (cc + 88#64) ↦ .word C.caddr ⋆
     .mem (cc + 96#64) ↦ .word C.csnap
 
+/-- The access-table fields of a frame record: the two transaction-wide
+tables and their sizes when the frame started. -/
+structure AccSt where
+  t1 : Word
+  t2 : Word
+  n1 : Word
+  n2 : Word
+
+/-- The cells of `AccSt`. -/
+def AccCells (e : Word) (A : AccSt) : Assn :=
+  .mem (e + 168#64) ↦ .word A.t1 ⋆ .mem (e + 176#64) ↦ .word A.t2 ⋆
+    .mem (e + 264#64) ↦ .word A.n1 ⋆ .mem (e + 272#64) ↦ .word A.n2
+
 /-- A frame: its scratch interval `[X.pv, M)`, tracked cells `K`, record `e`,
 `frame_mem_ptr` value `fv`, and the contents of its fields. -/
 structure Fr where
@@ -57,10 +70,12 @@ structure Fr where
   Y : MemSt
   Z : ExStM
   C : RecSt
+  A : AccSt
 
 /-- Everything the running frame owns. -/
 def Fr.full (F : Fr) : Assn :=
-  FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆ RecCells F.Z.cc F.C
+  FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆ RecCells F.Z.cc F.C ⋆
+    AccCells F.e F.A
 
 /-- What only the running frame owns: the globals and the free gap. -/
 def Fr.top (F : Fr) : Assn :=
@@ -79,7 +94,7 @@ def Fr.cells (F : Fr) : Assn :=
     .mem (F.e + 72#64) ↦ .word F.Z.sgl ⋆ .mem (F.e + 192#64) ↦ .word F.Z.sp ⋆
     .mem (F.e + 112#64) ↦ .word F.Z.msg ⋆ .mem (F.Z.msg + 48#64) ↦ .word F.Z.r0 ⋆
     .mem (F.e + 160#64) ↦ .word F.Z.code ⋆ .mem (F.Z.cc + 32#64) ↦ .word F.Z.fl ⋆
-    RecCells F.Z.cc F.C
+    RecCells F.Z.cc F.C ⋆ AccCells F.e F.A
 
 /-- What a frame keeps while a child runs: stack buffer, scratch junk, memory
 buffer and its tracked cells. -/
@@ -92,16 +107,19 @@ theorem Fr.full_eq (F : Fr) : F.full = (F.top ⋆ F.susp) := by
   ac_rfl
 
 /-- The pure side of one frame. -/
-structure Fr.Ok (F : Fr) : Prop where
+structure Fr.Ok (D : Word → Prop) (F : Fr) : Prop where
   ok : FrameOk F.M F.K F.fv F.X
   buf : MBufOk F.Y F.fv
+  /-- The access tables are live world tables. -/
+  acc : D F.A.t1 ∧ D F.A.t2
 
 /-- The addresses of a frame's tracked cells. -/
 def Fr.addrs (e cc msg : Word) (x : Word) : Prop :=
   x ∈ [e + 16#64, e + 232#64, e + 8#64, e + 64#64, e + 184#64, e, e + 32#64, e + 40#64,
     e + 24#64, e + 104#64, e + 120#64, e + 128#64, e + 72#64, e + 192#64, e + 112#64,
     msg + 48#64, e + 160#64, cc + 32#64, cc, cc + 8#64, cc + 16#64, cc + 24#64, cc + 40#64,
-    cc + 48#64, cc + 56#64, cc + 64#64, cc + 72#64, cc + 80#64, cc + 88#64, cc + 96#64]
+    cc + 48#64, cc + 56#64, cc + 64#64, cc + 72#64, cc + 80#64, cc + 88#64, cc + 96#64,
+    e + 168#64, e + 176#64, e + 264#64, e + 272#64]
 
 /-- Child `c` sits directly on parent `p`. -/
 structure Link (c p : Fr) : Prop where
@@ -118,9 +136,9 @@ structure Link (c p : Fr) : Prop where
   KM : ∀ x, c.K x → x.toNat < c.M.toNat
 
 /-- A running frame on its suspended parents; the last one has kind 0. -/
-def ChainOk : Fr → List Fr → Prop
-  | F, [] => F.Ok ∧ F.C.kind = 0#64
-  | F, p :: ps => F.Ok ∧ Link F p ∧ ChainOk p ps
+def ChainOk (D : Word → Prop) : Fr → List Fr → Prop
+  | F, [] => F.Ok D ∧ F.C.kind = 0#64
+  | F, p :: ps => F.Ok D ∧ Link F p ∧ ChainOk D p ps
 
 /-- What the suspended frames own. -/
 def suspA : List Fr → Assn
@@ -149,21 +167,23 @@ theorem view_eq (s : St σ) : s.view = viewOf s.globals s.memory := by
 
 /-- The invariant of `run_frames` at measure at most `n`; `W` is what the
 world state (accounts, storage, journal) owns. -/
-def chainInv (W : Assn) (n : Nat) (g : VarName → Option (PanValue Word))
+def chainInv (W : Assn) (D : Word → Prop) (n : Nat) (g : VarName → Option (PanValue Word))
     (m : Word → Option (PanValue Word)) : Prop :=
-  ∃ (F : Fr) (ps : List Fr) (R : Assn), ChainOk F ps ∧ F.gas + gasSum ps < 2 ^ 64 - 1 ∧
+  ∃ (F : Fr) (ps : List Fr) (R : Assn), ChainOk D F ps ∧ F.gas + gasSum ps < 2 ^ 64 - 1 ∧
     F.mu + muSum ps ≤ n ∧ (F.full ⋆ suspA ps ⋆ W ⋆ R).holdsV (viewOf g m)
 
-theorem ChainOk.head {F : Fr} {ps : List Fr} (h : ChainOk F ps) : F.Ok := by
+theorem ChainOk.head {D : Word → Prop} {F : Fr} {ps : List Fr} (h : ChainOk D F ps) :
+    F.Ok D := by
   cases ps with
   | nil => exact h.1
   | cons p ps => exact h.1
 
 /-- Replacing the running frame by one with the same identity keeps the chain. -/
-theorem ChainOk.replace {F F' : Fr} {ps : List Fr} (h : ChainOk F ps) (hok : F'.Ok)
+theorem ChainOk.replace {D : Word → Prop} {F F' : Fr} {ps : List Fr} (h : ChainOk D F ps)
+    (hok : F'.Ok D)
     (hC : F'.C = F.C) (hM : F'.M = F.M) (hK : F'.K = F.K) (he : F'.e = F.e)
     (hmem : F'.Y.mem = F.Y.mem) (hcc : F'.Z.cc = F.Z.cc) (hmsg : F'.Z.msg = F.Z.msg)
-    (hee : F'.Z.ee = F.Z.ee) : ChainOk F' ps := by
+    (hee : F'.Z.ee = F.Z.ee) : ChainOk D F' ps := by
   cases ps with
   | nil => exact ⟨hok, by rw [hC]; exact h.2⟩
   | cons p ps =>
@@ -181,14 +201,14 @@ theorem ChainOk.replace {F F' : Fr} {ps : List Fr} (h : ChainOk F ps) (hok : F'.
     · rw [hK, hM]; exact hl.KM
 
 /-- The loop interface for a chain of frames; the end-of-frame block is assumed. -/
-noncomputable def rfChain (W : Assn) (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)
+noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)
     (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (finish : ∀ (a : St σ) (n : Nat), chainInv W n a.globals a.memory →
+    (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
       WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
         (l "go" = some (.word 0#64) ∨
-          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W n' g m)))) :
+          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m)))) :
     RfGhost E where
-  InvN := chainInv W
+  InvN := chainInv W D
   DispatchPre := fun a =>
     (∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC1 = some (.word 0#64)) ∧
       ∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC2 = some (.word 0#64)
@@ -202,7 +222,7 @@ noncomputable def rfChain (W : Assn) (hE : GuestEnv E) (hrest : ∀ f, f ∈ res
     rintro a n ⟨F, ps, R, hch, hgas, hmu, hh⟩ ⟨⟨l1, hpre1⟩, ⟨l2, hpre2⟩⟩
     have hF : ∀ s' : St σ, s'.globals = a.globals → s'.memory = a.memory →
         (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆
-          (RecCells F.Z.cc F.C ⋆ suspA ps ⋆ W ⋆ R)).holds s' := by
+          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W ⋆ R)).holds s' := by
       intro s' hg hm
       have h0 : (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a := by
         unfold Assn.holds
@@ -215,12 +235,12 @@ noncomputable def rfChain (W : Assn) (hE : GuestEnv E) (hrest : ∀ f, f ∈ res
     have hrun' : F.Y.run.toNat ≠ 0 := fun h0 => hrun (by bv_omega)
     have hok := hch.head
     refine WPr.wps (rfDispatch_stepM hE hrest a F.M F.K F.e F.fv
-      (RecCells F.Z.cc F.C ⋆ suspA ps ⋆ W ⋆ R) F.X F.Y F.Z hok.ok hok.buf
+      (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W ⋆ R) F.X F.Y F.Z hok.ok hok.buf
       (by unfold Fr.gas at hgas; omega) (hF a rfl rfl)) (fun r hr => ?_)
     rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase,
       hmem, hcc, hmsg, hee⟩
     · exact Or.inl ht.stopped
-    · obtain ⟨F', hF'⟩ : ∃ F' : Fr, F' = ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C⟩ := ⟨_, rfl⟩
+    · obtain ⟨F', hF'⟩ : ∃ F' : Fr, F' = ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ := ⟨_, rfl⟩
       have hmuF : F'.mu < F.mu ∧ F'.gas ≤ F.gas := by
         subst hF'
         unfold Fr.mu Fr.gas
@@ -240,9 +260,9 @@ noncomputable def rfChain (W : Assn) (hE : GuestEnv E) (hrest : ∀ f, f ∈ res
       refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨F'.mu + muSum ps, by omega, F', ps, R, ?_, by omega,
         Nat.le_refl _, ?_⟩, hl "go" (by decide), hl "done" (by decide)⟩
       · subst hF'
-        exact hch.replace ⟨hok', hY'⟩ rfl rfl rfl rfl hmem hcc hmsg hee
+        exact hch.replace ⟨hok', hY', hok.acc⟩ rfl rfl rfl rfl hmem hcc hmsg hee
       · subst hF'
-        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C⟩ ⋆ suspA ps ⋆ W ⋆ R).holds
+        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ ⋆ suspA ps ⋆ W ⋆ R).holds
             (⟨l, g, m, a.ffi⟩ : St σ) := by
           refine Assn.holds_perm hh' ?_
           unfold Fr.full
@@ -254,19 +274,19 @@ noncomputable def rfChain (W : Assn) (hE : GuestEnv E) (hrest : ∀ f, f ∈ res
         exact h1
 
 /-- `run_frames` from a chain of frames of measure at most `k`. -/
-theorem run_frames_bound_chain (W : Assn) (hE : GuestEnv E)
+theorem run_frames_bound_chain (W : Assn) (D : Word → Prop) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (finish : ∀ (a : St σ) (n : Nat), chainInv W n a.globals a.memory →
+    (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
       WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
         (l "go" = some (.word 0#64) ∨
-          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W n' g m))))
+          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m))))
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
-    (s : St σ) (k : Nat) (hI : chainInv W k s.globals s.memory) (fuel : Nat) (r : Result σ)
+    (s : St σ) (k : Nat) (hI : chainInv W D k s.globals s.memory) (fuel : Nat) (r : Result σ)
     (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_ghost hE (rfChain W hE hrest BD BF costD costF finish) parameters body hlookup
+  run_frames_bound_ghost hE (rfChain W D hE hrest BD BF costD costF finish) parameters body hlookup
     s k hI fuel r n hrun hne
 
 end InitECandidate.Solver.GuestBound

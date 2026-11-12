@@ -37,12 +37,12 @@ def RestoreSpec (E : Env σ) (W : Assn) : Prop :=
         (W ⋆ R).holds (⟨l, g, m, s.ffi⟩ : St σ))
 
 /-- The `finish_child` branch re-establishes the chain invariant at a smaller measure. -/
-def ChildSpec (E : Env σ) (W : Assn) : Prop :=
-  ∀ (a : St σ) (n : Nat) (F : Fr) (ps : List Fr) (R : Assn), ChainOk F ps →
+def ChildSpec (E : Env σ) (W : Assn) (D : Word → Prop) : Prop :=
+  ∀ (a : St σ) (n : Nat) (F : Fr) (ps : List Fr) (R : Assn), ChainOk D F ps →
     F.gas + gasSum ps < 2 ^ 64 - 1 → F.mu + muSum ps ≤ n → F.C.kind ≠ 0#64 →
     (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a →
     WPr E a rfChild (fun r => Trap r ∨ ∃ l g m, r = .normal l g m a.ffi ∧
-      l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W n' g m)
+      l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m)
 
 /-- A local assignment, whatever the value. -/
 theorem WPr.assign_local_any {x : VarName} {e : Exp Word}
@@ -113,11 +113,13 @@ theorem rfKind_eval (hE : GuestEnv E) {F : Fr} {A : Assn}
     (h : (F.full ⋆ A).holds s) (w : Word) (hc : E.eval s rfKindCond = some (.word w)) :
     (w = 0#64 ↔ F.C.kind ≠ 0#64) := by
   have h1 : (ExcExtraM F.e F.Z ⋆ (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆
-      RecCells F.Z.cc F.C) ⋆ A).holds s := Assn.holds_perm h (by unfold Fr.full; ac_rfl)
+      RecCells F.Z.cc F.C ⋆ AccCells F.e F.A) ⋆ A).holds s :=
+    Assn.holds_perm h (by unfold Fr.full; ac_rfl)
   unfold ExcExtraM at h1
   have hcc : s.globals "cur_cont" = some (.word F.Z.cc) := Assn.glob_at h1 (by look)
   have h2 : (RecCells F.Z.cc F.C ⋆ (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆
-      ExcExtraM F.e F.Z) ⋆ A).holds s := Assn.holds_perm h (by unfold Fr.full; ac_rfl)
+      ExcExtraM F.e F.Z ⋆ AccCells F.e F.A) ⋆ A).holds s :=
+    Assn.holds_perm h (by unfold Fr.full; ac_rfl)
   unfold RecCells at h2
   have hcv := eval_cmp_inv hE (op := .equal)
     (eval_load_at hE (addr := F.Z.cc + 16#64) (v := .word F.C.kind)
@@ -132,11 +134,11 @@ theorem rfKind_eval (hE : GuestEnv E) {F : Fr} {A : Assn}
     simp [hcv, hk]
 
 /-- The end-of-frame block on a chain of frames. -/
-theorem finish_chain (hE : GuestEnv E) {W : Assn} (hW : RestoreSpec E W) (hC : ChildSpec E W)
-    (a : St σ) (n : Nat) (hI : chainInv W n a.globals a.memory) :
+theorem finish_chain (hE : GuestEnv E) {W : Assn} {D : Word → Prop} (hW : RestoreSpec E W)
+    (hC : ChildSpec E W D) (a : St σ) (n : Nat) (hI : chainInv W D n a.globals a.memory) :
     WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
       (l "go" = some (.word 0#64) ∨
-        (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W n' g m))) := by
+        (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m))) := by
   obtain ⟨F, ps, R, hch, hgas, hmu, hh⟩ := hI
   have h0 : (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a := by
     unfold Assn.holds
@@ -144,7 +146,7 @@ theorem finish_chain (hE : GuestEnv E) {W : Assn} (hW : RestoreSpec E W) (hC : C
     exact hh
   refine WPr.wps (Q' := fun r => Trap r ∨ ∃ l g m, r = .normal l g m a.ffi ∧
       (l "go" = some (.word 0#64) ∨
-        (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W n' g m))) ?_ ?_
+        (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m))) ?_ ?_
   rotate_left
   · rintro r (ht | ⟨l, g, m, rfl, hr⟩)
     · exact Or.inl ht.stopped
@@ -182,16 +184,16 @@ theorem finish_chain (hE : GuestEnv E) {W : Assn} (hW : RestoreSpec E W) (hC : C
 /-- `run_frames` from a chain of frames of measure at most `k`: the step bound,
 given the remaining handlers, the two cost bounds, `state_restore` and the
 `finish_child` branch. -/
-theorem run_frames_bound_world (W : Assn) (hE : GuestEnv E)
+theorem run_frames_bound_world (W : Assn) (D : Word → Prop) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (hW : RestoreSpec E W) (hC : ChildSpec E W)
+    (hW : RestoreSpec E W) (hC : ChildSpec E W D)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
-    (s : St σ) (k : Nat) (hI : chainInv W k s.globals s.memory) (fuel : Nat) (r : Result σ)
+    (s : St σ) (k : Nat) (hI : chainInv W D k s.globals s.memory) (fuel : Nat) (r : Result σ)
     (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_chain W hE hrest BD BF costD costF
+  run_frames_bound_chain W D hE hrest BD BF costD costF
     (fun a n hI => finish_chain hE hW hC a n hI) parameters body hlookup s k hI fuel r n hrun hne
 
 end InitECandidate.Solver.GuestBound
