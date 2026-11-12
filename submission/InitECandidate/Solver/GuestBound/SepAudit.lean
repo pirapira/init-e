@@ -4,7 +4,7 @@ import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
 import InitECandidate.Solver.GuestBound.DispatchOps
 import InitECandidate.Solver.GuestBound.RfInstance
-import InitECandidate.Solver.GuestBound.Mul64
+import InitECandidate.Solver.GuestBound.MemCost
 
 /-!
 # Axiom audit of the framed specifications
@@ -110,3 +110,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms ceil32_runs
 #print axioms m64_nat
 #print axioms mul64x64_runs
+#print axioms sat_word_runs
+#print axioms u256_is_zero_runs
+#print axioms words_of_runs
+#print axioms memory_gas_cost_runs
+#print axioms extend_memory_cost1_runs

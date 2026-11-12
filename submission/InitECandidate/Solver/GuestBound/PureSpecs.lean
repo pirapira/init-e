@@ -64,7 +64,7 @@ theorem ceil32_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
     (hlookup : lookupPanFunction "ceil32" E.functions = some (parameters, body))
     (c : St σ) (v : Word) (hv : c.locals "v" = some (.word v)) :
     WPr E c body (fun r => ∃ l t, r = .returned l c.globals c.memory c.ffi [.word t] ∧
-      (t = 18446744073709551615#64 ∨
+      ((t = 18446744073709551615#64 ∧ 2 ^ 64 < v.toNat + 32) ∨
         (t.toNat % 32 = 0 ∧ v.toNat ≤ t.toNat ∧ t.toNat < v.toNat + 32))) := by
   have hbody := (fun_of_index 442 hE.functions (by guest_decl_at 442) (by decide +kernel)
     hlookup).1
@@ -128,13 +128,15 @@ theorem ceil32_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
     refine WPr.ret (w := t') (of_eval (by lk [])) ?_
     simp only [restorePanValueFfiLocal]
     refine ⟨_, _, rfl, ?_⟩
-    rcases ht with ⟨h1, h2⟩ | ⟨-, h2⟩
+    rcases ht with ⟨h1, h2⟩ | ⟨hov, h2⟩
     · right
       have : rr.toNat < 32 := by rw [h31]; exact Nat.mod_lt _ (by norm_num)
       refine ⟨?_, by omega, by omega⟩
       rw [h2, hsub, h31]
       omega
-    · exact Or.inl h2
+    · rename_i hov
+      have : rr.toNat < 32 := by rw [h31]; exact Nat.mod_lt _ (by norm_num)
+      exact Or.inl ⟨h2, by omega⟩
   · rintro l g m ffi exc v' ⟨l', t', hC, -⟩
     cases hC
   · rintro l g m ffi ev ⟨l', t', hC, -⟩

@@ -127,7 +127,7 @@ theorem words_of_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
   subst hbody
   dsimp only
   refine WPr.decCall_spec (fun rb => ∃ l t, rb = .returned l c.globals c.memory c.ffi [.word t] ∧
-      (t = 18446744073709551615#64 ∨
+      ((t = 18446744073709551615#64 ∧ 2 ^ 64 < n.toNat + 32) ∨
         (t.toNat % 32 = 0 ∧ n.toNat ≤ t.toNat ∧ t.toNat < n.toNat + 32))) ?_ ?_ ?_ ?_
   · intro parameters cbody values cl hlk hvalues hbind
     have hparams := (fun_of_index 442 hE.functions (by guest_decl_at 442) (by decide +kernel)
@@ -150,7 +150,7 @@ theorem words_of_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog
       simp (config := { decide := true }) [evalF_shift hE.word, eval_const,
         RiscV.panRiscVShift, update_lookup])) ?_
     simp only [restorePanValueFfiLocal]
-    refine ⟨_, _, t, rfl, ht, ?_⟩
+    refine ⟨_, _, t, rfl, ht.imp (fun h => h.1) id, ?_⟩
     rw [BitVec.ushiftRight_eq', BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
     rfl
   · rintro l g m ffi exc v ⟨l', t, hC, -⟩
