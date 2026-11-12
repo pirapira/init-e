@@ -503,6 +503,66 @@ theorem «op_sar_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
     AcceptsH.refl.restore.restore.restore.restore.abort (fun g m hok hp h => ?_)
   exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore.restore.restore
 
+theorem «op_jump_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_jump" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 503 hE.functions (by guest_decl_at 503)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_dest hok hp h => ?_)
+  refine op_charge hE 8#64 hok hp h AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "is_valid_jumpdest"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "is_valid_jumpdest" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "is_valid_jumpdest"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "is_valid_jumpdest" = true by
+        decide +kernel))
+    h AcceptsH.refl.restore.abort (fun _ hsh_ok h => ?_)
+  refine WPr.seq_ite_skip ?_ ?_
+  · exact op_raise hok hp h AcceptsH.refl.restore.restore.mid.abort
+  · refine op_set_pc hE (arg1_rfield4 0 (by decide) (by simp (config := { decide := true }) [update_lookup]) hsh_dest)
+      hok hp h (fun _ m hok hp h => ?_)
+    exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
+theorem «op_jumpi_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_jumpi" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 504 hE.functions (by guest_decl_at 504)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_dest hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_cond hok hp h => ?_)
+  refine op_charge hE 10#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_is_zero"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_is_zero" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "u256_is_zero"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "u256_is_zero" = true by
+        decide +kernel))
+    h AcceptsH.refl.restore.restore.abort (fun _ hsh_z h => ?_)
+  refine WPr.seq_ite_skip ?_ ?_
+  · refine op_pc_add hE (d := 1#64)
+      (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+      AcceptsH.refl.restore.restore.restore.mid.abort (fun g m hok hp h => ?_)
+    exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore.restore.mid
+  · refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "is_valid_jumpdest"
+        (show keepFn quietLeaf Guest.Software.guestAst 6 "is_valid_jumpdest" = true by decide +kernel))
+      (raiseFn_sound _ hE.functions 6 "is_valid_jumpdest"
+        (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "is_valid_jumpdest" = true by
+          decide +kernel))
+      h AcceptsH.refl.restore.restore.restore.abort (fun _ hsh_ok h => ?_)
+    refine WPr.seq_ite_skip ?_ ?_
+    · exact op_raise hok hp h AcceptsH.refl.restore.restore.restore.restore.mid.abort
+    · refine op_set_pc hE (arg1_rfield4 0 (by decide) (by simp (config := { decide := true }) [update_lookup]) hsh_dest)
+        hok hp h (fun _ m hok hp h => ?_)
+      exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore.restore.restore
+
 theorem «op_pc_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "op_pc" E.functions = some (parameters, body))
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)

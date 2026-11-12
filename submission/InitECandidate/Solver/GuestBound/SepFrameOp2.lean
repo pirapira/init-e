@@ -180,4 +180,137 @@ theorem arg1_shape {x : VarName} {v : PanValue Word} (hx : s.locals x = some v)
   rw [evalF_local, hx] at hv'
   exact ⟨w, (Option.some.inj hv').symm⟩
 
+/-- `f(args); rest` for a callee that changes nothing and raises at most `EvmErr`. -/
+theorem op_call_raise {f : FunName} {args : List (Exp Word)} {q : Prog Word} {M : Word}
+    {K : Word → Prop} {e fv : Word} {R : Assn} {X0 X : OpSt} {n : Nat}
+    (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun x => x == "EvmErr") f)
+    (hok : FrameOk M K fv X) (hp : Adv X X0 n) (h : (FrameOp M K e fv X ⋆ R).holds s)
+    (hab : AcceptsAbort M K e fv R s.ffi X0 Q) (hk : WPr E s q Q) :
+    WPr E s (.seq (.call (some (none, none)) f args) q) Q := by
+  refine WPr.seq (fun s' => s' = s) (WPr.call_spec (fun rb => RaiseIn (fun x => x == "EvmErr") rb ∧
+    rb.st.globals = s.globals ∧ rb.st.memory = s.memory ∧ rb.st.ffi = s.ffi) ?_ ?_ ?_ ?_)
+    (by rintro _ rfl; exact hk)
+  · intro parameters cbody values cl hlk _ _ r hr'
+    rcases hr parameters cbody hlk _ r hr' with he | hra
+    · exact Or.inl he
+    · obtain ⟨fuel, n', hrun⟩ := hr'
+      exact Or.inr ⟨hra, hq parameters cbody hlk fuel ⟨cl, s.globals, s.memory, s.ffi⟩ r n' hrun⟩
+  · rintro l g m ffi vs ⟨-, hg, hm, hf⟩
+    dsimp only [PanValueFfiControlResult.st] at hg hm hf
+    subst hg hm hf
+    rfl
+  · rintro l g m ffi exc v ⟨hra, hg, hm, hf⟩
+    dsimp only [PanValueFfiControlResult.st] at hg hm hf
+    subst hg hm hf
+    have hx : exc = "EvmErr" := by simpa [RaiseIn] using hra
+    subst hx
+    exact hab _ (Or.inr ⟨X, n, hok, hp, Assn.holds_congr rfl rfl h, _, _, _, _, rfl⟩)
+  · intro l g m ffi ev _
+    exact hab _ (Or.inl trivial)
+
+/-- `var x = f(args); rest` for a callee that changes nothing and raises at most `EvmErr`. -/
+theorem op_quiet_raise {x : VarName} {sh : Shape} {f : FunName} {args : List (Exp Word)}
+    {body : Prog Word} {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn} {X0 X : OpSt}
+    {n : Nat} (hq : FunKeeps (quietKeeper E) f) (hr : FunRaises E (fun x => x == "EvmErr") f)
+    (hok : FrameOk M K fv X) (hp : Adv X X0 n) (h : (FrameOp M K e fv X ⋆ R).holds s)
+    (hab : AcceptsAbort M K e fv R s.ffi X0 Q)
+    (hk : ∀ v, panShapeMatches (panValueShape E.structs v) sh = true →
+      (FrameOp M K e fv X ⋆ R).holds
+        (⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ : St σ) →
+      WPr E ⟨updatePanValueMap s.locals x v, s.globals, s.memory, s.ffi⟩ body
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPr E s (.decCall x sh f args body) Q := by
+  refine WPr.decCall_specS (fun rb => RaiseIn (fun x => x == "EvmErr") rb ∧
+    rb.st.globals = s.globals ∧ rb.st.memory = s.memory ∧ rb.st.ffi = s.ffi) ?_ ?_ ?_ ?_
+  · intro parameters cbody values cl hlk _ _ r hr'
+    rcases hr parameters cbody hlk _ r hr' with he | hra
+    · exact Or.inl he
+    · obtain ⟨fuel, n', hrun⟩ := hr'
+      exact Or.inr ⟨hra, hq parameters cbody hlk fuel ⟨cl, s.globals, s.memory, s.ffi⟩ r n' hrun⟩
+  · rintro l g m ffi v ⟨-, hg, hm, hf⟩ hsh
+    dsimp only [PanValueFfiControlResult.st] at hg hm hf
+    subst hg hm hf
+    exact hk v hsh (Assn.holds_congr rfl rfl h)
+  · rintro l g m ffi exc v ⟨hra, hg, hm, hf⟩
+    dsimp only [PanValueFfiControlResult.st] at hg hm hf
+    subst hg hm hf
+    have hx : exc = "EvmErr" := by simpa [RaiseIn] using hra
+    subst hx
+    exact hab _ (Or.inr ⟨X, n, hok, hp, Assn.holds_congr rfl rfl h, _, _, _, _, rfl⟩)
+  · intro l g m ffi ev _
+    exact hab _ (Or.inl trivial)
+
+/-- `st a, v; rest` into an owned cell, for whatever word `v` is. -/
+theorem WPr.seq_store_at_ex (hE : GuestEnv E) {a val : Exp Word} {q : Prog Word} {addr : Word}
+    {A : Assn} {A' : Word → Assn} {R : Assn} (h : (A ⋆ R).holds s)
+    (ha : ∀ y, E.eval s a = some y → y = .word addr)
+    (hv : ∀ y, E.eval s val = some y → ∃ w : Word, y = .word w)
+    (hstep : ∀ w : Word, Step (.mem addr) (.word w) A (A' w))
+    (hq : ∀ w m, (A' w ⋆ R).holds (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) →
+      WPr E ⟨s.locals, s.globals, m, s.ffi⟩ q Q) :
+    WPr E s (.seq (.store a val) q) Q := by
+  refine WPr.seq (fun s' => ∃ w m, s' = ⟨s.locals, s.globals, m, s.ffi⟩ ∧ (A' w ⋆ R).holds s')
+    ?_ ?_
+  · intro r hr
+    obtain ⟨fuel, n, hrun⟩ := hr
+    rcases store_word_inv hE.mem hrun with herr | ⟨addr', y, m, ha', hy, rfl, hm⟩
+    · exact Or.inl herr
+    have := ha _ ha'
+    simp only [PanValue.word.injEq] at this
+    subst this
+    obtain ⟨w, rfl⟩ := hv y hy
+    have hm' := hm w rfl
+    subst hm'
+    exact Or.inr ⟨w, _, rfl, hstep w _ _ _ (upd_setCell s addr' w s.locals s.ffi) h⟩
+  · rintro _ ⟨w, m, rfl, hm⟩
+    exact hq w m hm
+
+/-- `st ev + 0, v; rest`: a store to the program counter. -/
+theorem op_set_pc (hE : GuestEnv E) {val : Exp Word} {q : Prog Word} {M : Word}
+    {K : Word → Prop} {e fv : Word} {R : Assn} {X0 X : OpSt} {n : Nat}
+    (hv : ∀ y, E.eval s val = some y → ∃ w : Word, y = .word w)
+    (hok : FrameOk M K fv X) (hp : Adv X X0 n) (h : (FrameOp M K e fv X ⋆ R).holds s)
+    (hq : ∀ w m, FrameOk M K fv { X with pc := w } → Adv { X with pc := w } X0 n →
+      (FrameOp M K e fv { X with pc := w } ⋆ R).holds (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) →
+      WPr E ⟨s.locals, s.globals, m, s.ffi⟩ q Q) :
+    WPr E s (.seq (.store (.op .add [.var .global "ev", .const 0#64]) val) q) Q := by
+  have hf := Assn.holds_focus (OpW_pc ..) (Assn.holds_assoc_r h)
+  have hf' : ((.glob "ev" ↦ .word e ⋆ .mem e ↦ .word X.pc) ⋆
+      OpNoPc e X.sp X.cap X.base X.pv fv X.gl X.used ⋆ JunkW M K X.pv X.base X.cap ⋆ R).holds s :=
+    hf
+  have hev : s.globals "ev" = some (.word e) := Assn.glob_at hf' (by look)
+  refine WPr.seq_store_at_ex hE hf' (addr := e)
+    (A' := fun w => .glob "ev" ↦ .word e ⋆ .mem e ↦ .word w)
+    (of_eval (by ev [eval_global, hev])) hv (fun w => by step) (fun w m hm => ?_)
+  have hm' : (PcCell e w ⋆ OpNoPc e X.sp X.cap X.base X.pv fv X.gl X.used ⋆
+      JunkW M K X.pv X.base X.cap ⋆ R).holds (⟨s.locals, s.globals, m, s.ffi⟩ : St σ) := hm
+  exact hq w m ⟨hok.ok, hok.pb, hok.bM, hok.Kpv, hok.Kst⟩ hp
+    (Assn.holds_assoc_l (P := OpW e X.sp X.cap X.base X.pv fv X.gl X.used w)
+      (Assn.holds_unfocus (OpW_pc ..) hm'))
+
+/-- A field of a local holding a four-word value is a word. -/
+theorem arg1_rfield4 {x : VarName} {v : PanValue Word} (i : Nat) (hi : i < 4)
+    (hx : s.locals x = some v)
+    (hsh : panShapeMatches (panValueShape E.structs v) (.comb [.one, .one, .one, .one]) = true) :
+    ∀ y, E.eval s (.rField i (.var .local x)) = some y → ∃ w : Word, y = .word w := by
+  obtain ⟨w0, w1, w2, w3, rfl⟩ := struct4_of_shape hsh
+  intro y hy
+  rw [evalF_rField, evalF_local, hx] at hy
+  simp only at hy
+  interval_cases i <;> simp at hy <;> exact ⟨_, hy.symm⟩
+
+/-- The state is `s`. -/
+def IsState (s s' : St σ) : Prop := s' = s
+
+/-- `if c { P }; rest`, where `P` either leaves the state alone or ends the function. -/
+theorem WPr.seq_ite_skip {c : Exp Word} {P q : Prog Word}
+    (hthen : WPr E s P (fun r1 => match r1 with
+      | .normal l g m f => IsState s ⟨l, g, m, f⟩
+      | r1 => Q r1))
+    (hrest : WPr E s q Q) : WPr E s (.seq (.ite c P .skip) q) Q := by
+  refine WPr.seq (IsState s) (WPr.ite_both (fun w _ => ?_)) (by rintro _ rfl; exact hrest)
+  split
+  · exact WPr.skip rfl
+  · exact hthen
+
 end InitECandidate.Solver.GuestBound

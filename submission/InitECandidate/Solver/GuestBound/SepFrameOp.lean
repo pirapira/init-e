@@ -128,7 +128,7 @@ invariant intact. -/
 def Abort (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (ffi : FfiState σ) (X0 : OpSt)
     (r : Result σ) : Prop :=
   Trap r ∨ ∃ X n, FrameOk M K fv X ∧ Adv X X0 n ∧ (FrameOp M K e fv X ⋆ R).holds r.st ∧
-    ∃ l g m code, r = .raised l g m ffi "EvmErr" (.word code)
+    ∃ l g m v, r = .raised l g m ffi "EvmErr" v
 
 /-- What a stack handler guarantees: an abort, or it returned 0 with the frame
 invariant intact and strictly less gas left. -/

@@ -110,6 +110,30 @@ def pure(f, seen=None):
     return all(pure(c, seen) for c in set(re.findall(r'"(\w+)"', b)) if c in ALL and c != f)
 
 
+def pure_e(f, seen=None):
+    """Like `pure`, but `raise EvmErr` is allowed."""
+    seen = seen or set()
+    if f in seen:
+        return True
+    seen.add(f)
+    b = ALL[f].replace('Prog.raise "EvmErr"', '')
+    if re.search(r'Prog\.store|Prog\.assign VarKind\.global|shMem|extCall|Prog\.raise|some \("', b):
+        return False
+    return all(pure_e(c, seen) for c in set(re.findall(r'"(\w+)"', b)) if c in ALL and c != f)
+
+
+def checks(f, raises):
+    """The two checker facts about a callee, as Lean terms."""
+    return [
+        f'(keepFn_sound (quietKeeper E) hE.functions {DEPTH} "{f}"',
+        f'    (show keepFn quietLeaf Guest.Software.guestAst {DEPTH} "{f}" = true by decide +kernel))',
+        f'  (raiseFn_sound _ hE.functions {DEPTH} "{f}"',
+        f'    (show raiseFn ({raises}) Guest.Software.guestAst {DEPTH} "{f}" = true by',
+        f'      decide +kernel))',
+    ]
+
+
+PC_ADDR = '(Exp.op BinOp.add [(Exp.var VarKind.global "ev"), (Exp.const (BitVec.ofNat 64 0))])'
 DEPTH = 6
 COMB4 = ['Shape.comb', ['LIST', 'Shape.one', 'Shape.one', 'Shape.one', 'Shape.one']]
 NOINFO = ['some', ['TUPLE', 'none', 'none']]
@@ -174,15 +198,28 @@ def gen(node, hq, shapes, spent):
                 f'      decide +kernel))',
                 f'  h {hq}.abort (fun _ hsh_{x} h => ?_)',
             ] + gen(rest, hq + '.restore', inner, spent)
+        if f in ALL and pure_e(f):
+            c = checks(f, 'fun x => x == "EvmErr"')
+            return ['refine op_quiet_raise ' + c[0]] + c[1:] + \
+                [f'  hok hp h {hq}.abort (fun _ hsh_{x} h => ?_)'] + \
+                gen(rest, hq + '.restore', inner, spent)
         raise Unsupported('decCall ' + f)
     if head == 'Prog.seq':
         first, rest = node[1], node[2]
         if isinstance(first, list) and first[0] == 'Prog.ite' and first[3] == 'Prog.skip':
             # `if c { P }` where P ends the handler; otherwise continue with `rest`.
             then = gen(first[2], hq + '.mid', shapes, spent)
-            return (['refine WPr.seq (fun s\' => s\' = _) (WPr.ite_both (fun _ _ => ?_)) ?_']
-                    + bullet(['split'] + bullet(['exact WPr.skip rfl']) + bullet(then))
-                    + bullet(['intro a ha', 'rw [ha]', 'clear ha a'] + gen(rest, hq, shapes, spent)))
+            return (['refine WPr.seq_ite_skip ?_ ?_'] + bullet(then)
+                    + bullet(gen(rest, hq, shapes, spent)))
+        if isinstance(first, list) and first[0] == 'Prog.store' and txt(first[1]) == PC_ADDR:
+            v = first[2]
+            if isinstance(v, list) and v[0] == 'Exp.rField' and isinstance(v[2], list) and \
+                    v[2][:2] == ['Exp.var', 'VarKind.local'] and \
+                    shapes.get(v[2][2].strip('"')) == 'four':
+                x = v[2][2].strip('"')
+                return [f'refine op_set_pc hE (arg1_rfield4 {v[1]} (by decide) ({LOOKUP}) hsh_{x})',
+                        '  hok hp h (fun _ m hok hp h => ?_)'] + gen(rest, hq, shapes, spent)
+            raise Unsupported('store to pc')
         if not (isinstance(first, list) and first[0] == 'Prog.call' and list(first[1]) == NOINFO):
             raise Unsupported('seq ' + str(first)[:40])
         f, args = first[2].strip('"'), first[3]
@@ -219,6 +256,10 @@ def gen(node, hq, shapes, spent):
         elif f == 'stack_push_bool':
             hc = ('fun p b _ cl hlk _ _ => stack_push_bool_framed hE p b hlk '
                   '⟨cl, _, _, _⟩ e _ _ _ _ fv hok.ok')
+        elif f in ALL and pure_e(f):
+            c = checks(f, 'fun x => x == "EvmErr"')
+            return ['refine op_call_raise ' + c[0]] + c[1:] + \
+                [f'  hok hp h {hq}.abort ?_'] + gen(rest, hq, shapes, spent)
         else:
             raise Unsupported('call ' + f)
         return [f'refine op_push hok hp h {hq}.abort', f'  ({hc})',
