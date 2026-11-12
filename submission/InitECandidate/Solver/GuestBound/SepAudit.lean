@@ -4,7 +4,7 @@ import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
 import InitECandidate.Solver.GuestBound.DispatchOps
 import InitECandidate.Solver.GuestBound.RfInstance
-import InitECandidate.Solver.GuestBound.MemCost
+import InitECandidate.Solver.GuestBound.ChargeMem
 
 /-!
 # Axiom audit of the framed specifications
@@ -115,3 +115,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms words_of_runs
 #print axioms memory_gas_cost_runs
 #print axioms extend_memory_cost1_runs
+#print axioms charge_with_memory_framed
