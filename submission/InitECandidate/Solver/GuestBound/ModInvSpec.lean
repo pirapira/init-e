@@ -211,4 +211,99 @@ theorem halve_wp (hE : GuestEnv E) {x y : VarName} (hxy : x ≠ y) (hxm : x ≠ 
     · split <;> omega
   · cases hassign
 
+set_option maxHeartbeats 8000000 in
+/-- `a = u256_sub(a, b); xa = mod_sub(xa, xb, m);` -/
+theorem subSeq_spec (hE : GuestEnv E) {a b xa xb : VarName} (h1 : a ≠ xa) (h2 : a ≠ xb)
+    (h3 : a ≠ "m") {s : St σ} {r : Result σ} {Av Bv XA XB M : Nat}
+    (ha : FourVal a Av s.locals) (hb : FourVal b Bv s.locals) (hxa : FourVal xa XA s.locals)
+    (hxb : FourVal xb XB s.locals) (hm : FourVal "m" M s.locals) (hle : Bv ≤ Av)
+    (hXA : XA < M) (hXB : XB < M) (h : Runs E s (subSeq a b xa xb) r) :
+    Stopped r ∨ ∃ l, r = .normal l s.globals s.memory s.ffi ∧ FourVal a (Av - Bv) l ∧
+      FourVal xa (if XA < XB then XA + M - XB else XA - XB) l ∧
+      ∀ z, z ≠ a → z ≠ xa → l z = s.locals z := by
+  obtain ⟨a0, a1, a2, a3, hla, hA⟩ := ha
+  obtain ⟨b0, b1, b2, b3, hlb, hB⟩ := hb
+  obtain ⟨p0, p1, p2, p3, hlxa, hXAv⟩ := hxa
+  obtain ⟨q0, q1, q2, q3, hlxb, hXBv⟩ := hxb
+  obtain ⟨m0, m1, m2, m3, hlm, hMv⟩ := hm
+  unfold subSeq at h
+  obtain ⟨r1, hr1, hrest⟩ := runs_seq.mp h
+  have herror : r1.isError = true → Stopped r := by
+    intro herr
+    cases r1 with
+    | error l g m f =>
+      simp only at hrest
+      subst hrest
+      trivial
+    | _ => cases herr
+  rcases runs_call_inv (some (some (.local, a))) hr1 with herr | ⟨ps, cb, vals, cl, rb, hl, hvals,
+    hbind, hcal, hout⟩
+  · exact Or.inl (herror herr)
+  have hparams := (fun_of_index 57 hE.functions (by guest_decl_at 57) (by decide +kernel) hl).2
+  simp only [evalArgs_cons, evalArgs_nil, evalF_local, hla, hlb, Option.map_some,
+    Option.some.injEq] at hvals
+  subst hvals
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  obtain ⟨lr, d0, d1, d2, d3, rfl, hd⟩ := u256_sub_spec hE ps cb hl
+    ⟨cl, s.globals, s.memory, s.ffi⟩ rb a0 a1 a2 a3 b0 b1 b2 b3
+    (by rw [← hbind]; simp [updatePanValueMap]) (by rw [← hbind]; simp [updatePanValueMap])
+    (by rw [hA, hB]; exact hle) hcal
+  simp only [CallOutcome] at hout
+  rcases hout with herr | ⟨l', g', hassign, rfl⟩
+  · exact Or.inl (herror herr)
+  simp only [assignPanValueCallResult] at hassign
+  split at hassign
+  · simp only [Option.some.injEq, Prod.mk.injEq] at hassign
+    obtain ⟨rfl, rfl⟩ := hassign
+    simp only at hrest
+    have e1 : (xa == a) = false := by simpa using (Ne.symm h1)
+    have e2 : (xb == a) = false := by simpa using (Ne.symm h2)
+    have e3 : (("m" : String) == a) = false := by simpa using (Ne.symm h3)
+    rcases runs_call_inv (some (some (.local, xa))) hrest with herr | ⟨ps2, cb2, vals2, cl2, rb2,
+      hl2, hvals2, hbind2, hcal2, hout2⟩
+    · exact Or.inl (Stopped.of_error herr)
+    have hparams2 := (fun_of_index 159 hE.functions (by guest_decl_at 159) (by decide +kernel)
+      hl2).2
+    simp only [evalArgs_cons, evalArgs_nil, evalF_local, update_lookup, e1, e2, e3, hlxa, hlxb,
+      hlm, Option.map_some, Option.some.injEq, Bool.false_eq_true, if_false] at hvals2
+    subst hvals2
+    rw [hparams2] at hbind2
+    simp [bindPanValueParameters] at hbind2
+    rcases mod_sub_spec hE ps2 cb2 hl2 ⟨cl2, s.globals, s.memory, s.ffi⟩ rb2 p0 p1 p2 p3
+      q0 q1 q2 q3 m0 m1 m2 m3 (by rw [← hbind2]; simp [updatePanValueMap])
+      (by rw [← hbind2]; simp [updatePanValueMap]) (by rw [← hbind2]; simp [updatePanValueMap])
+      (by rw [hXAv, hMv]; exact hXA) (by rw [hXBv, hMv]; exact hXB) hcal2
+      with hst | ⟨lr2, f0, f1, f2, f3, rfl, hf⟩
+    · cases rb2 with
+      | raised lr g m f ex v =>
+        simp only [CallOutcome] at hout2
+        subst hout2
+        exact Or.inl trivial
+      | finalFfi lr g m f ev =>
+        simp only [CallOutcome] at hout2
+        subst hout2
+        exact Or.inl trivial
+      | error lr g m f =>
+        simp only [CallOutcome] at hout2
+        exact Or.inl (Stopped.of_error hout2)
+      | _ => exact absurd hst (fun h => h)
+    simp only [CallOutcome] at hout2
+    rcases hout2 with herr | ⟨l2, g2, hassign2, rfl⟩
+    · exact Or.inl (Stopped.of_error herr)
+    simp only [assignPanValueCallResult] at hassign2
+    split at hassign2
+    · simp only [Option.some.injEq, Prod.mk.injEq] at hassign2
+      obtain ⟨rfl, rfl⟩ := hassign2
+      have e4 : (a == xa) = false := by simpa using h1
+      rw [hXAv, hXBv, hMv] at hf
+      refine Or.inr ⟨_, rfl, ⟨d0, d1, d2, d3, by simp [updatePanValueMap, e4], by rw [hd, hA, hB]⟩,
+        ⟨f0, f1, f2, f3, by simp [updatePanValueMap], hf⟩, ?_⟩
+      intro z hza hzxa
+      have z1 : (z == a) = false := by simpa using hza
+      have z2 : (z == xa) = false := by simpa using hzxa
+      simp [updatePanValueMap, z1, z2]
+    · cases hassign2
+  · cases hassign
+
 end InitECandidate.Solver.GuestBound
