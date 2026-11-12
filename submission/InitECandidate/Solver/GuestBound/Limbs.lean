@@ -147,13 +147,17 @@ theorem bls_fp_sub_raw_spec (hE : GuestEnv E) (parameters : List VarName) (body 
 theorem shr_limb (x y : BitVec 64) :
     BitVec.toNat (OrOp.or (x >>> (1 : Nat)) (OrOp.or (y <<< (63 : Nat)) (0 : BitVec 64))) =
       x.toNat / 2 + y.toNat % 2 * 2 ^ 63 := by
-  have h1 : (x >>> (1 : Nat) ||| (y <<< (63 : Nat) ||| 0)) = (x >>> (1 : Nat)) + (y <<< (63 : Nat)) := by
-    bv_decide
   show (x >>> (1 : Nat) ||| (y <<< (63 : Nat) ||| 0)).toNat = _
-  rw [h1, BitVec.toNat_add, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft]
-  simp only [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  have := x.isLt
-  have := y.isLt
+  have hx := x.isLt
+  have hy := y.isLt
+  have h0 : (0 : BitVec 64).toNat = 0 := rfl
+  rw [BitVec.toNat_or, BitVec.toNat_or, BitVec.toNat_ushiftRight, BitVec.toNat_shiftLeft, h0,
+    Nat.or_zero, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+  have e : y.toNat * 2 ^ 63 % 2 ^ 64 = (y.toNat % 2) <<< 63 := by
+    rw [Nat.shiftLeft_eq]
+    omega
+  rw [e, Nat.or_comm, ← Nat.shiftLeft_add_eq_or_of_lt (by omega : x.toNat / 2 ^ 1 < 2 ^ 63),
+    Nat.shiftLeft_eq]
   omega
 
 theorem shr_last (x : BitVec 64) : (x >>> (1 : Nat)).toNat = x.toNat / 2 := by
