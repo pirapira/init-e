@@ -304,4 +304,78 @@ theorem colEndA_wp (hE : GuestEnv E) {mk : VarName} {rest : Prog Word}
   obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := hz
   simp [update_lookup, a1, a2, a3, a4, a5, a6, a7, a8]
 
+/-- End of one of the last seven columns: store the digit `uk` and carry. -/
+def colEndB (uk : VarName) (rest : Prog Word) : Prog Word :=
+  .seq (.assign .local "col" (.op .add [.var .local "L", .var .local "c"]))
+  (.seq (.assign .local uk (.op .and [.var .local "col", .const 4294967295#64]))
+  (.seq (.assign .local "c" (.op .add [.shift .lsr (.var .local "col") (.const 32#64),
+    .var .local "H"]))
+  (.seq (.assign .local "L" (.const 0#64)) (.seq (.assign .local "H" (.const 0#64)) rest))))
+
+set_option maxHeartbeats 8000000 in
+theorem colEndB_wp (hE : GuestEnv E) {uk : VarName} {rest : Prog Word}
+    {l g : VarName → Option (PanValue Word)} {m : Word → Option (PanValue Word)}
+    {f : FfiState σ} {Lw Hw cw w1 w3 : Word}
+    (huk : (["col", "c", "L", "H"].contains uk) = false)
+    (hL : l "L" = some (.word Lw)) (hH : l "H" = some (.word Hw)) (hc : l "c" = some (.word cw))
+    (hcol : l "col" = some (.word w1)) (hu0 : l uk = some (.word w3))
+    (hLb : Lw.toNat < 2 ^ 37) (hHb : Hw.toNat < 2 ^ 37) (hcb : cw.toNat < 2 ^ 38)
+    (h : ∀ l' cw' uw, Keep ["col", uk, "c", "L", "H"] l l' →
+      l' "c" = some (.word cw') → l' uk = some (.word uw) → l' "L" = some (.word 0#64) →
+      l' "H" = some (.word 0#64) → (∃ w, l' "col" = some (.word w)) → uw.toNat < 2 ^ 32 →
+      cw'.toNat < 2 ^ 38 →
+      2 ^ 32 * cw'.toNat + uw.toNat = Lw.toNat + cw.toNat + 2 ^ 32 * Hw.toNat →
+      WPs E ⟨l', g, m, f⟩ rest Q) :
+    WPs E ⟨l, g, m, f⟩ (colEndB uk rest) Q := by
+  have n1 : (uk == "col") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have n2 : (uk == "c") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have n3 : (uk == "L") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have n4 : (uk == "H") = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have r1 : ("col" == uk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have r2 : ("c" == uk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have r3 : ("L" == uk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  have r4 : ("H" == uk) = false := by
+    rw [beq_eq_false_iff_ne]; rintro rfl; exact absurd huk (by decide)
+  unfold colEndB
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap l "col" (.word (Lw + cw))), g, m, f⟩)
+    (WPs.assign (old := w1) hcol (of_eval (w := (Lw + cw)) (by ev [hL, hc]))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) uk (.word ((Lw + cw) &&& 4294967295#64))), g, m, f⟩)
+    (WPs.assign (old := w3) (by lk [hu0, n1, n2, n3, n4, r1, r2, r3, r4]) (of_eval (w := ((Lw + cw) &&& 4294967295#64)) (by ev []; rfl))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) uk (.word ((Lw + cw) &&& 4294967295#64))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + Hw))), g, m, f⟩)
+    (WPs.assign (old := cw) (by lk [hc, n1, n2, n3, n4, r1, r2, r3, r4]) (of_eval (w := (((Lw + cw) >>> (32 : Nat)) + Hw)) (by
+      ev [evalF_shift hE.word, shift32, hH, eval_const, n1, n2, n3, n4, r1, r2, r3, r4])) ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) uk (.word ((Lw + cw) &&& 4294967295#64))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + Hw))) "L" (.word 0#64)), g, m, f⟩)
+    (WPs.assign (old := Lw) (by lk [hL, n1, n2, n3, n4, r1, r2, r3, r4]) (of_eval (eval_const _ _))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  refine WPs.seq (fun a => a = ⟨(updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) uk (.word ((Lw + cw) &&& 4294967295#64))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + Hw))) "L" (.word 0#64)) "H" (.word 0#64)), g, m, f⟩)
+    (WPs.assign (old := Hw) (by lk [hH, n1, n2, n3, n4, r1, r2, r3, r4]) (of_eval (eval_const _ _))
+      ⟨_, _, _, _, rfl, rfl⟩) ?_
+  rintro _ rfl
+  have hcolN : (Lw + cw).toNat = Lw.toNat + cw.toNat := by
+    rw [BitVec.toNat_add]
+    exact Nat.mod_eq_of_lt (by omega)
+  have huN : ((Lw + cw) &&& 4294967295#64).toNat = (Lw.toNat + cw.toNat) % 2 ^ 32 := by rw [and32_toNat, hcolN]
+  have hcN : (((Lw + cw) >>> (32 : Nat)) + Hw).toNat = (Lw.toNat + cw.toNat) / 2 ^ 32 + Hw.toNat := by
+    rw [BitVec.toNat_add, shr32_toNat, hcolN]
+    exact Nat.mod_eq_of_lt (by omega)
+  refine h (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap (updatePanValueMap l "col" (.word (Lw + cw))) uk (.word ((Lw + cw) &&& 4294967295#64))) "c" (.word (((Lw + cw) >>> (32 : Nat)) + Hw))) "L" (.word 0#64)) "H" (.word 0#64))
+    (((Lw + cw) >>> (32 : Nat)) + Hw) ((Lw + cw) &&& 4294967295#64) (fun z hz => ?_) (by lk [n1, n2, n3, n4, r1, r2, r3, r4]) (by lk [n1, n2, n3, n4, r1, r2, r3, r4]) (by lk [n1, n2, n3, n4, r1, r2, r3, r4]) (by lk [n1, n2, n3, n4, r1, r2, r3, r4])
+    ⟨(Lw + cw), by lk [n1, n2, n3, n4, r1, r2, r3, r4]⟩ (by rw [huN]; omega) (by rw [hcN]; omega) (by rw [hcN, huN]; omega)
+  simp only [List.mem_cons, List.mem_nil_iff, or_false, not_or] at hz
+  obtain ⟨a1, a2, a3, a4, a5⟩ := hz
+  simp [update_lookup, a1, a2, a3, a4, a5]
+
 end InitECandidate.Solver.GuestBound
