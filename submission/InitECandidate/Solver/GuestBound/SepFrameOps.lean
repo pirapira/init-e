@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.SepFrameOp
+import InitECandidate.Solver.GuestBound.SepFrameOp2
 
 /-!
 # Stack handlers under the frame invariant
@@ -23,8 +23,8 @@ theorem «op_add_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_add"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_add" = true by decide +kernel))
@@ -50,8 +50,8 @@ theorem «op_mul_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 5#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_mul"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_mul" = true by decide +kernel))
@@ -77,8 +77,8 @@ theorem «op_sub_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_sub"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_sub" = true by decide +kernel))
@@ -104,8 +104,8 @@ theorem «op_signextend_frame» (hE : GuestEnv E) (parameters : List VarName) (b
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_b hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 5#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "sat_word"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "sat_word" = true by decide +kernel))
@@ -137,8 +137,8 @@ theorem «op_lt_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_lt"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_lt" = true by decide +kernel))
@@ -164,8 +164,8 @@ theorem «op_gt_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_gt"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_gt" = true by decide +kernel))
@@ -191,8 +191,8 @@ theorem «op_slt_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_slt"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_slt" = true by decide +kernel))
@@ -218,8 +218,8 @@ theorem «op_sgt_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_sgt"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_sgt" = true by decide +kernel))
@@ -245,8 +245,8 @@ theorem «op_eq_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_eq"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_eq" = true by decide +kernel))
@@ -272,7 +272,7 @@ theorem «op_iszero_frame» (hE : GuestEnv E) (parameters : List VarName) (body 
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_is_zero"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_is_zero" = true by decide +kernel))
@@ -288,6 +288,122 @@ theorem «op_iszero_frame» (hE : GuestEnv E) (parameters : List VarName) (body 
     AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
 
+theorem «op_and_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_and" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 492 hE.functions (by guest_decl_at 492)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.restore.abort
+    (stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
+theorem «op_or_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_or" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 493 hE.functions (by guest_decl_at 493)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.restore.abort
+    (stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
+theorem «op_xor_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_xor" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 494 hE.functions (by guest_decl_at 494)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_y hok hp h => ?_)
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.restore.abort
+    (stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore
+
+theorem «op_not_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_not" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 495 hE.functions (by guest_decl_at 495)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.abort
+    (stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore
+
+theorem «op_byte_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "op_byte" E.functions = some (parameters, body))
+    (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
+    (hok : FrameOk M K fv X0) (h : (FrameOp M K e fv X0 ⋆ R).holds s) :
+    WPr E s body (HandlerQ M K e fv R s.ffi X0) := by
+  have hbody := (fun_of_index 496 hE.functions (by guest_decl_at 496)
+    (by decide +kernel) hlookup).1
+  subst hbody
+  dsimp only
+  have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_i hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_x hok hp h => ?_)
+  refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "sat_word"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "sat_word" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "sat_word"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "sat_word" = true by
+        decide +kernel))
+    h AcceptsH.refl.restore.restore.abort (fun _ hsh_iw h => ?_)
+  refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "u256_byte"
+      (show keepFn quietLeaf Guest.Software.guestAst 6 "u256_byte" = true by decide +kernel))
+    (raiseFn_sound _ hE.functions 6 "u256_byte"
+      (show raiseFn (fun _ => false) Guest.Software.guestAst 6 "u256_byte" = true by
+        decide +kernel))
+    h AcceptsH.refl.restore.restore.restore.abort (fun _ hsh_r h => ?_)
+  refine op_push hok hp h AcceptsH.refl.restore.restore.restore.restore.abort
+    (stack_push_word_any_hc hE (arg1_shape (by simp (config := { decide := true }) [update_lookup]) hsh_r) e _ _ _ _ fv hok.ok)
+    (fun _ g m hok hp h => ?_)
+  refine op_pc_add hE (d := 1#64)
+    (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h
+    AcceptsH.refl.restore.restore.restore.restore.abort (fun g m hok hp h => ?_)
+  exact op_return hok hp (by decide) h AcceptsH.refl.restore.restore.restore.restore
+
 theorem «op_shl_frame» (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "op_shl" E.functions = some (parameters, body))
     (s : St σ) (M : Word) (K : Word → Prop) (e fv : Word) (R : Assn) (X0 : OpSt)
@@ -298,8 +414,8 @@ theorem «op_shl_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_sh hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "sat_word"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "sat_word" = true by decide +kernel))
@@ -331,8 +447,8 @@ theorem «op_shr_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_sh hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "sat_word"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "sat_word" = true by decide +kernel))
@@ -364,8 +480,8 @@ theorem «op_sar_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
-  refine op_pop_step hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_sh hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.restore.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 3#64 hok hp h AcceptsH.refl.restore.restore.abort (fun g m hok hp h => ?_)
   refine op_quiet (keepFn_sound (quietKeeper E) hE.functions 6 "sat_word"
       (show keepFn quietLeaf Guest.Software.guestAst 6 "sat_word" = true by decide +kernel))
@@ -470,7 +586,7 @@ theorem «op_pop_frame» (hE : GuestEnv E) (parameters : List VarName) (body : P
   subst hbody
   dsimp only
   have hp : Adv X0 X0 0 := ⟨Nat.le_refl _, Nat.le_refl _⟩
-  refine op_pop_step hE hok hp h AcceptsH.refl.abort (fun _ g m hok hp h => ?_)
+  refine op_pop_sh hE hok hp h AcceptsH.refl.abort (fun _ g m hsh_x hok hp h => ?_)
   refine op_charge hE 2#64 hok hp h AcceptsH.refl.restore.abort (fun g m hok hp h => ?_)
   refine op_pc_add hE (d := 1#64)
     (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h

@@ -127,22 +127,45 @@ class Unsupported(Exception):
     pass
 
 
-def gen(node, depth, shapes, spent):
-    hq = 'AcceptsH.refl' + '.restore' * depth
+def bullet(lines):
+    return ['· ' + lines[0]] + ['  ' + l for l in lines[1:]]
+
+
+def shape_of(sh):
+    if isinstance(sh, list) and list(sh) == COMB4:
+        return 'four'
+    if sh == 'Shape.one':
+        return 'one'
+    return None
+
+
+LOOKUP = 'by simp (config := { decide := true }) [update_lookup]'
+
+
+def gen(node, hq, shapes, spent):
+    """Tactic lines proving the statement `node` under the frame invariant.
+    `hq` is the term showing that the current postcondition accepts a handler
+    outcome; `shapes` maps locals to a known shape; `spent` says whether gas
+    has been charged."""
     head = node[0] if isinstance(node, list) else node
     if head == 'Prog.return':
         if const(node[1]) != '0' or not spent:
             raise Unsupported('return')
         return [f'exact op_return hok hp (by decide) h {hq}']
+    if head == 'Prog.raise':
+        if node[1] != '"EvmErr"' or const(node[2]) is None:
+            raise Unsupported('raise')
+        return [f'exact op_raise hok hp h {hq}.abort']
     if head == 'Prog.dec':
-        return ['refine op_dec h (fun _ h => ?_)'] + gen(node[4], depth + 1, shapes, spent)
+        return ['refine op_dec h (fun _ h => ?_)'] + \
+            gen(node[4], hq + '.restore', shapes, spent)
     if head == 'Prog.decCall':
         x, sh, f, args, rest = node[1].strip('"'), node[2], node[3].strip('"'), node[4], node[5]
+        inner = dict(shapes, **{x: shape_of(sh)})
         if f == 'stack_pop':
-            return [f'refine op_pop_step hE hok hp h {hq}.abort (fun _ g m hok hp h => ?_)'] + \
-                gen(rest, depth + 1, shapes, spent)
+            return [f'refine op_pop_sh hE hok hp h {hq}.abort (fun _ g m hsh_{x} hok hp h => ?_)'] + \
+                gen(rest, hq + '.restore', inner, spent)
         if f in ALL and pure(f):
-            sh4 = list(sh) == COMB4 if isinstance(sh, list) else False
             return [
                 f'refine op_quiet (keepFn_sound (quietKeeper E) hE.functions {DEPTH} "{f}"',
                 f'    (show keepFn quietLeaf Guest.Software.guestAst {DEPTH} "{f}" = true by decide +kernel))',
@@ -150,48 +173,60 @@ def gen(node, depth, shapes, spent):
                 f'    (show raiseFn (fun _ => false) Guest.Software.guestAst {DEPTH} "{f}" = true by',
                 f'      decide +kernel))',
                 f'  h {hq}.abort (fun _ hsh_{x} h => ?_)',
-            ] + gen(rest, depth + 1, dict(shapes, **{x: sh4}), spent)
+            ] + gen(rest, hq + '.restore', inner, spent)
         raise Unsupported('decCall ' + f)
     if head == 'Prog.seq':
         first, rest = node[1], node[2]
+        if isinstance(first, list) and first[0] == 'Prog.ite' and first[3] == 'Prog.skip':
+            # `if c { P }` where P ends the handler; otherwise continue with `rest`.
+            then = gen(first[2], hq + '.mid', shapes, spent)
+            return (['refine WPr.seq (fun s\' => s\' = _) (WPr.ite_both (fun _ _ => ?_)) ?_']
+                    + bullet(['split'] + bullet(['exact WPr.skip rfl']) + bullet(then))
+                    + bullet(['intro a ha', 'rw [ha]', 'clear ha a'] + gen(rest, hq, shapes, spent)))
         if not (isinstance(first, list) and first[0] == 'Prog.call' and list(first[1]) == NOINFO):
             raise Unsupported('seq ' + str(first)[:40])
         f, args = first[2].strip('"'), first[3]
         if f == 'charge_gas' and const(args[1]) is not None:
             g = const(args[1])
             return [f'refine op_charge hE {g}#64 hok hp h {hq}.abort (fun g m hok hp h => ?_)'] + \
-                gen(rest, depth, shapes, spent or int(g) > 0)
+                gen(rest, hq, shapes, spent or int(g) > 0)
         if f == 'pc_add' and const(args[1]) is not None:
             return [f'refine op_pc_add hE (d := {const(args[1])}#64)',
                     '  (by simp [evalArgs_cons, evalArgs_nil, eval_const]) hok hp h',
-                    f'  {hq}.abort (fun g m hok hp h => ?_)'] + gen(rest, depth, shapes, spent)
+                    f'  {hq}.abort (fun g m hok hp h => ?_)'] + gen(rest, hq, shapes, spent)
+        a = args[1] if len(args) > 1 else None
+        islocal = isinstance(a, list) and a[:2] == ['Exp.var', 'VarKind.local']
         if f == 'stack_push':
-            a = args[1]
             if isinstance(a, list) and a[0] == 'Exp.load' and list(a[1]) == COMB4:
                 hc = 'stack_push_any_hc hE (arg4_load hE _) e _ _ _ _ fv hok.ok'
-            elif isinstance(a, list) and a[:2] == ['Exp.var', 'VarKind.local'] and \
-                    shapes.get(a[2].strip('"')):
+            elif islocal and shapes.get(a[2].strip('"')) == 'four':
                 v = a[2].strip('"')
-                hc = ('stack_push_any_hc hE (arg4_shape (by simp (config := { decide := true }) '
-                      f'[update_lookup]) hsh_{v}) e _ _ _ _ fv hok.ok')
+                hc = f'stack_push_any_hc hE (arg4_shape ({LOOKUP}) hsh_{v}) e _ _ _ _ fv hok.ok'
+            elif isinstance(a, list) and a[0] == 'Exp.rStruct' and len(a[1]) == 5 and \
+                    all(isinstance(x, list) and x[0] == 'Exp.op' for x in a[1][1:]):
+                hc = 'stack_push_any_hc hE (arg4_ops hE _ _ _ _ _ _ _ _) e _ _ _ _ fv hok.ok'
             else:
                 raise Unsupported('stack_push argument')
         elif f == 'stack_push_word':
-            a = args[1]
-            if not (isinstance(a, list) and a[:2] == ['Exp.load', 'Shape.one']):
+            if isinstance(a, list) and a[:2] == ['Exp.load', 'Shape.one']:
+                hc = 'stack_push_word_hc hE _ e _ _ _ _ fv hok.ok'
+            elif islocal and shapes.get(a[2].strip('"')) == 'one':
+                v = a[2].strip('"')
+                hc = (f'stack_push_word_any_hc hE (arg1_shape ({LOOKUP}) hsh_{v}) '
+                      'e _ _ _ _ fv hok.ok')
+            else:
                 raise Unsupported('stack_push_word argument')
-            hc = 'stack_push_word_hc hE _ e _ _ _ _ fv hok.ok'
         elif f == 'stack_push_bool':
             hc = ('fun p b _ cl hlk _ _ => stack_push_bool_framed hE p b hlk '
                   '⟨cl, _, _, _⟩ e _ _ _ _ fv hok.ok')
         else:
             raise Unsupported('call ' + f)
         return [f'refine op_push hok hp h {hq}.abort', f'  ({hc})',
-                '  (fun _ g m hok hp h => ?_)'] + gen(rest, depth, shapes, spent)
+                '  (fun _ g m hok hp h => ?_)'] + gen(rest, hq, shapes, spent)
     raise Unsupported(str(head))
 
 
-out = ['''import InitECandidate.Solver.GuestBound.SepFrameOp
+out = ['''import InitECandidate.Solver.GuestBound.SepFrameOp2
 
 /-!
 # Stack handlers under the frame invariant
@@ -210,7 +245,7 @@ handlers = sorted(set(re.findall(r'"(op_\w+)"', ALL['op_dispatch'])), key=lambda
 done, skipped = [], []
 for n in handlers:
     try:
-        lines = gen(parse(ALL[n]), 0, {}, False)
+        lines = gen(parse(ALL[n]), 'AcceptsH.refl', {}, False)
     except Unsupported as u:
         skipped.append((n, str(u)))
         continue

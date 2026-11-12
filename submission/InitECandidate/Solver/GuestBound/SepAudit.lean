@@ -80,3 +80,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms «op_chainid_frame»
 #print axioms «op_prevrandao_frame»
 #print axioms «op_slotnum_frame»
+#print axioms «op_and_frame»
+#print axioms «op_or_frame»
+#print axioms «op_xor_frame»
+#print axioms «op_not_frame»
+#print axioms «op_byte_frame»
