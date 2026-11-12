@@ -18,6 +18,16 @@ FUNS = [
     ("pre_alt_bn128_pairing_check", "2" + "0" * 88),
     ("run_precompile", "1" + "0" * 179),
     ("frame_prologue", "1" + "0" * 180),
+    ("frame_start", "1" + "0" * 181),
+    ("start_child", "1" + "0" * 182),
+    ("generic_create", "1" + "0" * 183),
+    ("op_create", "1" + "0" * 184),
+    ("op_create2", "1" + "0" * 184),
+    ("generic_call", "1" + "0" * 183),
+    ("op_call", "1" + "0" * 184),
+    ("op_callcode", "1" + "0" * 184),
+    ("op_delegatecall", "1" + "0" * 184),
+    ("op_staticcall", "1" + "0" * 184),
 ]
 COND = {"bn254_pairing_check"} | {f for f, _ in FUNS}
 
@@ -89,8 +99,14 @@ def gen(t):
         return f"(CostsH.decCall hE _ _ _ (by decide) {callee(a[3])} {gen(a[5])})"
     if head == 'Prog.call':
         info = re.sub(r'\s+', ' ', a[1])
-        assert info.startswith('(some (') and info.endswith(', none))'), info
-        return f"(CostsH.call _ _ {callee(a[2])})"
+        assert info.startswith('(some ('), info
+        if info.endswith(', none))'):
+            return f"(CostsH.call _ _ {callee(a[2])})"
+        # a handler: it must not reach a conditionally bounded function itself
+        pair = args_of(info)[1]
+        handler = pair[pair.index('(some ('):]
+        assert not reaches(handler), handler[:80]
+        return f"(CostsH.callH _ _ _ _ {callee(a[2])} (by cost_derive []))"
     raise Exception("unsupported: " + head)
 
 out = '''import InitECandidate.Solver.GuestBound.Fns.L16

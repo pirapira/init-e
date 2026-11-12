@@ -91,4 +91,14 @@ theorem CostsH.call {f : FunName} (args : List (Exp Word)) {B : Nat}
     call_cost_at (H := 0) (info := some (d, none)) args (hf.at hP.1 args) trivial fuel s r n rfl
       hrun hne
 
+/-- A call statement whose handler reaches no conditionally bounded function. -/
+theorem CostsH.callH {f : FunName} (args : List (Exp Word)) {B H : Nat}
+    (d : Option (VarKind × VarName)) (exc : ExceptionId) (hv : VarName) {hp : Prog Word}
+    (hf : FunCostH E f B) (hh : Costs E hp H) :
+    CostsH E G (.call (some (d, some (exc, hv, hp))) f args)
+      (panValueExpsStepCost args + B + H + 1) :=
+  fun fuel s r n hP hrun hne =>
+    call_cost_at (info := some (d, some (exc, hv, hp))) args (hf.at hP.1 args) hh fuel s r n rfl
+      hrun hne
+
 end InitECandidate.Solver.GuestBound

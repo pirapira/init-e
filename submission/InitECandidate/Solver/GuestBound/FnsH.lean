@@ -61,6 +61,136 @@ theorem «frame_prologue» (hE : GuestEnv E) :
     ?_
   decide +kernel
 
+set_option maxRecDepth 100000 in
+theorem «frame_start» (hE : GuestEnv E) :
+    FunCostH E "frame_start" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 581 hE.functions (by guest_decl_at 581) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.dec _ _ _ (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.callH _ _ _ _ (H.«frame_prologue» hE) (by cost_derive [])) (CostsH.of_costs (by cost_derive [])))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «start_child» (hE : GuestEnv E) :
+    FunCostH E "start_child" 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 585 hE.functions (by guest_decl_at 585) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«state_snapshot» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.call _ _ (H.«frame_start» hE)) (CostsH.of_costs (by cost_derive [])))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «generic_create» (hE : GuestEnv E) :
+    FunCostH E "generic_create" 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 598 hE.functions (by guest_decl_at 598) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«get_account» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«u256_lt» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«is_account_alive» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«account_deployable» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«scratch_mark» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«frame_mem_mark» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«child_message» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.call _ _ (H.«start_child» hE)) (CostsH.of_costs (by cost_derive [])))))))))))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_create» (hE : GuestEnv E) :
+    FunCostH E "op_create" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 599 hE.functions (by guest_decl_at 599) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost1» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«words_of» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«get_account» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«alloc» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (H.«generic_create» hE) (CostsH.of_costs (by cost_derive []))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_create2» (hE : GuestEnv E) :
+    FunCostH E "op_create2" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 600 hE.functions (by guest_decl_at 600) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost1» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«words_of» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«alloc» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«alloc» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (H.«generic_create» hE) (CostsH.of_costs (by cost_derive []))))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «generic_call» (hE : GuestEnv E) :
+    FunCostH E "generic_call" 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 601 hE.functions (by guest_decl_at 601) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«scratch_mark» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«frame_mem_mark» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«child_message» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.call _ _ (H.«start_child» hE)) (CostsH.of_costs (by cost_derive [])))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_call» (hE : GuestEnv E) :
+    FunCostH E "op_call" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 603 hE.functions (by guest_decl_at 603) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«to_address_masked» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«u256_is_zero» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost2» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«is_warm_address» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_delegation_cost» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«ext_code_of» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_message_call_gas» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«get_account» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«u256_lt» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.ite _ (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.call _ _ (H.«generic_call» hE))))))) (CostsH.of_costs (by cost_derive [])))))))))))))))))))))))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_callcode» (hE : GuestEnv E) :
+    FunCostH E "op_callcode" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 604 hE.functions (by guest_decl_at 604) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«to_address_masked» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.dec _ _ _ (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost2» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«is_warm_address» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«u256_is_zero» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_delegation_cost» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«ext_code_of» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_message_call_gas» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«get_account» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«u256_lt» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.ite _ (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.call _ _ (H.«generic_call» hE))))))) (CostsH.of_costs (by cost_derive [])))))))))))))))))))))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_delegatecall» (hE : GuestEnv E) :
+    FunCostH E "op_delegatecall" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 605 hE.functions (by guest_decl_at 605) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«to_address_masked» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost2» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«is_warm_address» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_delegation_cost» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«ext_code_of» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_message_call_gas» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (H.«generic_call» hE) (CostsH.of_costs (by cost_derive [])))))))))))))))))))))))))))))))))
+    ?_
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem «op_staticcall» (hE : GuestEnv E) :
+    FunCostH E "op_staticcall" 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
+  intro parameters body hlookup
+  have hbody := (fun_of_index 606 hE.functions (by guest_decl_at 606) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only
+  refine CostsH.mono
+    (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«to_address_masked» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«stack_pop» hE)) (CostsH.dec _ _ _ (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«extend_memory_cost2» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«is_warm_address» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«add_sat» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_delegation_cost» hE)) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«ext_code_of» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«calculate_message_call_gas» hE)) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.dec _ _ _ (CostsH.seq hE (by decide +kernel) (CostsH.of_costs (by cost_derive [])) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (FunCost.toH (Fn.«sat_word» hE)) (CostsH.decCall hE _ _ _ (by decide) (H.«generic_call» hE) (CostsH.of_costs (by cost_derive [])))))))))))))))))))))))))))))))))
+    ?_
+  decide +kernel
+
 end H
 
 end InitECandidate.Solver.GuestBound
