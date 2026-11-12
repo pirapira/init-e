@@ -194,7 +194,7 @@ theorem WPc.seq_sub {p q : Prog Word} {B₁ N : Nat} (R : St σ → Prop)
 
 /-- Close a budget side condition between literal costs. -/
 macro "budget" : tactic => `(tactic| (
-  simp only [stepCost_eq, stepsCost_eq]
+  try simp only [stepCost_eq, stepsCost_eq]
   decide +kernel))
 
 end InitECandidate.Solver.GuestBound
