@@ -208,4 +208,75 @@ theorem htab_set_exec (hE : GuestEnv E) (parameters : List VarName) (body : Prog
     show setCell s.memory (nodeField v nv.toNat 8) val A = s.memory A
     rw [setCell_ne' _ (NE (by rw [node_toNat hlay hnvle (o := 8) (by omega)]; omega))]
 
+/-- `htab_set(e1, e2, e3);` at a call site that discards the result. -/
+theorem WPs.call_set (hE : GuestEnv E) {s : St σ} {Q : Result σ → Prop} {e1 e2 e3 : Exp Word}
+    {t keyp val pv : Word} {v : HtabV} {kind : Nat → NodeKind} {rep : KeyRep}
+    (h1 : ∀ y, E.eval s e1 = some y → y = .word t)
+    (h2 : ∀ y, E.eval s e2 = some y → y = .word keyp)
+    (h3 : ∀ y, E.eval s e3 = some y → y = .word val) (hok : HtabOK s.memory t v kind rep)
+    (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
+    (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (ht8 : t.toNat % 8 = 0)
+    (hk64 : keyp.toNat + v.kl.toNat < 2 ^ 64)
+    (hkT : keyp.toNat + v.kl.toNat ≤ t.toNat ∨ t.toNat + 88 ≤ keyp.toNat)
+    (hkB : keyp.toNat + v.kl.toNat ≤ v.keys.toNat ∨
+      v.order.toNat + (v.nc.toNat + 1) * 8 ≤ keyp.toNat)
+    (hkP : keyp.toNat + v.kl.toNat ≤ pv.toNat ∨ 2952790016 ≤ keyp.toNat)
+    (h : ∀ l g' m', SetPost s.memory t pv v s.ffi (.returned l g' m' s.ffi [.word 0#64]) →
+      Q (.normal s.locals g' m' s.ffi)) :
+    WPs E s (.call (some (none, none)) "htab_set" [e1, e2, e3]) Q := by
+  intro r hr
+  rcases runs_call_inv (some none) hr with herr | ⟨parameters, body, values, cl, rb, hlookup,
+    hvalues, hbind, hcallee, hout⟩
+  · exact Or.inl (Stopped.of_error herr)
+  have hparams := (fun_of_index 138 hE.functions (by guest_decl_at 138) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil] at hvalues
+  cases he1 : E.eval s e1 with
+  | none => rw [he1] at hvalues; simp at hvalues
+  | some y1 =>
+    have := h1 y1 he1
+    subst this
+    cases he2 : E.eval s e2 with
+    | none => rw [he1, he2] at hvalues; simp at hvalues
+    | some y2 =>
+      have := h2 y2 he2
+      subst this
+      cases he3 : E.eval s e3 with
+      | none => rw [he1, he2, he3] at hvalues; simp at hvalues
+      | some y3 =>
+        have := h3 y3 he3
+        subst this
+        rw [he1, he2, he3] at hvalues
+        simp only [Option.map_some, Option.some.injEq] at hvalues
+        subst hvalues
+        rw [hparams] at hbind
+        simp [bindPanValueParameters] at hbind
+        have hpost := htab_set_exec hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩
+          rb t keyp val pv v kind rep
+          (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+          (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+          (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+          hok hp hpH hend ht8 hk64 hkT hkB hkP hcallee
+        rcases hpost with hst | hsp
+        · cases rb with
+          | raised lr g m f ex v =>
+            simp only [CallOutcome] at hout
+            subst hout
+            exact Or.inl trivial
+          | finalFfi lr g m f ev =>
+            simp only [CallOutcome] at hout
+            subst hout
+            exact Or.inl trivial
+          | error lr g m f =>
+            simp only [CallOutcome] at hout
+            exact Or.inl (Stopped.of_error hout)
+          | _ => exact absurd hst (fun h => h)
+        · obtain ⟨l, g', m', v', kind', rep', rfl, rest⟩ := hsp
+          simp only [CallOutcome] at hout
+          rcases hout with herr | ⟨l', g'', hassign, rfl⟩
+          · exact Or.inl (Stopped.of_error herr)
+          · simp only [assignPanValueCallResult, Option.some.injEq, Prod.mk.injEq] at hassign
+            obtain ⟨rfl, rfl⟩ := hassign
+            exact Or.inr (h l g' m' ⟨l, g', m', v', kind', rep', rfl, rest⟩)
+
 end InitECandidate.Solver.GuestBound
