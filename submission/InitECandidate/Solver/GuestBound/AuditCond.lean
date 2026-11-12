@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.Miller
+import InitECandidate.Solver.GuestBound.EcpMulK
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -36,3 +36,13 @@ open InitECandidate.Solver.GuestBound
 #print axioms fq12_cast_canon
 #print axioms fq12_twist_canon
 #print axioms bn254_miller_raw_bufs
+#print axioms fq2_mul_canon
+#print axioms fe_mul1_canon
+#print axioms fe_mul2_canon
+#print axioms fe_sqr_small_canon
+#print axioms fe_set_zeroK_canon
+#print axioms fe_set_oneK_canon
+#print axioms ecp_set_infK_bufs
+#print axioms ecp_doubleK_bufs
+#print axioms ecp_addK_bufs
+#print axioms ecp_mulK_bufs
