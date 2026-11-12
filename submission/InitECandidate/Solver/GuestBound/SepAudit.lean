@@ -3,7 +3,7 @@ import InitECandidate.Solver.GuestBound.SepPushWords
 import InitECandidate.Solver.GuestBound.SepFrameOps
 import InitECandidate.Solver.GuestBound.RunFramesLoop
 import InitECandidate.Solver.GuestBound.DispatchOps
-import InitECandidate.Solver.GuestBound.SepFrameExc
+import InitECandidate.Solver.GuestBound.DispatchBlock
 
 /-!
 # Axiom audit of the framed specifications
@@ -100,3 +100,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms handlers_proved
 #print axioms op_dispatch_frame
 #print axioms frame_exception_framed
+#print axioms rfDispatch_step
