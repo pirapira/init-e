@@ -395,4 +395,126 @@ theorem del_ok_root (hok : HtabOK m t v kind rep) {Lw pos moved : Word}
       cases hki
     exact leaf_key_frame hok hK i hi1 hi2 (by rw [← hkindL _ hiL]; exact hki) j hj
 
+/-- Facts about the parent `p`, sibling `sb` and grandparent `g` of a leaf `Lw`
+below the root. -/
+structure SpliceFacts (m : Word → Option (PanValue Word)) (v : HtabV) (kind : Nat → NodeKind)
+    (rep : KeyRep) (Lw p g gl sb bP : Word) : Prop where
+  P1 : 1 ≤ p.toNat
+  P2 : p.toNat < v.next.toNat
+  Pk : kind p.toNat = .internal
+  Pbit : Rd m (nodeField v p.toNat 24) bP
+  S1 : 1 ≤ sb.toNat
+  S2 : sb.toNat < v.next.toNat
+  Sk : kind sb.toNat ≠ .free
+  S0 : Rd m (nodeField v sb.toNat 0) p
+  SL : sb.toNat ≠ Lw.toNat
+  SP : sb.toNat ≠ p.toNat
+  PL : p.toNat ≠ Lw.toNat
+  Srep : ∀ j : Word, j.toNat < bP.toNat → rep sb.toNat j = rep p.toNat j
+  Sbit : ∀ bs, Rd m (nodeField v sb.toNat 24) bs → bP.toNat < bs.toNat
+  kids : ∀ c : Word, (Rd m (nodeField v p.toNat 8) c ∨ Rd m (nodeField v p.toNat 16) c) →
+    c = Lw ∨ c = sb
+  G0 : g = 0#64 → v.root.toNat = p.toNat
+  Gn : g ≠ 0#64 → 1 ≤ g.toNat ∧ g.toNat < v.next.toNat ∧ kind g.toNat = .internal ∧
+    Rd m (nodeField v g.toNat 8) gl ∧ (gl ≠ p → Rd m (nodeField v g.toNat 16) p)
+  GL : g.toNat ≠ Lw.toNat
+  GP : g.toNat ≠ p.toNat
+  GS : g.toNat ≠ sb.toNat
+
+theorem splice_facts (hok : HtabOK m t v kind rep) {Lw p g lc rc gl : Word}
+    (hL : LiveN v kind Lw.toNat) (hLk : kind Lw.toNat = .leaf) (hr : v.root ≠ Lw)
+    (hp : Rd m (nodeField v Lw.toNat 0) p) (hg : Rd m (nodeField v p.toNat 0) g)
+    (hlc : Rd m (nodeField v p.toNat 8) lc) (hrc : Rd m (nodeField v p.toNat 16) rc)
+    (hgl : g ≠ 0#64 → Rd m (nodeField v g.toNat 8) gl) :
+    ∃ bP, SpliceFacts m v kind rep Lw p g gl (if lc = Lw then rc else lc) bP := by
+  have hwf := hok.wf
+  obtain ⟨hL1, hL2, hL3⟩ := hL
+  have hn64 := v.next.isLt
+  obtain ⟨p', _, _, hp', -, -, -, hpar, -⟩ := hwf.leaf_ok _ hL1 hL2 hLk
+  have := Rd.inj hp' hp
+  subst this
+  rcases hpar with ⟨-, hroot'⟩ | ⟨hP1, hP2, hPk, hlink⟩
+  · exact absurd (BitVec.eq_of_toNat_eq hroot') hr
+  obtain ⟨g', lc', rc', bP, hg', hlc', hrc', hbP, -, hgpar, hclc, hcrc, hlcrc⟩ :=
+    hwf.internal_ok _ hP1 hP2 hPk
+  have e1 := Rd.inj hg' hg
+  have e2 := Rd.inj hlc' hlc
+  have e3 := Rd.inj hrc' hrc
+  subst e1 e2 e3
+  obtain ⟨-, z2, z3, z4, z5, z6⟩ := hok.keys.internal_bits _ hP1 hP2 hPk bP lc' rc' hbP hlc hrc
+  have hLw : BitVec.ofNat 64 Lw.toNat = Lw := by rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  rw [hLw] at hlink
+  have hside : lc' = Lw ∨ rc' = Lw := by
+    rcases hlink with h | h
+    · exact Or.inl (Rd.inj hlc h)
+    · exact Or.inr (Rd.inj hrc h)
+  have hPL : p'.toNat ≠ Lw.toNat := by
+    intro h
+    rw [h, hLk] at hPk
+    cases hPk
+  -- the sibling
+  have hS : ∃ sb, sb = (if lc' = Lw then rc' else lc') ∧ ChildOk m v kind p'.toNat sb ∧
+      sb ≠ Lw ∧ (∀ j : Word, j.toNat < bP.toNat → rep sb.toNat j = rep p'.toNat j) ∧
+      (∀ bs, Rd m (nodeField v sb.toNat 24) bs → bP.toNat < bs.toNat) ∧
+      (∀ c : Word, (Rd m (nodeField v p'.toNat 8) c ∨ Rd m (nodeField v p'.toNat 16) c) →
+        c = Lw ∨ c = sb) := by
+    by_cases hlL : lc' = Lw
+    · refine ⟨rc', by rw [if_pos hlL], hcrc, fun h => hlcrc (hlL.trans h.symm),
+        fun j hj => (z4 j hj).2, z6, ?_⟩
+      rintro c (h | h)
+      · exact Or.inl ((Rd.inj h hlc).trans hlL)
+      · exact Or.inr (Rd.inj h hrc)
+    · have hrL : rc' = Lw := hside.resolve_left hlL
+      refine ⟨lc', by rw [if_neg hlL], hclc, hlL, fun j hj => (z4 j hj).1, z5, ?_⟩
+      rintro c (h | h)
+      · exact Or.inr (Rd.inj h hlc)
+      · exact Or.inl ((Rd.inj h hrc).trans hrL)
+  obtain ⟨sb, hsbdef, ⟨hS1, hS2, hSk, hS0⟩, hSne, hSrep, hSbit, hkids⟩ := hS
+  rw [← hsbdef]
+  have hp64 : BitVec.ofNat 64 p'.toNat = p' := by rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+  rw [hp64] at hS0
+  have hSL : sb.toNat ≠ Lw.toNat := fun h => hSne (BitVec.eq_of_toNat_eq h)
+  obtain ⟨bS, hbS⟩ := live_bit hwf (i := sb.toNat) ⟨hS1, hS2, hSk⟩
+  have hSP : sb.toNat ≠ p'.toNat := by
+    intro h
+    rw [h] at hbS
+    have := hSbit bP (by rw [h]; exact hbP)
+    omega
+  have hbSP := hSbit bS hbS
+  have h0 : (0#64 : Word).toNat = 0 := by decide
+  by_cases hg0 : g' = 0#64
+  · refine ⟨bP, hP1, hP2, hPk, hbP, hS1, hS2, hSk, hS0, hSL, hSP, hPL, hSrep, hSbit, hkids, ?_,
+      fun h => absurd hg0 h, ?_, ?_, ?_⟩
+    · intro _
+      rcases hgpar with ⟨-, hroot'⟩ | ⟨hg1, -⟩
+      · exact hroot'
+      · rw [hg0, h0] at hg1
+        omega
+    all_goals rw [hg0, h0]; omega
+  · obtain ⟨⟨hG1, hG2, -⟩, hGk, bG, gl', gr', hbG, hgl', hgr', hGside, -, -, -, hGbit⟩ :=
+      parent_internal hwf hok.keys hP2 hgpar hg0
+    have := Rd.inj hgl' (hgl hg0)
+    subst this
+    have hbGP := hGbit bP hbP
+    refine ⟨bP, hP1, hP2, hPk, hbP, hS1, hS2, hSk, hS0, hSL, hSP, hPL, hSrep, hSbit, hkids,
+      fun h => absurd h hg0, fun _ => ⟨hG1, hG2, hGk, hgl', ?_⟩, ?_, ?_, ?_⟩
+    · intro hne
+      rcases hGside with h | h
+      · exact absurd (BitVec.eq_of_toNat_eq h) hne
+      · rw [← BitVec.eq_of_toNat_eq h]
+        exact hgr'
+    · intro h
+      rw [h, hLk] at hGk
+      cases hGk
+    · intro h
+      rw [h] at hbG
+      have := Rd.inj hbG hbP
+      rw [this] at hbGP
+      omega
+    · intro h
+      rw [h] at hbG
+      have := Rd.inj hbG hbS
+      rw [this] at hbGP
+      omega
+
 end InitECandidate.Solver.GuestBound
