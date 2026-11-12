@@ -119,11 +119,12 @@ theorem ord_addr (hlay : HtabLayout t v) {iv : Word} (hi : iv.toNat ≤ v.nc.toN
 
 set_option maxHeartbeats 2000000 in
 /-- One round of `htab_truncate` removes an entry. -/
-theorem trunc_body (hE : GuestEnv E) {rep : KeyRep} {g : VarName → Option (PanValue Word)}
-    {f : FfiState σ} (hI : TruncI t rep g f s) (hct : CondTrue E s TGUARD) :
-    WPs E s TBODY (fun r => ∃ m', r = .normal s.locals s.globals m' s.ffi ∧
-      TruncI t rep g f ⟨s.locals, s.globals, m', s.ffi⟩ ∧ cntOf m' t < cntOf s.memory t) := by
-  obtain ⟨hg, hf, ht, v, kind, hok, hstride⟩ := hI
+theorem trunc_body (hE : GuestEnv E) {kind : Nat → NodeKind} {rep : KeyRep}
+    (ht : s.locals "t" = some (.word t)) (hok : HtabOK s.memory t v kind rep)
+    (hstride : s.locals "stride" = some (.word v.st)) (hct : CondTrue E s TGUARD) :
+    WPs E s TBODY (fun r => ∃ m' v' kind', r = .normal s.locals s.globals m' s.ffi ∧
+      HtabOK m' t v' kind' rep ∧ SameTable v v' ∧ v'.cnt.toNat < v.cnt.toNat ∧
+      ∀ a, Outside t v a → m' a = s.memory a) := by
   have hwf := hok.wf
   have hlay := hwf.layout
   obtain ⟨hkl, hst, -, hcnt, hkeys, hnd, hord, hroot, -, hfree, -⟩ := hwf.hdr
@@ -175,9 +176,9 @@ theorem trunc_body (hE : GuestEnv E) {rep : KeyRep} {g : VarName → Option (Pan
     ⟨hL1, hL2, by rw [hLk]; exact NodeKind.noConfusion⟩ hLk hrel
   simp only [restorePanValueFfiLocal]
   rw [restore_update, restore_update]
-  obtain ⟨-, hst', -, -, -, -, -, -, hcnt'⟩ := hsame
-  refine ⟨m', rfl, ⟨hg, hf, ht, v', kind', hok', by rw [hst']; exact hstride⟩, ?_⟩
-  rw [cntOf_rd hcnt, cntOf_rd (hcnt' ▸ hok'.wf.hdr.2.2.2.1), hc1]
+  refine ⟨m', v', kind', rfl, hok', hsame, ?_, fun a ha => del_frame hok
+    ⟨hL1, hL2, by rw [hLk]; exact NodeKind.noConfusion⟩ hLk hrel a ha⟩
+  rw [hsame.2.2.2.2.2.2.2.2, hc1]
   omega
 
 theorem condCost_exp {I : St σ → Prop} (c : Exp Word) : CondCost E I c (expCost c) := by
@@ -225,13 +226,18 @@ theorem htab_truncate_cost (hE : GuestEnv E) (parameters : List VarName) (body :
     intro k
     refine Triple.of_costs (htab_truncate.body_cost hE) ?_
     rintro fuel' a r' n' ⟨hI, hk, hct⟩ hrun' hne'
-    rcases trunc_body hE hI hct r' (Runs.of_run hrun') with hst | ⟨m', rfl, hI', hlt⟩
+    obtain ⟨hg, hf, ht', v1, kind1, hok1, hstr1⟩ := hI
+    rcases trunc_body hE ht' hok1 hstr1 hct r' (Runs.of_run hrun') with hst |
+      ⟨m', v', kind', rfl, hok', hsame, hlt, -⟩
     · cases r' with
       | error l g m f => cases hne'
       | raised l g m f ex val => trivial
       | finalFfi l g m f ev => trivial
       | _ => exact absurd hst (fun h => h)
-    · exact ⟨hI', by rw [← hk]; exact hlt⟩
+    · refine ⟨⟨hg, hf, ht', v', kind', hok', by rw [hsame.2.1]; exact hstr1⟩, ?_⟩
+      show cntOf m' t < k
+      rw [← hk, cntOf_rd hok'.wf.hdr.2.2.2.1, cntOf_rd hok1.wf.hdr.2.2.2.1]
+      exact hlt
   have hall := Triple.dec (E := E) (P := fun a => a = s)
     (P' := fun a => TruncI t rep s.globals s.ffi a ∧ cntOf a.memory t ≤ 92274688) "stride"
     Shape.one (Exp.load Shape.one (Exp.op BinOp.add [Exp.var VarKind.local "t",
@@ -252,5 +258,94 @@ theorem htab_truncate_cost (hE : GuestEnv E) (parameters : List VarName) (body :
     have := hwf.cnt_le
     obtain ⟨-, -, h3, h4⟩ := hwf.layout
     omega
+
+/-- Same blocks and capacity. -/
+def SameBlocks (v v' : HtabV) : Prop :=
+  v'.kl = v.kl ∧ v'.st = v.st ∧ v'.cp = v.cp ∧ v'.nc = v.nc ∧ v'.keys = v.keys ∧
+    v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.next = v.next
+
+theorem SameBlocks.outside {v v' : HtabV} (h : SameBlocks v v') (a : Word) :
+    Outside t v' a ↔ Outside t v a := by
+  obtain ⟨-, -, -, h4, -, h6, h7, -⟩ := h
+  unfold Outside
+  rw [h4, h6, h7]
+
+/-- Loop invariant of `htab_truncate`, relative to the entry table `v0` and memory `m0`. -/
+def TruncJ (t nv : Word) (v0 : HtabV) (rep : KeyRep) (g : VarName → Option (PanValue Word))
+    (m0 : Word → Option (PanValue Word)) (f : FfiState σ) (s : St σ) : Prop :=
+  s.globals = g ∧ s.ffi = f ∧ s.locals "t" = some (.word t) ∧ s.locals "n" = some (.word nv) ∧
+    ∃ v kind, HtabOK s.memory t v kind rep ∧ s.locals "stride" = some (.word v.st) ∧
+      SameBlocks v0 v ∧ v.cnt.toNat ≤ v0.cnt.toNat ∧ ∀ a, Outside t v0 a → s.memory a = m0 a
+
+/-- Exit condition of that loop. -/
+def TruncQ (t nv : Word) (v0 : HtabV) (rep : KeyRep) (g : VarName → Option (PanValue Word))
+    (m0 : Word → Option (PanValue Word)) (f : FfiState σ) (r : Result σ) : Prop :=
+  Stopped r ∨ ∃ l m' v kind, r = .normal l g m' f ∧ HtabOK m' t v kind rep ∧ SameBlocks v0 v ∧
+    ¬ nv < v.cnt ∧ v.cnt.toNat ≤ v0.cnt.toNat ∧ ∀ a, Outside t v0 a → m' a = m0 a
+
+set_option maxHeartbeats 2000000 in
+/-- `htab_truncate(t, n)` on a table satisfying `HtabOK`: the table keeps the
+invariant and its blocks, has at most `n` entries left, and nothing outside
+its header, node and order cells has changed. -/
+theorem htab_truncate_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "htab_truncate" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (t nv : Word) (v : HtabV) (kind : Nat → NodeKind) (rep : KeyRep)
+    (ht : s.locals "t" = some (.word t)) (hn : s.locals "n" = some (.word nv))
+    (hok : HtabOK s.memory t v kind rep) (h : Runs E s body r) :
+    Stopped r ∨ ∃ l m' v' kind', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
+      HtabOK m' t v' kind' rep ∧ SameBlocks v v' ∧ ¬ nv < v'.cnt ∧
+      v'.cnt.toNat ≤ v.cnt.toNat ∧ ∀ a, Outside t v a → m' a = s.memory a := by
+  have hbody := (fun_of_index 140 hE.functions (by guest_decl_at 140) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  obtain ⟨-, hst, -⟩ := hok.wf.hdr
+  refine (?_ : WPs E s _ (fun r => ∃ l m' v' kind',
+    r = .returned l s.globals m' s.ffi [.word 0#64] ∧ HtabOK m' t v' kind' rep ∧
+    SameBlocks v v' ∧ ¬ nv < v'.cnt ∧ v'.cnt.toNat ≤ v.cnt.toNat ∧
+    ∀ a, Outside t v a → m' a = s.memory a)) r h
+  refine WPs.dec (eval_load_rd hE (eval_addc hE 8#64 ht) hst) ?_
+  intro r1 hr1
+  obtain ⟨rl, hw, hrest⟩ := runs_seq.mp hr1
+  obtain ⟨fuel, n, hrun⟩ := hw
+  have hQ : TruncQ t nv v rep s.globals s.memory s.ffi rl := by
+    refine while_inv (I := TruncJ t nv v rep s.globals s.memory s.ffi)
+      (Q := TruncQ t nv v rep s.globals s.memory s.ffi)
+      (fun r hr => Or.inl (Stopped.of_error hr)) ?_ ?_ fuel _ rl n ?_ hrun
+    · rintro a k ⟨hg, hf, ht', hn', v1, kind1, hok1, -, hsb, hle, hfr⟩ hcond
+      refine Or.inr ⟨a.locals, a.memory, v1, kind1, by rw [hg, hf], hok1, hsb, ?_, hle, hfr⟩
+      have hev := cond_of_eval hcond
+      have := eval_cmp_inv hE (of_eval (w := nv) (by lk [hn'])) (eval_load_rd hE (eval_addc hE 24#64 ht')
+        hok1.wf.hdr.2.2.2.1) _ hev
+      simp only [PanValue.word.injEq] at this
+      exact lower_zero this.symm
+    · rintro fuel' a r' n' ⟨hg, hf, ht', hn', v1, kind1, hok1, hstr1, hsb, hle, hfr⟩ hct hrun'
+      rcases trunc_body hE ht' hok1 hstr1 hct r' (Runs.of_run hrun') with hst' |
+        ⟨m', v', kind', rfl, hok', hsame, hlt, hfr'⟩
+      · cases r' with
+        | error l g m f => exact Or.inl trivial
+        | raised l g m f ex val => exact Or.inl trivial
+        | finalFfi l g m f ev => exact Or.inl trivial
+        | _ => exact absurd hst' (fun h => h)
+      · obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, -⟩ := hsame
+        obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := hsb
+        refine ⟨hg, hf, ht', hn', v', kind', hok', by rw [e2]; exact hstr1,
+          ⟨e1.trans b1, e2.trans b2, e3.trans b3, e4.trans b4, e5.trans b5, e6.trans b6,
+            e7.trans b7, e8.trans b8⟩, by omega, ?_⟩
+        intro x hx
+        show m' x = s.memory x
+        rw [hfr' x ((SameBlocks.outside ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ x).mpr hx)]
+        exact hfr x hx
+    · exact ⟨rfl, rfl, by lk [ht], by lk [hn], v, kind, hok, by lk [],
+        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, Nat.le_refl _, fun _ _ => rfl⟩
+  rcases hQ with hst' | ⟨l, m', v', kind', rfl, hok', hsb, hnlt, hle, hfr⟩
+  · cases rl with
+    | normal l g m f => exact absurd hst' (fun h => h)
+    | _ => simp only at hrest; subst hrest; exact Or.inl hst'
+  · simp only at hrest
+    rw [runs_return] at hrest
+    simp only [eval_const, payload_word, if_true] at hrest
+    subst hrest
+    exact Or.inr ⟨_, m', v', kind', rfl, hok', hsb, hnlt, hle, hfr⟩
 
 end InitECandidate.Solver.GuestBound
