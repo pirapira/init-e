@@ -3,10 +3,10 @@ import InitECandidate.Solver.GuestBound.FeMul
 /-!
 # Straight-line `Fq12` code: one invariant, one rule per operation
 
-`Bufs pv0 m0 hp All Cn m`: `All` lists 384-byte buffers below the heap pointer
+`Bufs pv0 m0 Wr hp All Cn m`: `All` lists 384-byte buffers below the heap pointer
 `hp`, aligned and pairwise equal or disjoint; the ones in `Cn` hold canonical
-coefficients in `m`; cells below `pv0` are as in `m0`. Each `fe_*` call with
-operands in `Cn` and destination in `All` (at or above `pv0`) adds the
+coefficients in `m`; cells below `pv0` outside the buffers of `Wr` are as in `m0`. Each `fe_*` call with
+operands in `Cn` and destination in `All` (at or above `pv0`, or in `Wr`) adds the
 destination to `Cn`. This is the separation-style layer of issue #20,
 specialised to field buffers (issue #19).
 -/
@@ -15,9 +15,9 @@ namespace InitECandidate.Solver.GuestBound
 open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
-  {m m' m0 : Word → Option (PanValue Word)}
+  {m m' m0 : Word → Option (PanValue Word)} {Wr : List Word}
 
-structure Bufs (pv0 : Word) (m0 : Word → Option (PanValue Word)) (hp : Word)
+structure Bufs (pv0 : Word) (m0 : Word → Option (PanValue Word)) (Wr : List Word) (hp : Word)
     (All Cn : List Word) (m : Word → Option (PanValue Word)) : Prop where
   hpb : hp.toNat ≤ 2952790016
   hpa : hp.toNat % 8 = 0
@@ -26,13 +26,14 @@ structure Bufs (pv0 : Word) (m0 : Word → Option (PanValue Word)) (hp : Word)
   sep : ∀ B ∈ All, ∀ C ∈ All, B = C ∨ B.toNat + 384 ≤ C.toNat ∨ C.toNat + 384 ≤ B.toNat
   sub : ∀ B ∈ Cn, B ∈ All
   can : ∀ B ∈ Cn, CanonN m B 12
-  low : ∀ x : Word, x.toNat < pv0.toNat → m x = m0 x
+  low : ∀ x : Word, x.toNat < pv0.toNat →
+    (∀ B ∈ Wr, x.toNat < B.toNat ∨ B.toNat + 384 ≤ x.toNat) → m x = m0 x
 
 /-- A write into `D` that leaves the rest below `hp` alone and makes `D` canonical. -/
-theorem Bufs.write {pv0 hp D : Word} {All Cn : List Word} (h : Bufs pv0 m0 hp All Cn m)
-    (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+theorem Bufs.write {pv0 hp D : Word} {All Cn : List Word} (h : Bufs pv0 m0 Wr hp All Cn m)
+    (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hfr : ∀ x : Word, x.toNat < hp.toNat → (x.toNat < D.toNat ∨ D.toNat + 384 ≤ x.toNat) →
-      m' x = m x) (hc : CanonN m' D 12) : Bufs pv0 m0 hp All (D :: Cn) m' := by
+      m' x = m x) (hc : CanonN m' D 12) : Bufs pv0 m0 Wr hp All (D :: Cn) m' := by
   refine ⟨h.hpb, h.hpa, h.ple, h.geo, h.sep, ?_, ?_, ?_⟩
   · intro B hB
     rcases List.mem_cons.mp hB with rfl | hB
@@ -51,14 +52,18 @@ theorem Bufs.write {pv0 hp D : Word} {All Cn : List Word} (h : Bufs pv0 m0 hp Al
       · exact absurd heq hBD
       · exact (h.can B hB').frame (by have := h.hpb; omega)
           (fun x h1 h2 => hfr x (by omega) (by omega))
-  · intro x hx
-    rw [hfr x (by have := (h.geo D hD).2; omega) (Or.inl (by omega))]
-    exact h.low x hx
+  · intro x hx hW
+    have hxD : x.toNat < D.toNat ∨ D.toNat + 384 ≤ x.toNat := by
+      rcases hDl with hl | hw
+      · exact Or.inl (by omega)
+      · exact hW D hw
+    rw [hfr x (by have := h.ple; omega) hxD]
+    exact h.low x hx hW
 
 /-- A fresh block at the old heap pointer joins `All`. -/
-theorem Bufs.alloc {pv0 hp hp' : Word} {All Cn : List Word} (h : Bufs pv0 m0 hp All Cn m)
+theorem Bufs.alloc {pv0 hp hp' : Word} {All Cn : List Word} (h : Bufs pv0 m0 Wr hp All Cn m)
     (hle : hp.toNat + 384 ≤ hp'.toNat) (hb : hp'.toNat ≤ 2952790016)
-    (ha' : hp'.toNat % 8 = 0) : Bufs pv0 m0 hp' (hp :: All) Cn m := by
+    (ha' : hp'.toNat % 8 = 0) : Bufs pv0 m0 Wr hp' (hp :: All) Cn m := by
   have hal := h.hpa
   have hpl := h.ple
   refine ⟨hb, ha', by omega, ?_, ?_, fun B hB => List.mem_cons_of_mem _ (h.sub B hB), h.can, h.low⟩
@@ -78,8 +83,8 @@ theorem Bufs.alloc {pv0 hp hp' : Word} {All Cn : List Word} (h : Bufs pv0 m0 hp 
         exact Or.inr (Or.inl (h.geo B hB1).2)
       · exact h.sep B hB1 C hC1
 
-theorem Bufs.mono {pv0 hp : Word} {All Cn Cn' : List Word} (h : Bufs pv0 m0 hp All Cn m)
-    (hsub : ∀ B ∈ Cn', B ∈ Cn) : Bufs pv0 m0 hp All Cn' m :=
+theorem Bufs.mono {pv0 hp : Word} {All Cn Cn' : List Word} (h : Bufs pv0 m0 Wr hp All Cn m)
+    (hsub : ∀ B ∈ Cn', B ∈ Cn) : Bufs pv0 m0 Wr hp All Cn' m :=
   ⟨h.hpb, h.hpa, h.ple, h.geo, h.sep, fun B hB => h.sub B (hsub B hB), fun B hB => h.can B (hsub B hB), h.low⟩
 
 section rets
@@ -270,9 +275,9 @@ theorem WPs.fe_add_step (hE : GuestEnv E) {eF eD eA eB : Exp Word} {rest : Prog 
     {D A B hp pv0 : Word} {All Cn : List Word}
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A)) (h4 : E.eval s eB = some (.word B))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn) (hBc : B ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_add" [eF, eD, eA, eB]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   have h12 : (12#64 : Word).toNat = 12 := by decide
@@ -292,9 +297,9 @@ theorem WPs.fe_sub_step (hE : GuestEnv E) {eF eD eA eB : Exp Word} {rest : Prog 
     {D A B hp pv0 : Word} {All Cn : List Word}
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A)) (h4 : E.eval s eB = some (.word B))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn) (hBc : B ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_sub" [eF, eD, eA, eB]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   have h12 : (12#64 : Word).toNat = 12 := by decide
@@ -314,9 +319,9 @@ theorem WPs.fe_neg_step (hE : GuestEnv E) {eF eD eA : Exp Word} {rest : Prog Wor
     {D A hp pv0 : Word} {All Cn : List Word}
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_neg" [eF, eD, eA]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   have h12 : (12#64 : Word).toNat = 12 := by decide
@@ -335,9 +340,9 @@ theorem WPs.fe_mul_small_step (hE : GuestEnv E) {eF eD eA eK : Exp Word} {rest :
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A))
     (h5 : E.eval s eK = some (.word K))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_mul_small" [eF, eD, eA, eK]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   have h12 : (12#64 : Word).toNat = 12 := by decide
@@ -356,9 +361,9 @@ theorem WPs.fe_mul_step (hE : GuestEnv E) {eF eD eA eB : Exp Word} {rest : Prog 
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A)) (h4 : E.eval s eB = some (.word B))
     (hg : s.globals "heap_ptr" = some (.word hp))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn) (hBc : B ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_mul" [eF, eD, eA, eB]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   obtain ⟨hg', hf, hfr, hc⟩ := femul_ret hE hret h1 h2 h3 h4 hg ⟨hB.hpb, hB.hpa⟩
@@ -372,9 +377,9 @@ theorem WPs.fe_sqr_step (hE : GuestEnv E) {eF eD eA : Exp Word} {rest : Prog Wor
     (h1 : E.eval s eF = some (.word 12#64)) (h2 : E.eval s eD = some (.word D))
     (h3 : E.eval s eA = some (.word A))
     (hg : s.globals "heap_ptr" = some (.word hp))
-    (hB : Bufs pv0 m0 hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat)
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All) (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr)
     (hA : A ∈ Cn)
-    (h : ∀ m', Bufs pv0 m0 hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
+    (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' → WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fe_sqr" [eF, eD, eA]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   obtain ⟨hg', hf, hfr, hc⟩ := fesqr_ret hE hret h1 h2 h3 hg ⟨hB.hpb, hB.hpa⟩
@@ -386,8 +391,8 @@ theorem WPs.fe_sqr_step (hE : GuestEnv E) {eF eD eA : Exp Word} {rest : Prog Wor
 theorem WPs.fe_alloc_step (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body : Prog Word}
     {hp pv0 : Word} {All Cn : List Word}
     (he : E.eval s e = some (.word 384#64)) (hg : s.globals "heap_ptr" = some (.word hp))
-    (hB : Bufs pv0 m0 hp All Cn s.memory)
-    (h : ∀ hp' : Word, pv0.toNat ≤ hp.toNat → Bufs pv0 m0 hp' (hp :: All) Cn s.memory →
+    (hB : Bufs pv0 m0 Wr hp All Cn s.memory)
+    (h : ∀ hp' : Word, pv0.toNat ≤ hp.toNat → Bufs pv0 m0 Wr hp' (hp :: All) Cn s.memory →
       WPs E ⟨updatePanValueMap s.locals x (.word hp),
         updatePanValueMap s.globals "heap_ptr" (.word hp'), s.memory, s.ffi⟩ body
         (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :

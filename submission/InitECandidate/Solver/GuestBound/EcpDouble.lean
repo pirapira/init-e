@@ -11,7 +11,7 @@ namespace InitECandidate.Solver.GuestBound
 open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
-  {m m' m0 : Word → Option (PanValue Word)}
+  {m m' m0 : Word → Option (PanValue Word)} {Wr : List Word}
 
 theorem add_lit_toNat {P : Word} {k : Nat} (hk : k < 2 ^ 32) (h : P.toNat + k < 2 ^ 64) :
     (P + BitVec.ofNat 64 k).toNat = P.toNat + k := by
@@ -23,12 +23,12 @@ set_option maxRecDepth 8000 in
 theorem Bufs.init3 {P pv : Word} (hpH : InHeap pv) (alP : P.toNat % 8 = 0)
     (bP : P.toNat + 1152 ≤ pv.toNat) (c0 : CanonN m P 12) (c1 : CanonN m (P + 384#64) 12)
     (c2 : CanonN m (P + 768#64) 12) :
-    Bufs pv m pv [P, P + 384#64, P + 768#64] [P, P + 384#64, P + 768#64] m := by
+    Bufs pv m Wr pv [P, P + 384#64, P + 768#64] [P, P + 384#64, P + 768#64] m := by
   have hH := hpH
   unfold InHeap at hH
   have e1 : (P + 384#64).toNat = P.toNat + 384 := add_lit_toNat (k := 384) (by omega) (by omega)
   have e2 : (P + 768#64).toNat = P.toNat + 768 := add_lit_toNat (k := 768) (by omega) (by omega)
-  refine ⟨hH.1, hH.2, Nat.le_refl _, ?_, ?_, fun _ h => h, ?_, fun _ _ => rfl⟩
+  refine ⟨hH.1, hH.2, Nat.le_refl _, ?_, ?_, fun _ h => h, ?_, fun _ _ _ => rfl⟩
   · intro B hB
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hB
     rcases hB with rfl | rfl | rfl <;> constructor <;> omega
@@ -91,7 +91,7 @@ theorem ecp_double12_canon (hE : GuestEnv E) (parameters : List VarName) (body :
   try dsimp only
   refine WPs.dec (w := P + 768#64) (of_eval (by ev [evalPanOp, hpt])) ?_
   try dsimp only
-  have hB := Bufs.init3 hpH alP bP c0 c1 c2
+  have hB := Bufs.init3 (Wr := []) hpH alP bP c0 c1 c2
   refine WPs.fe_alloc_step hE (by lk []) hp hB (fun q1 l0 hB => ?_)
   try dsimp only
   refine WPs.fe_alloc_step hE (by lk []) (by lk []) hB (fun q2 l1 hB => ?_)
@@ -112,64 +112,64 @@ theorem ecp_double12_canon (hE : GuestEnv E) (parameters : List VarName) (body :
       (.word q5)) "heap_ptr" (.word q6)) "heap_ptr" (.word q7)) "heap_ptr" = some (.word q7) := by
     lk []
   refine WPs.fe_sqr_step hE (D := q5) (A := P) (by lk [hfld]) (by lk []) (by lk [hpt]) hgq hB
-    (by simp) l5 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l5) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := pv) (A := q5) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) (Nat.le_refl _) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl (Nat.le_refl _)) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q1) (A := P + 384#64) (B := P + 768#64) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l1 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l1) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q5) (A := P) (B := P + 384#64) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l5 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l5) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q2) (A := q5) (B := q1) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l2 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l2) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sqr_step hE (D := q5) (A := pv) (by lk [hfld]) (by lk []) (by lk [hpt]) hgq hB
-    (by simp) l5 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l5) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := q6) (A := q2) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) l6 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l6) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sub_step hE (D := q3) (A := q5) (B := q6) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hB
-    (by simp) l3 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l3) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sqr_step hE (D := q4) (A := q1) (by lk [hfld]) (by lk []) (by lk [hpt]) hgq hB
-    (by simp) l4 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l4) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q5) (A := q3) (B := q1) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l5 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l5) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := q5) (A := q5) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) l5 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l5) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := q6) (A := q2) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) l6 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l6) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sub_step hE (D := q6) (A := q6) (B := q3) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hB
-    (by simp) l6 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l6) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q6) (A := pv) (B := q6) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l6 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l6) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sqr_step hE (D := pv) (A := P + 384#64) (by lk [hfld]) (by lk []) (by lk [hpt]) hgq hB
-    (by simp) (Nat.le_refl _) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl (Nat.le_refl _)) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := pv) (A := pv) (B := q4) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) (Nat.le_refl _) (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl (Nat.le_refl _)) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := pv) (A := pv) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) (Nat.le_refl _) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl (Nat.le_refl _)) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_sub_step hE (D := q6) (A := q6) (B := pv) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hB
-    (by simp) l6 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l6) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_step hE (D := q1) (A := q1) (B := q4) (by lk [hfld]) (by lk []) (by lk [hpt]) (by lk [hpt]) hgq hB
-    (by simp) l1 (by simp) (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l1) (by simp) (by simp) (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_mul_small_step hE (D := q1) (A := q1) (by lk [hfld]) (by lk []) (by lk [hpt]) (eval_const _ _) hB
-    (by simp) l1 (by simp) (fun m hB => ?_)
+    (by simp) (Or.inl l1) (by simp) (fun m hB => ?_)
   try dsimp only
   -- copies into the output point
   have gT1 := hB.geo q5 (by simp)
@@ -238,7 +238,7 @@ theorem ecp_double12_canon (hE : GuestEnv E) (parameters : List VarName) (body :
   refine ⟨_, m3, rfl, ?_, ?_, ?_, k3⟩
   · intro x hx hxO
     rw [f3 x (by omega), f2 x (by omega), f1 x (by omega)]
-    exact hlow x hx
+    exact hlow x hx (by simp)
   · exact (k1.frame (m' := m2) (by omega) (fun x h1 h2 => f2 x (by omega))).frame (by omega)
       (fun x h1 h2 => f3 x (by omega))
   · exact k2.frame (by rw [o1]; omega) (fun x h1 h2 => f3 x (by rw [o1] at h1 h2; omega))
