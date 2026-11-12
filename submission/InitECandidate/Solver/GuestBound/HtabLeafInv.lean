@@ -568,4 +568,19 @@ theorem new_node_nc {det det' : Nat → Prop} {m m' : Word → Option (PanValue 
       rw [Nat.mod_eq_of_lt (by omega)]
       omega
 
+/-- The new leaf has no parent yet. -/
+theorem leafMem_n0 (hlay : HtabLayout t v) {n val : Word} (hnle : n.toNat ≤ v.nc.toNat)
+    (hcl : v.cnt.toNat ≤ v.nc.toNat) :
+    Rd (leafMem mc t v n val) (nodeField v n.toNat 0) 0#64 := by
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have h24 := hdr_toNat hlay (k := 24) (by omega)
+  have hN : ∀ o, o < 32 → (nodeField v n.toNat o).toNat = v.nodes.toNat + (n.toNat * 32 + o) :=
+    fun o ho => node_toNat hlay hnle ho
+  exact (((((Rd.here _ _ _).frame _ (NE (by rw [hN 0 (by omega), hN 8 (by omega)]; omega))).frame _
+    (NE (by rw [hN 0 (by omega), hN 16 (by omega)]; omega))).frame _
+    (NE (by rw [hN 0 (by omega), hN 24 (by omega)]; omega))).frame _
+    (NE (by rw [hN 0 (by omega), ord_toNat hlay hcl]; omega))).frame _
+    (NE (by rw [hN 0 (by omega), h24]; omega))
+
 end InitECandidate.Solver.GuestBound

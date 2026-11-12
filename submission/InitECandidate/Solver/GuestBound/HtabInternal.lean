@@ -213,6 +213,8 @@ theorem htab_new_internal_exec (hE : GuestEnv E) (parameters : List VarName) (bo
       n.toNat < v'.next.toNat ∧ kind' n.toNat = .internal ∧
       (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
       v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+      ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+        pv.toNat ≤ v'.keys.toNat) ∧
       Rd m' (nodeField v' n.toNat 24) bit ∧
       (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
         (Rd m' (nodeField v' i o) w ↔ Rd s.memory (nodeField v i o) w)) ∧
@@ -232,6 +234,8 @@ theorem htab_new_internal_exec (hE : GuestEnv E) (parameters : List VarName) (bo
       n.toNat < v'.next.toNat ∧ kind' n.toNat = .internal ∧
       (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
       v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+      ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+        pv.toNat ≤ v'.keys.toNat) ∧
       Rd m' (nodeField v' n.toNat 24) bit ∧
       (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
         (Rd m' (nodeField v' i o) w ↔ Rd s.memory (nodeField v i o) w)) ∧
@@ -278,6 +282,7 @@ theorem htab_new_internal_exec (hE : GuestEnv E) (parameters : List VarName) (bo
   refine ⟨_, g', intMem m' v1 n bit, n, v1,
     (fun i => if i = n.toNat then NodeKind.internal else kind1 i), rfl, ?_, e1, e2, e3, e4,
     hn1, hn2, if_pos rfl, fun i hi hin => (if_neg hin).trans (hkold i hi hin), hnext, hwas,
+    hloc,
     Rd.here _ _ _, fun i o w hi hin ho ho8 => ?_, ⟨pv', hp', hpH', hend', hpp⟩,
     fun A hT hP hB => ?_⟩
   · exact internal_ok hok1 hn1 hn2 hkf hfl (by rw [e1]; exact hbit) (if_pos rfl)

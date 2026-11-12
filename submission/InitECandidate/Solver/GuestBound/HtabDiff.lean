@@ -175,12 +175,16 @@ structure FdPre (A B nW : Word) : Prop where
   hB : B.toNat + nW.toNat < 2 ^ 64
   hn : nW.toNat * 8 < 2 ^ 64
 
+/-- Both keys have the same, readable byte at offset `k`. -/
+def SameByte (m : Word → Option (PanValue Word)) (A B : Word) (k : Nat) : Prop :=
+  ∃ x, byteAt m (off A k) = some x ∧ byteAt m (off B k) = some x
+
 /-- `d` is the first differing bit of the `n`-byte keys at `A` and `B`, or
 `n * 8` when all bytes are equal. -/
 def FdPost (m : Word → Option (PanValue Word)) (A B : Word) (n : Nat) (d : Word) : Prop :=
-  (d.toNat = n * 8 ∧ ∀ k, k < n → byteAt m (off A k) = byteAt m (off B k)) ∨
+  (d.toNat = n * 8 ∧ ∀ k, k < n → SameByte m A B k) ∨
   ∃ i j xa xb, i < n ∧ j < 8 ∧ d.toNat = i * 8 + j ∧
-    (∀ k, k < i → byteAt m (off A k) = byteAt m (off B k)) ∧
+    (∀ k, k < i → SameByte m A B k) ∧
     byteAt m (off A i) = some xa ∧ byteAt m (off B i) = some xb ∧
     bitOf xa j ≠ bitOf xb j ∧ ∀ j', j' < j → bitOf xa j' = bitOf xb j'
 
@@ -190,7 +194,7 @@ def FdS (m : Word → Option (PanValue Word)) (A B nW : Word)
   a.globals = g ∧ a.memory = m ∧ a.ffi = f ∧ a.locals "a" = some (.word A) ∧
     a.locals "b" = some (.word B) ∧ a.locals "key_len" = some (.word nW) ∧
     a.locals "i" = some (.word (BitVec.ofNat 64 jb)) ∧ jb ≤ nW.toNat ∧
-    ∀ k, k < jb → byteAt m (off A k) = byteAt m (off B k)
+    ∀ k, k < jb → SameByte m A B k
 
 /-- Inner loop state: the first `jj` bits of `xv` are clear. -/
 def FdJ (m : Word → Option (PanValue Word)) (g : VarName → Option (PanValue Word))
@@ -273,7 +277,7 @@ theorem htab_first_diff_runs (hE : GuestEnv E) (parameters : List VarName) (body
       · intro k hk
         by_cases hkj : k = jb
         · subst hkj
-          rw [hxa, hxb, hab]
+          exact ⟨xb, by rw [hxa, hab], hxb⟩
         · exact hbytes k (by omega)
     · refine WPs.seqG (fun _ => False) ?_ (fun _ hF => hF.elim)
       refine WPs.ite (w := 1#64) (fun y hy => by

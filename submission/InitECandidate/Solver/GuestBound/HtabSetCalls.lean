@@ -175,6 +175,9 @@ def NewLeafPost (m : Word → Option (PanValue Word)) (t keyp pv : Word) (v : Ht
     n.toNat < v'.next.toNat ∧ kind' n.toNat = .leaf ∧
     (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
     v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+    Rd m' (nodeField v' n.toNat 0) 0#64 ∧
+    ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+      pv.toNat ≤ v'.keys.toNat) ∧
     (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
       (Rd m' (nodeField v' i o) w ↔ Rd m (nodeField v i o) w)) ∧
     (∃ pv' : Word, g' "heap_ptr" = some (.word pv') ∧ InHeap pv' ∧
@@ -245,6 +248,8 @@ def NewIntPost (m : Word → Option (PanValue Word)) (t bit pv : Word) (v : Htab
     n.toNat < v'.next.toNat ∧ kind' n.toNat = .internal ∧
     (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
     v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+    ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+      pv.toNat ≤ v'.keys.toNat) ∧
     Rd m' (nodeField v' n.toNat 24) bit ∧
     (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
       (Rd m' (nodeField v' i o) w ↔ Rd m (nodeField v i o) w)) ∧
