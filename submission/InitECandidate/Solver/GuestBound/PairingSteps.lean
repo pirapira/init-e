@@ -207,7 +207,7 @@ theorem miller_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {Fn Fd Qp Pp Gt hp
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
-    (hGt : Gt ∈ Cn) (hFn : Fn ∈ All) (hFd : Fd ∈ All)
+    (hFn : Fn ∈ All) (hFd : Fd ∈ All)
     (wFn : pv0.toNat ≤ Fn.toNat ∨ Fn ∈ Wr) (wFd : pv0.toNat ≤ Fd.toNat ∨ Fd ∈ Wr) :
     g = s.globals ∧ ffi = s.ffi ∧ Bufs pv0 m0 Wr hp All (Fn :: Fd :: Cn) m := by
   obtain ⟨parameters, body, values, cl, l, hlookup, hvalues, hbind, hrun⟩ := h
@@ -223,7 +223,7 @@ theorem miller_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {Fn Fd Qp Pp Gt hp
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hg hgm hB0 qa qb qc pa pb pc hGt hFn hFd wFn wFd
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hg hgm hB0 qa qb qc pa pb pc hFn hFd wFn wFd
     hrun with hst | ⟨l', m', heq, hB⟩
   · exact absurd hst (fun h => h)
   · cases heq

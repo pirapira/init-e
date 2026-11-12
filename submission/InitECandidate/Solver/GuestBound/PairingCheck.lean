@@ -56,8 +56,6 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
     (hpairs : s.locals "pairs" = some (.word Pw))
     (hgm : s.globals "bn_gamma" = some (.word Gt)) (hGt0 : Gt ≠ 0#64)
     (hp : s.globals "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
-    (hGtb : Gt.toNat + 384 ≤ pv.toNat) (alGt : Gt.toNat % 8 = 0)
-    (cGt : CanonN s.memory Gt 12)
     (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
   have hbody := (fun_of_index 691 hE.functions (by guest_decl_at 691) (by decide +kernel)
@@ -113,8 +111,8 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   rw [show (384#64 : Word).toNat = 384 by decide] at h10
   try dsimp only
   unfold InHeap at hpH i0 i1 i2 i3 i4 i5 i6 i7 i8 i9 i10
-  have geo : PCGeo Gt pv q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 :=
-    ⟨alGt, hpH.2, i0.2, i1.2, i2.2, i3.2, i4.2, i5.2, i6.2, i7.2, i8.2, i9.2, i10.2, hGtb, h0,
+  have geo : PCGeo pv q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 :=
+    ⟨hpH.2, i0.2, i1.2, i2.2, i3.2, i4.2, i5.2, i6.2, i7.2, i8.2, i9.2, i10.2, h0,
       h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, i10.1⟩
   generalize hL : updatePanValueMap _ "res" (PanValue.word q10) = L
   generalize hG : updatePanValueMap _ "heap_ptr" (PanValue.word q11) = G
@@ -132,17 +130,17 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   have L_anum : L "anum" = some (.word q8) := by rw [← hL]; lk [hpairs]
   have L_aden : L "aden" = some (.word q9) := by rw [← hL]; lk [hpairs]
   have L_mark : L "mark" = some (.word pv) := by rw [← hL]; lk [hpairs]
-  have hB0 : Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] [Gt] s.memory :=
-    ((BufsK.ofChain (K := 12) geo.chain12 geo.hb geo.ahp s.memory).addCn (by simp) cGt).to12
+  have hB0 : Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [] s.memory :=
+    (BufsK.ofChain (K := 12) geo.chain12 geo.hb geo.ahp s.memory).to12
   -- anum = aden = 1
   refine WPc.seq_sub (fun st => ∃ m, st = ⟨L, G, m, s.ffi⟩ ∧
-      Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] [q8, Gt] m)
+      Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [q8] m)
     (WPc.of_costs (Costs.callDest none _ (Fn.«fe_set_one» hE))
       (WPs.of_seq_skip (WPs.fe_set_one_step hE (D := q8) (eval_const _ _) (by lk [L_anum]) hB0
         (by simp) (Or.inr (by simp)) (fun m hB => WPs.skip ⟨m, rfl, hB⟩)))) (by budget) ?_
   rintro _ ⟨m1, rfl, hB1⟩
   refine WPc.seq_sub (fun st => ∃ m, st = ⟨L, G, m, s.ffi⟩ ∧
-      Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] [q9, q8, Gt] m)
+      Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [q9, q8] m)
     (WPc.of_costs (Costs.callDest none _ (Fn.«fe_set_one» hE))
       (WPs.of_seq_skip (WPs.fe_set_one_step hE (D := q9) (eval_const _ _) (by lk [L_aden]) hB1
         (by simp) (Or.inr (by simp)) (fun m hB => WPs.skip ⟨m, rfl, hB⟩)))) (by budget) ?_
@@ -174,13 +172,13 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
       (∀ x, x ≠ "i" → x ≠ "nontrivial" → a.locals x = L2 x) ∧
       (∃ iw : Word, a.locals "i" = some (.word iw)) ∧
       (∃ nw : Word, a.locals "nontrivial" = some (.word nw)) ∧
-      Bufs q11 a.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] [q9, q8, Gt] a.memory)
+      Bufs q11 a.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [q9, q8] a.memory)
     (WPc.of_costs (pc_loop_cost' hE) (WPs.loopG
       (I := fun a => a.globals = G ∧ a.ffi = s.ffi ∧
         (∀ x, x ≠ "i" → x ≠ "nontrivial" → a.locals x = L2 x) ∧
         (∃ iw : Word, a.locals "i" = some (.word iw)) ∧
         (∃ nw : Word, a.locals "nontrivial" = some (.word nw)) ∧
-        Bufs q11 a.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4, Gt] [q9, q8, Gt] a.memory)
+        Bufs q11 a.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [q9, q8] a.memory)
       ⟨rfl, rfl, fun _ _ _ => rfl, ⟨0#64, by rw [← hL2]; lk []⟩, ⟨0#64, by rw [← hL2]; lk []⟩,
         ((hB2.toK).rebase).to12⟩ ?_ (fun a k hI _ => hI))) (by budget) ?_
   · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hf, hloc, ⟨iw, hi⟩, ⟨nw, hnt⟩, hB⟩ -

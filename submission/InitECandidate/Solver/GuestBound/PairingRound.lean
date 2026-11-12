@@ -26,20 +26,20 @@ theorem restore_step2 {li lo : VarName → Option (PanValue Word)} {x k1 k2 : Va
   · rw [if_neg hyx, h y h1 h2, update_lookup, if_neg hyx]
 
 /-- What a round leaves behind when it ends normally. -/
-def RoundPost (st : St σ) (Gt Qb Pb fnum fden anum aden res hp : Word) (r : Result σ) : Prop :=
+def RoundPost (st : St σ) (Qb Pb fnum fden anum aden res hp : Word) (r : Result σ) : Prop :=
   match r with
   | .normal l g m f => g = st.globals ∧ f = st.ffi ∧
       (∀ x, x ≠ "i" → x ≠ "nontrivial" → l x = st.locals x) ∧
       (∃ iw' : Word, l "i" = some (.word iw')) ∧
       (∃ nw' : Word, l "nontrivial" = some (.word nw')) ∧
-      Bufs hp m [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] [aden, anum, Gt] m
+      Bufs hp m [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] [aden, anum] m
   | .continued _ _ _ _ | .broke _ _ _ _ => False
   | _ => True
 
 set_option maxHeartbeats 256000000 in
 theorem pc_round (hE : GuestEnv E) {st : St σ}
     {Gt g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp Pw iw nw mk : Word}
-    (geo : PCGeo Gt g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp)
+    (geo : PCGeo g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp)
     (l_pairs : st.locals "pairs" = some (.word Pw)) (l_i : st.locals "i" = some (.word iw))
     (l_nt : st.locals "nontrivial" = some (.word nw))
     (l_g1 : st.locals "g1" = some (.word g1)) (l_g2 : st.locals "g2" = some (.word g2))
@@ -50,13 +50,13 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
     (l_mark : st.locals "mark" = some (.word mk))
     (hG : st.globals "heap_ptr" = some (.word hp))
     (hGm : st.globals "bn_gamma" = some (.word Gt))
-    (hB : Bufs hp m0 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] [aden, anum, Gt] st.memory) :
-    WPs E st PC_BODY (RoundPost st Gt Qb Pb fnum fden anum aden res hp) := by
+    (hB : Bufs hp m0 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] [aden, anum] st.memory) :
+    WPs E st PC_BODY (RoundPost st Qb Pb fnum fden anum aden res hp) := by
   have off := geo.off
   have ch1 := geo.chain1
   have ch2 := geo.chain2
   have gg := geo
-  obtain ⟨aGt, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, ahp, o1, o2, o3, o4, o5, o6, o7, o8,
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, ahp, o2, o3, o4, o5, o6, o7, o8,
     o9, o10, o11, o12, hb⟩ := gg
   obtain ⟨og1b, og1c, ot1b, ot1c, og2b, og2c, ot2b, ot2c, oq1, oq2, op1, op2⟩ := off
   have hqinf := keepFn_sound (quietKeeper E) hE.functions 3 "ecp_is_inf" ecp_is_inf_quiet
@@ -254,7 +254,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
   refine WPs.seq (fun st' => st'.globals = st.globals ∧ st'.ffi = st.ffi ∧
       (∀ x, x ≠ "nontrivial" → st'.locals x = L5 x) ∧
       (∃ nw' : Word, st'.locals "nontrivial" = some (.word nw')) ∧
-      Bufs hp st'.memory [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] [aden, anum, Gt] st'.memory)
+      Bufs hp st'.memory [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] [aden, anum] st'.memory)
     (WPs.ite_both (fun w _ => ?_)) ?_
   · split
     · exact WPs.skip ⟨_, _, _, _, rfl, rfl, rfl, fun _ _ => rfl, ⟨nw, L5_nt⟩, h12d⟩
@@ -266,7 +266,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
       obtain ⟨hg, hf, fr5, kq0, kq1, kq2⟩ := twist_ret hE hret (O := Qb) (G2 := g2)
         (by lk [L5_Q]) (by lk [L5_g2]) a5 (by omega) (by omega) (Or.inl (by omega)) cG2
       subst g ffi
-      have h12e : Bufs hp m4 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] ([Qb + 768#64, Qb + 384#64, Qb] ++ [aden, anum, Gt]) m5 := by
+      have h12e : Bufs hp m4 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] ([Qb + 768#64, Qb + 384#64, Qb] ++ [aden, anum]) m5 := by
         refine h12d.writeSet (Ds := [Qb + 768#64, Qb + 384#64, Qb]) (fun D hD => ?_) (fun x hx hout => ?_)
           (fun D hD => ?_)
         · simp only [List.mem_cons, List.not_mem_nil, or_false] at hD
@@ -290,8 +290,8 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
       obtain ⟨hg, hf, fr6, kp0, kp1, kp2⟩ := cast_ret hE hret (O := Pb) (G1 := g1)
         (by lk [L5_P]) (by lk [L5_g1]) a6 (by omega) (by omega) (Or.inl (by omega)) cG1
       subst g ffi
-      have h12f : Bufs hp m4 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb, Gt]
-          ([Pb + 768#64, Pb + 384#64, Pb] ++ ([Qb + 768#64, Qb + 384#64, Qb] ++ [aden, anum, Gt])) m6 := by
+      have h12f : Bufs hp m4 [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb] hp [res, aden, anum, fden, fnum, Pb + 768#64, Pb + 384#64, Pb, Qb + 768#64, Qb + 384#64, Qb]
+          ([Pb + 768#64, Pb + 384#64, Pb] ++ ([Qb + 768#64, Qb + 384#64, Qb] ++ [aden, anum])) m6 := by
         refine h12e.writeSet (Ds := [Pb + 768#64, Pb + 384#64, Pb]) (fun D hD => ?_) (fun x hx hout => ?_)
           (fun D hD => ?_)
         · simp only [List.mem_cons, List.not_mem_nil, or_false] at hD
@@ -309,7 +309,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
       refine WPs.seq_call_ret (fun vs g m7 ffi hret => ?_)
       obtain ⟨hg, hf, h12g⟩ := miller_ret hE hret (Fn := fnum) (Fd := fden) (Qp := Qb) (Pp := Pb)
         (Gt := Gt) (by lk [L5_fnum]) (by lk [L5_fden]) (by lk [L5_Q]) (by lk [L5_P]) hG hGm h12f
-        (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+        (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
         (Or.inr (by simp)) (Or.inr (by simp))
       subst g ffi
       try dsimp only
@@ -325,7 +325,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
       refine ⟨_, _, _, _, rfl, rfl, rfl, fun x hx => ?_, ⟨1#64, by lk []⟩, ?_⟩
       · show updatePanValueMap L5 "nontrivial" _ x = L5 x
         rw [update_lookup, if_neg (by simpa using hx)]
-      · refine (hB9.toK.carrySub (Cn' := [aden, anum, Gt]) (fun B hB' => ?_)
+      · refine (hB9.toK.carrySub (Cn' := [aden, anum]) (fun B hB' => ?_)
           (fun _ _ _ _ _ => rfl)).to12
         simp only [List.mem_cons, List.not_mem_nil, or_false] at hB'
         rcases hB' with rfl | rfl | rfl <;> simp

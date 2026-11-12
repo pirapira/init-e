@@ -27,7 +27,7 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
-    (hGt : Gt ∈ Cn) (hFn : Fn ∈ All) (hFd : Fd ∈ All)
+    (hFn : Fn ∈ All) (hFd : Fd ∈ All)
     (wFn : pv0.toNat ≤ Fn.toNat ∨ Fn ∈ Wr) (wFd : pv0.toNat ≤ Fd.toNat ∨ Fd ∈ Wr)
     (h : Runs E s body r) :
     Stopped r ∨ BufsRet s pv0 m0 Wr hp All (Fn :: Fd :: Cn) r := by
@@ -36,7 +36,6 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   subst hbody
   dsimp only at h
   have hpb0 := hB0.hpb
-  have gGt := hB0.geo Gt (hB0.sub Gt hGt)
   have gQ0 := hB0.geo Qp (hB0.sub Qp qa)
   have gQ2 := hB0.geo _ (hB0.sub _ qc)
   have hq2 : (Qp + 768#64).toNat = Qp.toNat + 768 :=

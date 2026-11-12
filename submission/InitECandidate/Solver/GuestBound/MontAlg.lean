@@ -76,11 +76,11 @@ theorem mont_identity (a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7 m0 m1 m2 
   omega
 
 set_option exponentiation.threshold 1000 in
-theorem mont_final {A B M R : Nat} (hA : A < bnP) (hB : B < bnP) (hM : M < 2 ^ 256)
+theorem mont_final {A B M R : Nat} (hA : A < bnP) (hB : B < 2 ^ 256) (hM : M < 2 ^ 256)
     (h : A * B + M * bnP = 2 ^ 256 * R) :
     R < 2 * bnP ∧ (if R < bnP then R else R - bnP) < bnP ∧
       (if R < bnP then R else R - bnP) * 2 ^ 256 % bnP = A * B % bnP := by
-  have h1 : A * B < bnP * bnP := Nat.mul_lt_mul'' hA hB
+  have h1 : A * B < bnP * 2 ^ 256 := Nat.mul_lt_mul'' hA hB
   have hp : bnP < 2 ^ 255 := by decide
   have hR : R < 2 * bnP := by
     simp only [bnP] at *
@@ -104,7 +104,7 @@ theorem mont_final {A B M R : Nat} (hA : A < bnP) (hB : B < bnP) (hM : M < 2 ^ 2
 
 set_option exponentiation.threshold 1000 in
 set_option maxHeartbeats 16000000 in
-/-- The column equations, for operands below `p`: the top carry fits in a
+/-- The column equations, for a first operand below `p`: the top carry fits in a
 digit, and the once-reduced result is canonical and equals `A * B / 2^256`. -/
 theorem mont_spec (a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7 m0 m1 m2 m3 m4 m5 m6 m7 u0 u1 u2 u3 u4 u5 u6 cw c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 A B : Nat)
     (e0 : 2 ^ 32 * c0 = a0 * b0 + m0 * 3632069959)
@@ -124,7 +124,7 @@ theorem mont_spec (a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7 m0 m1 m2 m3 m
     (e14 : 2 ^ 32 * cw + u6 = (a7 * b7 + m7 * 811880050) + c13)
     (hAe : a0 * 1 + a1 * 2 ^ 32 + a2 * 2 ^ 64 + a3 * 2 ^ 96 + a4 * 2 ^ 128 + a5 * 2 ^ 160 + a6 * 2 ^ 192 + a7 * 2 ^ 224 = A)
     (hBe : b0 * 1 + b1 * 2 ^ 32 + b2 * 2 ^ 64 + b3 * 2 ^ 96 + b4 * 2 ^ 128 + b5 * 2 ^ 160 + b6 * 2 ^ 192 + b7 * 2 ^ 224 = B)
-    (hA : A < bnP) (hB : B < bnP)
+    (hA : A < bnP) (hB : B < 2 ^ 256)
     (bm0 : m0 < 2 ^ 32) (bm1 : m1 < 2 ^ 32) (bm2 : m2 < 2 ^ 32) (bm3 : m3 < 2 ^ 32) (bm4 : m4 < 2 ^ 32) (bm5 : m5 < 2 ^ 32) (bm6 : m6 < 2 ^ 32) (bm7 : m7 < 2 ^ 32) :
     cw < 2 ^ 32 ∧ ∃ R, R = u0 * 1 + u1 * 2 ^ 32 + u2 * 2 ^ 64 + u3 * 2 ^ 96 + u4 * 2 ^ 128 + u5 * 2 ^ 160 + u6 * 2 ^ 192 + cw * 2 ^ 224 ∧
       (if R < bnP then R else R - bnP) < bnP ∧

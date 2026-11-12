@@ -5,7 +5,7 @@ g2b="g2 + 2#64 * 32#64"; g2c="g2 + 2#64 * (2#64 * 32#64)"; t2b="t2 + 2#64 * 32#6
 Q1="Qb + 384#64"; Q2="Qb + 768#64"; P1="Pb + 384#64"; P2="Pb + 768#64"
 ALL1=f"[{t1c}, {t1b}, t1, {g1c}, {g1b}, g1]"
 ALL2=f"[{t2c}, {t2b}, t2, {g2c}, {g2b}, g2]"
-ALL12=f"[res, aden, anum, fden, fnum, {P2}, {P1}, Pb, {Q2}, {Q1}, Qb, Gt]"
+ALL12=f"[res, aden, anum, fden, fnum, {P2}, {P1}, Pb, {Q2}, {Q1}, Qb]"
 G1C=f"[{g1c}, {g1b}, g1]"; G2C=f"[{g2c}, {g2b}, g2]"
 names=["g1","g2","t1","t2","Q","P","fnum","fden","anum","aden","mark"]
 lv={"g1":"g1","g2":"g2","t1":"t1","t2":"t2","Q":"Qb","P":"Pb","fnum":"fnum","fden":"fden","anum":"anum","aden":"aden","mark":"mk"}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Regenerate GuestBound/Miller.lean (the step lists of bn254_miller_raw). Run from the repository root."""
-MEM="(by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])"
+MEM="(by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])"
 val={"R":"hp","nQ":"q1","Q1":"q2","nQ2":"q3","n":"q4","d":"q5","Q":"Qp","P":"Pp","fnum":"Fn","fden":"Fd"}
 wr={"R":"(Or.inl l0)","nQ":"(Or.inl l1)","Q1":"(Or.inl l2)","nQ2":"(Or.inl l3)","n":"(Or.inl l4)","d":"(Or.inl l5)","fnum":"wFn","fden":"wFd"}
 def w3(v):
@@ -31,8 +31,8 @@ def frob(L,d,a,off,ind):
     ev={0:"by lk [{L}_{v}]",384:"by ev [{L}_{v}]",768:"by ev [evalPanOp, {L}_{v}]"}[off]
     wd={0:wr[d],384:"(Or.inl (by omega))",768:"(Or.inl (by omega))"}[off]
     return (f"{ind}refine WPs.fq12_frob_step hE (D := {val[d]}{o}) (A := {val[a]}{o}) (Gt := Gt) ({ev.format(L=L,v=d)})\n"
-            f"{ind}  ({ev.format(L=L,v=a)}) hgG hB {MEM} {wd} {MEM} {MEM}\n"
-            f"{ind}  (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)\n{ind}try dsimp only\n")
+            f"{ind}  ({ev.format(L=L,v=a)}) hgG hB {MEM} {wd} {MEM}\n"
+            f"{ind}  (fun m hB => ?_)\n{ind}try dsimp only\n")
 def neg(L,d,a,ind):
     return (f"{ind}refine WPs.fe_neg_step hE (D := {val[d]} + 384#64) (A := {val[a]} + 384#64) (eval_const _ _)\n"
             f"{ind}  (by ev [{L}_{d}]) (by ev [{L}_{a}]) hB {MEM} (Or.inl (by omega)) {MEM} (fun m hB => ?_)\n{ind}try dsimp only\n")

@@ -27,7 +27,7 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
     (hB0 : Bufs pv0 m0 Wr hp All Cn s.memory)
     (qa : Qp ∈ Cn) (qb : Qp + 384#64 ∈ Cn) (qc : Qp + 768#64 ∈ Cn)
     (pa : Pp ∈ Cn) (pb : Pp + 384#64 ∈ Cn) (pc : Pp + 768#64 ∈ Cn)
-    (hGt : Gt ∈ Cn) (hFn : Fn ∈ All) (hFd : Fd ∈ All)
+    (hFn : Fn ∈ All) (hFd : Fd ∈ All)
     (wFn : pv0.toNat ≤ Fn.toNat ∨ Fn ∈ Wr) (wFd : pv0.toNat ≤ Fd.toNat ∨ Fd ∈ Wr)
     (h : Runs E s body r) :
     Stopped r ∨ BufsRet s pv0 m0 Wr hp All (Fn :: Fd :: Cn) r := by
@@ -36,7 +36,6 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   subst hbody
   dsimp only at h
   have hpb0 := hB0.hpb
-  have gGt := hB0.geo Gt (hB0.sub Gt hGt)
   have gQ0 := hB0.geo Qp (hB0.sub Qp qa)
   have gQ2 := hB0.geo _ (hB0.sub _ qc)
   have hq2 : (Qp + 768#64).toNat = Qp.toNat + 768 :=
@@ -162,23 +161,23 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
     have Lc_d : Lc "d" = some (.word (q5)) := by rw [← hLc]; lk [(hloc _ (by decide)).trans L2_d]
     refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := hp) (T := Pp)
       (eval_const _ _) (by lk [Lc_n]) (by lk [Lc_d]) (by lk [Lc_R]) (by lk [Lc_R]) (by lk [Lc_P]) hGq hB
-      (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+      (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
       (by simp) (by simp) (Or.inl l4) (Or.inl l5) (fun m hB => ?_)
     try dsimp only
     refine WPs.fq12_sqr_step hE (D := Fn) (A := Fn) (by lk [Lc_fnum]) (by lk [Lc_fnum])
-      hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+      hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
     try dsimp only
     refine WPs.fq12_mul_step hE (D := Fn) (A := Fn) (B := q4) (by lk [Lc_fnum]) (by lk [Lc_fnum])
-      (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+      (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
     try dsimp only
     refine WPs.fq12_sqr_step hE (D := Fd) (A := Fd) (by lk [Lc_fden]) (by lk [Lc_fden])
-      hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+      hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
     try dsimp only
     refine WPs.fq12_mul_step hE (D := Fd) (A := Fd) (B := q5) (by lk [Lc_fden]) (by lk [Lc_fden])
-      (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+      (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
     try dsimp only
     refine WPs.ecp_double_step hE (O := hp) (P := hp) (eval_const _ _) (by lk [Lc_R]) (by lk [Lc_R]) hGq hB
-      (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl l0) (Or.inl (by omega)) (Or.inl (by omega)) (fun m hB => ?_)
+      (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l0) (Or.inl (by omega)) (Or.inl (by omega)) (fun m hB => ?_)
     try dsimp only
     refine WPs.seq (fun st => ∃ m, st = ⟨Lc, G, m, s.ffi⟩ ∧ Bufs pv0 m0 Wr q6
         (q5 :: q4 :: (q3 + 768#64) :: (q3 + 384#64) :: q3 :: (q2 + 768#64) :: (q2 + 384#64) :: q2 :: (q1 + 768#64) :: (q1 + 384#64) :: q1 :: (hp + 768#64) :: (hp + 384#64) :: hp :: All)
@@ -189,18 +188,18 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
       · try dsimp only
         refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := Qp) (T := Pp)
           (eval_const _ _) (by lk [Lc_n]) (by lk [Lc_d]) (by lk [Lc_R]) (by lk [Lc_Q]) (by lk [Lc_P]) hGq hB
-          (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+          (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
           (by simp) (by simp) (Or.inl l4) (Or.inl l5) (fun m hB => ?_)
         try dsimp only
         refine WPs.fq12_mul_step hE (D := Fn) (A := Fn) (B := q4) (by lk [Lc_fnum]) (by lk [Lc_fnum])
-          (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+          (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
         try dsimp only
         refine WPs.fq12_mul_step hE (D := Fd) (A := Fd) (B := q5) (by lk [Lc_fden]) (by lk [Lc_fden])
-          (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+          (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
         try dsimp only
         refine WPs.of_seq_skip ?_
         refine WPs.ecp_add_step hE (O := hp) (P1 := hp) (P2 := Qp) (eval_const _ _) (by lk [Lc_R])
-          (by lk [Lc_R]) (by lk [Lc_Q]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+          (by lk [Lc_R]) (by lk [Lc_Q]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
           (Or.inl l0) (Or.inl (by omega)) (Or.inl (by omega)) (Or.inl rfl) (Or.inr (Or.inr (by omega))) (fun m hB => ?_)
         try dsimp only
         exact WPs.skip ⟨_, _, _, _, rfl, m, rfl, hB.mono (fun B hB' => by
@@ -217,18 +216,18 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
     · try dsimp only
       refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := q1) (T := Pp)
         (eval_const _ _) (by lk [Lc_n]) (by lk [Lc_d]) (by lk [Lc_R]) (by lk [Lc_nQ]) (by lk [Lc_P]) hGq hB
-        (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+        (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
         (by simp) (by simp) (Or.inl l4) (Or.inl l5) (fun m hB => ?_)
       try dsimp only
       refine WPs.fq12_mul_step hE (D := Fn) (A := Fn) (B := q4) (by lk [Lc_fnum]) (by lk [Lc_fnum])
-        (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+        (by lk [Lc_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
       try dsimp only
       refine WPs.fq12_mul_step hE (D := Fd) (A := Fd) (B := q5) (by lk [Lc_fden]) (by lk [Lc_fden])
-        (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+        (by lk [Lc_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
       try dsimp only
       refine WPs.of_seq_skip ?_
       refine WPs.ecp_add_step hE (O := hp) (P1 := hp) (P2 := q1) (eval_const _ _) (by lk [Lc_R])
-        (by lk [Lc_R]) (by lk [Lc_nQ]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+        (by lk [Lc_R]) (by lk [Lc_nQ]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
         (Or.inl l0) (Or.inl (by omega)) (Or.inl (by omega)) (Or.inl rfl) (Or.inr (Or.inl (by omega))) (fun m hB => ?_)
       try dsimp only
       exact WPs.skip ⟨rfl, rfl, hlocC, ⟨k, hik, by omega⟩, hB.mono (fun B hB' => by
@@ -252,57 +251,57 @@ theorem bn254_miller_raw_bufs (hE : GuestEnv E) (parameters : List VarName) (bod
   have La_n : la "n" = some (.word (q4)) := (hloc _ (by decide)).trans L2_n
   have La_d : la "d" = some (.word (q5)) := (hloc _ (by decide)).trans L2_d
   refine WPs.fq12_frob_step hE (D := q2) (A := Qp) (Gt := Gt) (by lk [La_Q1])
-    (by lk [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl l2) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by lk [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l2) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_frob_step hE (D := q2 + 384#64) (A := Qp + 384#64) (Gt := Gt) (by ev [La_Q1])
-    (by ev [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by ev [La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_frob_step hE (D := q2 + 768#64) (A := Qp + 768#64) (Gt := Gt) (by ev [evalPanOp, La_Q1])
-    (by ev [evalPanOp, La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by ev [evalPanOp, La_Q]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_frob_step hE (D := q3) (A := q2) (Gt := Gt) (by lk [La_nQ2])
-    (by lk [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl l3) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by lk [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl l3) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_frob_step hE (D := q3 + 384#64) (A := q2 + 384#64) (Gt := Gt) (by ev [La_nQ2])
-    (by ev [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by ev [La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.fe_neg_step hE (D := q3 + 384#64) (A := q3 + 384#64) (eval_const _ _)
-    (by ev [La_nQ2]) (by ev [La_nQ2]) hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+    (by ev [La_nQ2]) (by ev [La_nQ2]) hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_frob_step hE (D := q3 + 768#64) (A := q2 + 768#64) (Gt := Gt) (by ev [evalPanOp, La_nQ2])
-    (by ev [evalPanOp, La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
-    (fun e => by have := congrArg BitVec.toNat e; omega) (fun m hB => ?_)
+    (by ev [evalPanOp, La_Q1]) hgG hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (Or.inl (by omega)) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
+    (fun m hB => ?_)
   try dsimp only
   refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := q2) (T := Pp)
     (eval_const _ _) (by lk [La_n]) (by lk [La_d]) (by lk [La_R]) (by lk [La_Q1]) (by lk [La_P]) hGq hB
-    (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+    (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (by simp) (by simp) (Or.inl l4) (Or.inl l5) (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_mul_step hE (D := Fn) (A := Fn) (B := q4) (by lk [La_fnum]) (by lk [La_fnum])
-    (by lk [La_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+    (by lk [La_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_mul_step hE (D := Fd) (A := Fd) (B := q5) (by lk [La_fden]) (by lk [La_fden])
-    (by lk [La_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+    (by lk [La_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
   refine WPs.ecp_add_step hE (O := hp) (P1 := hp) (P2 := q2) (eval_const _ _) (by lk [La_R])
-    (by lk [La_R]) (by lk [La_Q1]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+    (by lk [La_R]) (by lk [La_Q1]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (Or.inl l0) (Or.inl (by omega)) (Or.inl (by omega)) (Or.inl rfl) (Or.inr (Or.inl (by omega))) (fun m hB => ?_)
   try dsimp only
   refine WPs.ecp_linefunc_step hE (N := q4) (Dn := q5) (P1 := hp) (P2 := q3) (T := Pp)
     (eval_const _ _) (by lk [La_n]) (by lk [La_d]) (by lk [La_R]) (by lk [La_nQ2]) (by lk [La_P]) hGq hB
-    (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd])
+    (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd])
     (by simp) (by simp) (Or.inl l4) (Or.inl l5) (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_mul_step hE (D := Fn) (A := Fn) (B := q4) (by lk [La_fnum]) (by lk [La_fnum])
-    (by lk [La_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+    (by lk [La_n]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFn (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
   refine WPs.fq12_mul_step hE (D := Fd) (A := Fd) (B := q5) (by lk [La_fden]) (by lk [La_fden])
-    (by lk [La_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hGt, hFn, hFd]) (fun m hB => ?_)
+    (by lk [La_d]) hGq hB (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) wFd (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (by simp [qa, qb, qc, pa, pb, pc, hFn, hFd]) (fun m hB => ?_)
   try dsimp only
   refine WPs.seq_call_ret (fun vs g m4 ffi hret => ?_)
   obtain ⟨hg', hm', hf⟩ := release_ret hE hret (mv := hp) (pv := q6) (by lk [La_mark]) hGq

@@ -142,19 +142,24 @@ theorem pk7 : (811880050#64 : Word).toNat = 811880050 := by decide
 set_option maxHeartbeats 64000000 in
 set_option maxRecDepth 100000 in
 set_option exponentiation.threshold 1000 in
-/-- `fq_mul` is Montgomery multiplication: on canonical operands the result is
-canonical and equals `a * b / 2^256` modulo `p`. -/
-theorem fq_mul_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+/-- `fq_mul` is Montgomery multiplication: when the first operand is canonical
+the result is canonical and equals `a * b / 2^256` modulo `p`, whatever the
+second operand. -/
+theorem fq_mul_spec1 (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "fq_mul" E.functions = some (parameters, body))
     (s : St σ) (r : Result σ) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (ha : s.locals "a" = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
     (hb : s.locals "b" = some (.rStruct [.word b0, .word b1, .word b2, .word b3]))
-    (hA : limbsVal [a0, a1, a2, a3] < bnP) (hB : limbsVal [b0, b1, b2, b3] < bnP)
+    (hA : limbsVal [a0, a1, a2, a3] < bnP)
     (h : Runs E s body r) :
     Stopped r ∨ ∃ l d0 d1 d2 d3, r = .returned l s.globals s.memory s.ffi
         [.rStruct [.word d0, .word d1, .word d2, .word d3]] ∧ limbsVal [d0, d1, d2, d3] < bnP ∧
       limbsVal [d0, d1, d2, d3] * 2 ^ 256 % bnP =
         limbsVal [a0, a1, a2, a3] * limbsVal [b0, b1, b2, b3] % bnP := by
+  have hB : limbsVal [b0, b1, b2, b3] < 2 ^ 256 := by
+    have := b0.isLt; have := b1.isLt; have := b2.isLt; have := b3.isLt
+    simp only [limbsVal]
+    omega
   have hbody := (fun_of_index 652 hE.functions (by guest_decl_at 652) (by decide +kernel)
     hlookup).1
   subst hbody
@@ -297,5 +302,19 @@ theorem fq_mul_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
       exact hfin1
     · rw [hd]
       exact hfin2
+
+/-- `fq_mul` on canonical operands. -/
+theorem fq_mul_spec (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "fq_mul" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (ha : s.locals "a" = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
+    (hb : s.locals "b" = some (.rStruct [.word b0, .word b1, .word b2, .word b3]))
+    (hA : limbsVal [a0, a1, a2, a3] < bnP) (_hB : limbsVal [b0, b1, b2, b3] < bnP)
+    (h : Runs E s body r) :
+    Stopped r ∨ ∃ l d0 d1 d2 d3, r = .returned l s.globals s.memory s.ffi
+        [.rStruct [.word d0, .word d1, .word d2, .word d3]] ∧ limbsVal [d0, d1, d2, d3] < bnP ∧
+      limbsVal [d0, d1, d2, d3] * 2 ^ 256 % bnP =
+        limbsVal [a0, a1, a2, a3] * limbsVal [b0, b1, b2, b3] % bnP :=
+  fq_mul_spec1 hE parameters body hlookup s r a0 a1 a2 a3 b0 b1 b2 b3 ha hb hA h
 
 end InitECandidate.Solver.GuestBound

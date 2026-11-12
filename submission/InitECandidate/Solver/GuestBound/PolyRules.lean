@@ -57,12 +57,24 @@ theorem WPs.seq_store4 (hE : GuestEnv E) {a val : Exp Word} {rest : Prog Word} {
   rw [hm w0 w1 w2 w3 hy'] at hrest
   exact h r hrest
 
-/-- `var x = fq_mul(e1, e2); body` on canonical operands. -/
-theorem WPs.decCall_fqmul (hE : GuestEnv E) {x : VarName} {body : Prog Word} {e1 e2 : Exp Word}
+/-- `var x = lds {1,1,1,1} e; body`, whatever the cell holds. -/
+theorem WPs.dec_load4_any (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body : Prog Word}
+    (h : ∀ w0 w1 w2 w3 : Word,
+      WPs E ⟨updatePanValueMap s.locals x (.rStruct [.word w0, .word w1, .word w2, .word w3]),
+        s.globals, s.memory, s.ffi⟩ body
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPs E s (.dec x (.comb [.one, .one, .one, .one]) (.load (.comb [.one, .one, .one, .one]) e)
+      body) Q := by
+  refine WPs.dec_ev (fun v hv => ?_)
+  obtain ⟨addr', w0, w1, w2, w3, -, rfl, -⟩ := eval_load_four hE hv
+  exact h _ _ _ _
+
+/-- `var x = fq_mul(e1, e2); body` with a canonical first operand. -/
+theorem WPs.decCall_fqmul1 (hE : GuestEnv E) {x : VarName} {body : Prog Word} {e1 e2 : Exp Word}
     {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
     (h1 : E.eval s e1 = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
     (h2 : E.eval s e2 = some (.rStruct [.word b0, .word b1, .word b2, .word b3]))
-    (hA : limbsVal [a0, a1, a2, a3] < bnP) (hB : limbsVal [b0, b1, b2, b3] < bnP)
+    (hA : limbsVal [a0, a1, a2, a3] < bnP)
     (h : ∀ d0 d1 d2 d3 : Word, limbsVal [d0, d1, d2, d3] < bnP →
       limbsVal [d0, d1, d2, d3] * 2 ^ 256 % bnP =
         limbsVal [a0, a1, a2, a3] * limbsVal [b0, b1, b2, b3] % bnP →
@@ -80,10 +92,10 @@ theorem WPs.decCall_fqmul (hE : GuestEnv E) {x : VarName} {body : Prog Word} {e1
   subst hvalues
   rw [hparams] at hbind
   simp [bindPanValueParameters] at hbind
-  have hpost := fq_mul_spec hE parameters cbody hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ rb
+  have hpost := fq_mul_spec1 hE parameters cbody hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ rb
     a0 a1 a2 a3 b0 b1 b2 b3
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hA hB hcallee
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hA hcallee
   rcases hpost with hst | ⟨l, d0, d1, d2, d3, rfl, hlt, hd⟩
   · cases rb with
     | raised lr g m f ex v =>
@@ -100,6 +112,21 @@ theorem WPs.decCall_fqmul (hE : GuestEnv E) {x : VarName} {body : Prog Word} {e1
     rcases h d0 d1 d2 d3 hlt hd r' hrun' with hs | hq
     · exact Or.inl hs.restore
     · exact Or.inr hq
+
+/-- `var x = fq_mul(e1, e2); body` on canonical operands. -/
+theorem WPs.decCall_fqmul (hE : GuestEnv E) {x : VarName} {body : Prog Word} {e1 e2 : Exp Word}
+    {a0 a1 a2 a3 b0 b1 b2 b3 : Word}
+    (h1 : E.eval s e1 = some (.rStruct [.word a0, .word a1, .word a2, .word a3]))
+    (h2 : E.eval s e2 = some (.rStruct [.word b0, .word b1, .word b2, .word b3]))
+    (hA : limbsVal [a0, a1, a2, a3] < bnP) (_hB : limbsVal [b0, b1, b2, b3] < bnP)
+    (h : ∀ d0 d1 d2 d3 : Word, limbsVal [d0, d1, d2, d3] < bnP →
+      limbsVal [d0, d1, d2, d3] * 2 ^ 256 % bnP =
+        limbsVal [a0, a1, a2, a3] * limbsVal [b0, b1, b2, b3] % bnP →
+      WPs E ⟨updatePanValueMap s.locals x (.rStruct [.word d0, .word d1, .word d2, .word d3]),
+        s.globals, s.memory, s.ffi⟩ body
+        (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
+    WPs E s (.decCall x (.comb [.one, .one, .one, .one]) "fq_mul" [e1, e2] body) Q :=
+  WPs.decCall_fqmul1 hE h1 h2 hA h
 
 /-- `x = fq_sub(e1, e2);` on canonical operands. -/
 theorem WPs.call_fqsub (hE : GuestEnv E) {x : VarName} {e1 e2 : Exp Word}

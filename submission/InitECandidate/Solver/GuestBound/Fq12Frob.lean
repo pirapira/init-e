@@ -5,8 +5,10 @@ import InitECandidate.Solver.GuestBound.EcpAdd
 
 Six rounds, each reading coefficients `k`, `k + 6` of the operand and two
 entries of the `bn_gamma` table and writing coefficients `k`, `k + 6` of the
-destination (which may be the operand). Part of the canonicity chain for
-`fq12_inv` (issue #19).
+destination (which may be the operand). The table entries are only ever the
+second operand of `fq_mul`, whose result is canonical as soon as the first
+operand is, so nothing is assumed about the table: not where it is, nor what
+it holds. Part of the canonicity chain for `fq12_inv` (issue #19).
 -/
 
 namespace InitECandidate.Solver.GuestBound
@@ -48,11 +50,11 @@ theorem restore_step {li lo : VarName → Option (PanValue Word)} {x k : VarName
   · rw [if_neg hyx, h y hy, update_lookup, if_neg hyx]
 
 /-- Invariant of the loop of `fq12_frob`. -/
-def FrobI (L : VarName → Option (PanValue Word)) (s : St σ) (A D Gt : Word) (st : St σ) :
+def FrobI (L : VarName → Option (PanValue Word)) (s : St σ) (A D : Word) (st : St σ) :
     Prop :=
   st.globals = s.globals ∧ st.ffi = s.ffi ∧ (∀ x, x ≠ "k" → st.locals x = L x) ∧
     (∀ x : Word, (x.toNat < D.toNat ∨ D.toNat + 384 ≤ x.toNat) → st.memory x = s.memory x) ∧
-    CanonN st.memory A 12 ∧ CanonN st.memory Gt 12 ∧
+    CanonN st.memory A 12 ∧
     ∃ kk, st.locals "k" = some (.word (BitVec.ofNat 64 kk)) ∧ kk ≤ 6 ∧
       CellsOk st.memory D (fun i => i < kk ∨ (6 ≤ i ∧ i < 6 + kk))
 
@@ -62,10 +64,9 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     (s : St σ) (r : Result σ) (A D Gt : Word)
     (ha : s.locals "a" = some (.word A)) (hd : s.locals "d" = some (.word D))
     (hgm : s.globals "bn_gamma" = some (.word Gt))
-    (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63) (bG : Gt.toNat + 384 ≤ 2 ^ 63)
+    (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63)
     (hAD : D = A ∨ D.toNat + 384 ≤ A.toNat ∨ A.toNat + 384 ≤ D.toNat)
-    (hGD : D.toNat + 384 ≤ Gt.toNat ∨ Gt.toNat + 384 ≤ D.toNat)
-    (cA : CanonN s.memory A 12) (cG : CanonN s.memory Gt 12) (h : Runs E s body r) :
+    (cA : CanonN s.memory A 12) (h : Runs E s body r) :
     Stopped r ∨ ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
       (∀ x : Word, (x.toNat < D.toNat ∨ D.toNat + 384 ≤ x.toNat) → m' x = s.memory x) ∧
       CanonN m' D 12 := by
@@ -86,12 +87,12 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   rw [← hL]
   have La : L "a" = some (.word A) := by rw [hL]; lk [ha]
   have Ld : L "d" = some (.word D) := by rw [hL]; lk [hd]
-  refine WPs.seqG (fun st => FrobI L s A D Gt st ∧ CanonN st.memory D 12)
-    (WPs.loopG (I := FrobI L s A D Gt)
-      ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, cA, cG, 0, by rw [hL]; lk [], by omega,
+  refine WPs.seqG (fun st => FrobI L s A D st ∧ CanonN st.memory D 12)
+    (WPs.loopG (I := FrobI L s A D)
+      ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, cA, 0, by rw [hL]; lk [], by omega,
         fun i _ hS => by omega⟩ ?_ ?_) ?_
-  · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hf, hloc, hfr, hcA, hcG, kk, hk, hk6, hcD⟩ ⟨w, cc, hcond, hw⟩
-    simp only at hg hf hloc hfr hcA hcG hk hcD
+  · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hf, hloc, hfr, hcA, kk, hk, hk6, hcD⟩ ⟨w, cc, hcond, hw⟩
+    simp only at hg hf hloc hfr hcA hk hcD
     subst ga fa
     have hcv := eval_cmp_inv hE (op := .lower) (of_eval (w := BitVec.ofNat 64 kk) (by lk [hk]))
       (of_eval (w := 6#64) (eval_const _ _)) _ (cond_of_eval hcond)
@@ -110,23 +111,8 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega
-    have hg0 : coefAddr Gt (2 * kk) = Gt + BitVec.ofNat 64 kk * 64#64 := by
-      unfold coefAddr
-      congr 1
-      apply BitVec.eq_of_toNat_eq
-      simp only [BitVec.toNat_mul, BitVec.toNat_ofNat]
-      omega
-    have hg1 : coefAddr Gt (2 * kk + 1) = Gt + BitVec.ofNat 64 kk * 64#64 + 32#64 := by
-      unfold coefAddr
-      rw [BitVec.add_assoc]
-      congr 1
-      apply BitVec.eq_of_toNat_eq
-      simp only [BitVec.toNat_mul, BitVec.toNat_add, BitVec.toNat_ofNat]
-      omega
     obtain ⟨vk, hfk, hvk⟩ := hcA.get (i := kk) (by omega)
     obtain ⟨vk6, hfk6, hvk6⟩ := hcA.get (i := kk + 6) (by omega)
-    obtain ⟨vg0, hfg0, hvg0⟩ := hcG.get (i := 2 * kk) (by omega)
-    obtain ⟨vg1, hfg1, hvg1⟩ := hcG.get (i := 2 * kk + 1) (by omega)
     refine WPs.dec_load4 hE (addr := coefAddr A kk)
       (of_eval (by unfold coefAddr; ev [evalPanOp, laa, hk])) hfk (fun c0 c1 c2 c3 hck => ?_)
     refine WPs.dec_load4 hE (addr := coefAddr A (kk + 6))
@@ -153,23 +139,19 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     simp only [List.cons.injEq, and_true] at hv
     subst g m ffi v
     try dsimp only
-    refine WPs.dec_load4 hE (addr := coefAddr Gt (2 * kk))
-      (of_eval (by rw [hg0]; ev [evalPanOp, eval_global, hgm, hk])) hfg0
-      (fun g00 g01 g02 g03 hgv0 => ?_)
-    refine WPs.dec_load4 hE (addr := coefAddr Gt (2 * kk + 1))
-      (of_eval (by rw [hg1]; ev [evalPanOp, eval_global, hgm, hk, BitVec.add_assoc])) hfg1
-      (fun g10 g11 g12 g13 hgv1 => ?_)
-    refine WPs.decCall_fqmul hE (a0 := p0) (a1 := p1) (a2 := p2) (a3 := p3) (b0 := g00)
-      (b1 := g01) (b2 := g02) (b3 := g03) (by lk []) (by lk []) hd0l (by rw [hgv0]; exact hvg0)
+    refine WPs.dec_load4_any hE (fun g00 g01 g02 g03 => ?_)
+    refine WPs.dec_load4_any hE (fun g10 g11 g12 g13 => ?_)
+    refine WPs.decCall_fqmul1 hE (a0 := p0) (a1 := p1) (a2 := p2) (a3 := p3) (b0 := g00)
+      (b1 := g01) (b2 := g02) (b3 := g03) (by lk []) (by lk []) hd0l
       (fun t00 t01 t02 t03 ht0 _ => ?_)
-    refine WPs.decCall_fqmul hE (a0 := q0) (a1 := q1) (a2 := q2) (a3 := q3) (b0 := g10)
-      (b1 := g11) (b2 := g12) (b3 := g13) (by lk []) (by lk []) hd1l (by rw [hgv1]; exact hvg1)
+    refine WPs.decCall_fqmul1 hE (a0 := q0) (a1 := q1) (a2 := q2) (a3 := q3) (b0 := g10)
+      (b1 := g11) (b2 := g12) (b3 := g13) (by lk []) (by lk []) hd1l
       (fun t10 t11 t12 t13 ht1 _ => ?_)
-    refine WPs.decCall_fqmul hE (a0 := p0) (a1 := p1) (a2 := p2) (a3 := p3) (b0 := g10)
-      (b1 := g11) (b2 := g12) (b3 := g13) (by lk []) (by lk []) hd0l (by rw [hgv1]; exact hvg1)
+    refine WPs.decCall_fqmul1 hE (a0 := p0) (a1 := p1) (a2 := p2) (a3 := p3) (b0 := g10)
+      (b1 := g11) (b2 := g12) (b3 := g13) (by lk []) (by lk []) hd0l
       (fun t20 t21 t22 t23 ht2 _ => ?_)
-    refine WPs.decCall_fqmul hE (a0 := q0) (a1 := q1) (a2 := q2) (a3 := q3) (b0 := g00)
-      (b1 := g01) (b2 := g02) (b3 := g03) (by lk []) (by lk []) hd1l (by rw [hgv0]; exact hvg0)
+    refine WPs.decCall_fqmul1 hE (a0 := q0) (a1 := q1) (a2 := q2) (a3 := q3) (b0 := g00)
+      (b1 := g01) (b2 := g02) (b3 := g03) (by lk []) (by lk []) hd1l
       (fun t30 t31 t32 t33 ht3 _ => ?_)
     try dsimp only
     -- u = t0 - t1
@@ -213,9 +195,6 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     refine ⟨rfl, rfl, ?_, ?_,
       (hcA.store_alias hAD (by omega) (by omega) (j := kk) (by omega) hr0l).store_alias hAD
         (by omega) (by omega) (j := kk + 6) (by omega) hvl,
-      (hcG.frame (m' := set4 ma (coefAddr D kk) r0 r1 r2 r3) (by omega)
-        (fun x h1 h2 => set4_outN (n := 12) (by omega) (by omega) (by omega))).frame (by omega)
-        (fun x h1 h2 => set4_outN (n := 12) (by omega) (by omega) (by omega)),
       kk + 1, ?_, by omega, ?_⟩
     · intro x hx
       refine Eq.trans ?_ (hloc x hx)
@@ -233,8 +212,8 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
         (j := kk + 6) (by omega) hvl)
       intro i hi hS
       exact h2 i hi (by omega)
-  · rintro ⟨la, ga, ma, fa⟩ k ⟨hg, hf, hloc, hfr, hcA, hcG, kk, hk, hk6, hcD⟩ hcond
-    simp only at hg hf hloc hfr hcA hcG hk hcD
+  · rintro ⟨la, ga, ma, fa⟩ k ⟨hg, hf, hloc, hfr, hcA, kk, hk, hk6, hcD⟩ hcond
+    simp only at hg hf hloc hfr hcA hk hcD
     have hcv := eval_cmp_inv hE (op := .lower) (of_eval (w := BitVec.ofNat 64 kk) (by lk [hk]))
       (of_eval (w := 6#64) (eval_const _ _)) _ (cond_of_eval hcond)
     simp only [PanValue.word.injEq] at hcv
@@ -247,7 +226,7 @@ theorem fq12_frob_canon (hE : GuestEnv E) (parameters : List VarName) (body : Pr
       simp [evalPanCmp, hl] at hcv
     have : kk = 6 := by omega
     subst this
-    refine ⟨⟨hg, hf, hloc, hfr, hcA, hcG, 6, hk, hk6, hcD⟩, fun i => ?_⟩
+    refine ⟨⟨hg, hf, hloc, hfr, hcA, 6, hk, hk6, hcD⟩, fun i => ?_⟩
     by_cases hi : i < 12
     · obtain ⟨v, hfe, hlt⟩ := hcD i hi (by omega)
       exact ⟨v, fun _ => ⟨hfe, hlt⟩⟩
@@ -265,10 +244,9 @@ theorem fq12frob_ret (hE : GuestEnv E) {vs : List (PanValue Word)}
     (h : CalleeRet E s "fq12_frob" [e1, e2] vs g m ffi)
     (h1 : E.eval s e1 = some (.word D)) (h2 : E.eval s e2 = some (.word A))
     (hgm : s.globals "bn_gamma" = some (.word Gt))
-    (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63) (bG : Gt.toNat + 384 ≤ 2 ^ 63)
+    (bA : A.toNat + 384 ≤ 2 ^ 63) (bD : D.toNat + 384 ≤ 2 ^ 63)
     (hAD : D = A ∨ D.toNat + 384 ≤ A.toNat ∨ A.toNat + 384 ≤ D.toNat)
-    (hGD : D.toNat + 384 ≤ Gt.toNat ∨ Gt.toNat + 384 ≤ D.toNat)
-    (cA : CanonN s.memory A 12) (cG : CanonN s.memory Gt 12) :
+    (cA : CanonN s.memory A 12) :
     g = s.globals ∧ ffi = s.ffi ∧
       (∀ x : Word, (x.toNat < D.toNat ∨ D.toNat + 384 ≤ x.toNat) → m x = s.memory x) ∧
       CanonN m D 12 := by
@@ -281,33 +259,28 @@ theorem fq12frob_ret (hE : GuestEnv E) {vs : List (PanValue Word)}
   simp [bindPanValueParameters] at hbind
   rcases fq12_frob_canon hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _ A D Gt
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hgm bA bD bG hAD
-    hGD cA cG hrun with hst | ⟨l', m', heq, hfr, hc⟩
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap]) hgm bA bD hAD
+    cA hrun with hst | ⟨l', m', heq, hfr, hc⟩
   · exact absurd hst (fun h => h)
   · cases heq
     exact ⟨rfl, rfl, hfr, hc⟩
 
-/-- `fq12_frob(d, a); rest` over the `Bufs` invariant; the gamma table is a buffer. -/
+/-- `fq12_frob(d, a); rest` over the `Bufs` invariant. -/
 theorem WPs.fq12_frob_step (hE : GuestEnv E) {eD eA : Exp Word} {rest : Prog Word}
     {D A Gt hp pv0 : Word} {All Cn : List Word}
     (h1 : E.eval s eD = some (.word D)) (h2 : E.eval s eA = some (.word A))
     (hgm : s.globals "bn_gamma" = some (.word Gt))
     (hB : Bufs pv0 m0 Wr hp All Cn s.memory) (hD : D ∈ All)
-    (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr) (hA : A ∈ Cn) (hG : Gt ∈ Cn) (hGD : Gt ≠ D)
+    (hDl : pv0.toNat ≤ D.toNat ∨ D ∈ Wr) (hA : A ∈ Cn)
     (h : ∀ m', Bufs pv0 m0 Wr hp All (D :: Cn) m' →
       WPs E ⟨s.locals, s.globals, m', s.ffi⟩ rest Q) :
     WPs E s (.seq (.call (some (none, none)) "fq12_frob" [eD, eA]) rest) Q := by
   refine WPs.seq_call_ret (fun vs g m1 ffi hret => ?_)
   have gA := hB.geo A (hB.sub A hA)
-  have gG := hB.geo Gt (hB.sub Gt hG)
   have gD := hB.geo D hD
   have hpb := hB.hpb
-  have hdis : D.toNat + 384 ≤ Gt.toNat ∨ Gt.toNat + 384 ≤ D.toNat := by
-    rcases hB.sep D hD Gt (hB.sub Gt hG) with heq | hd
-    · exact absurd heq.symm hGD
-    · exact hd
-  obtain ⟨hg, hf, hfr, hc⟩ := fq12frob_ret hE hret h1 h2 hgm (by omega) (by omega) (by omega)
-    (hB.sep D hD A (hB.sub A hA)) hdis (hB.can A hA) (hB.can Gt hG)
+  obtain ⟨hg, hf, hfr, hc⟩ := fq12frob_ret hE hret h1 h2 hgm (by omega) (by omega)
+    (hB.sep D hD A (hB.sub A hA)) (hB.can A hA)
   subst g ffi
   exact h m1 (hB.write hD hDl (fun x _ hx => hfr x hx) hc)
 
