@@ -45,7 +45,7 @@ theorem HtabOK.transport (hok : HtabOK m t v kind rep) {cp' nc' K N O : Word}
     rintro i c ⟨c1, c2, c3, c4⟩
     exact ⟨c1, c2, c3, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr c4⟩
   refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, hwf.free_ok, ?_, ?_, ?_, ?_⟩, ⟨?_⟩, hK8, hN8, hO8,
-    hok.kl_st, hok.kl8, ?_⟩
+    (by have := hok.nc_pos; show 1 ≤ nc'.toNat; omega), hok.kl_st, hok.kl8, ?_⟩
   · show v.next.toNat ≤ nc'.toNat + 1
     omega
   · show v.cnt.toNat ≤ nc'.toNat

@@ -21,6 +21,7 @@ structure HtabOK (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
   keys8 : v.keys.toNat % 8 = 0
   nodes8 : v.nodes.toNat % 8 = 0
   order8 : v.order.toNat % 8 = 0
+  nc_pos : 1 ≤ v.nc.toNat
   kl_st : v.kl.toNat ≤ v.st.toNat
   kl8 : v.kl.toNat * 8 < 2 ^ 64
   leaf_key : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .leaf →

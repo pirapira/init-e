@@ -238,7 +238,8 @@ theorem del_ok_root (hok : HtabOK m t v kind rep) {Lw pos moved : Word}
       (hN _ 0 _ (by omega) (by omega) (by omega) (fun hh => hcL hh.1) (by omega)).mpr c4⟩
   obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
   refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, Or.inl rfl, ?free, ?fnext, ?int, ?leaf,
-    ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.kl_st, hok.kl8, ?lkey⟩
+    ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.nc_pos,
+    hok.kl_st, hok.kl8, ?lkey⟩
   case hdr =>
     exact ⟨(hH 0 _ (by omega) (by omega) (by omega) (by omega)).mpr hkl,
       (hH 8 _ (by omega) (by omega) (by omega) (by omega)).mpr hst,
@@ -802,7 +803,8 @@ theorem del_ok_splice (hok : HtabOK m t v kind rep) {Lw pos moved p g gl sb bP :
     rw [hg0, h0] at e
     omega
   refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, ?root, ?free, ?fnext, ?int, ?leaf,
-    ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.kl_st, hok.kl8, ?lkey⟩
+    ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.nc_pos,
+    hok.kl_st, hok.kl8, ?lkey⟩
   case hdr =>
     exact ⟨(hH 0 _ (by omega) (by omega) (by omega) (by omega)).mpr hkl,
       (hH 8 _ (by omega) (by omega) (by omega) (by omega)).mpr hst,

@@ -40,7 +40,16 @@ theorem htab_new_ok (m : Word → Option (PanValue Word)) (t kl cp keys nodes or
   have hlay : HtabLayout t
       ⟨kl, strideOf kl, cp, ncapOf cp, 0#64, keys, nodes, order, 0#64, 1#64, 0#64⟩ :=
     ⟨h1, h2, h3, by show order.toNat + ((ncapOf cp).toNat + 1) * 8 ≤ 2952790016; omega⟩
-  refine ⟨htabWF_new m t kl cp keys nodes order hlay, ⟨?_⟩, h8, hn8, ho8, strideOf_ge kl hkl, hkl, ?_⟩
+  have hncp : 1 ≤ (ncapOf cp).toNat := by
+    unfold ncapOf
+    split
+    · decide
+    · rename_i hcp
+      rw [BitVec.lt_def] at hcp
+      have h2 : (2#64 : Word).toNat = 2 := by decide
+      omega
+  refine ⟨htabWF_new m t kl cp keys nodes order hlay, ⟨?_⟩, h8, hn8, ho8, hncp, strideOf_ge kl hkl,
+    hkl, ?_⟩
   · intro i _ _ h
     cases h
   · intro i _ _ h
