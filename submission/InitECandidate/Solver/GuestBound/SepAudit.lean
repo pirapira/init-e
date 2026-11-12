@@ -144,3 +144,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_clz_frame
 #print axioms run_frames_bound_A
 #print axioms rollback_framed
+#print axioms op_dispatch_chain
+#print axioms rfDispatch_stepC
+#print axioms run_frames_bound_chainC

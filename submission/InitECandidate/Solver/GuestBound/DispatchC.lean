@@ -268,4 +268,134 @@ theorem rfDispatch_stepC (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word �
   | finalFfi l g m ffi ev => exact Or.inl trivial
   | _ => trivial
 
+theorem Fr.Ok.mono {D D' : Word → Prop} {F : Fr} (h : F.Ok D) (hD : ∀ t, D t → D' t) :
+    F.Ok D' :=
+  ⟨h.ok, h.buf, hD _ h.acc.1, hD _ h.acc.2⟩
+
+theorem ChainOk.mono {D D' : Word → Prop} (hD : ∀ t, D t → D' t) :
+    ∀ {F : Fr} {ps : List Fr}, ChainOk D F ps → ChainOk D' F ps
+  | _, [], h => ⟨h.1.mono hD, h.2⟩
+  | _, _ :: _, h => ⟨h.1.mono hD, h.2.1, ChainOk.mono hD h.2.2⟩
+
+theorem Fr.mu_le (F : Fr) : F.mu ≤ 4 * F.gas + 3 := by
+  unfold Fr.mu
+  have ha : (if F.Y.run.toNat = 0 then 0 else 1 : Nat) ≤ 1 := by split <;> omega
+  have hb : (if F.Z.fl.toNat = 0 then 1 else 0 : Nat) ≤ 1 := by split <;> omega
+  omega
+
+/-- The loop interface on a chain, with handlers that may push frames; the
+end-of-frame block is assumed. -/
+noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : GuestEnv E)
+    (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
+    (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
+    (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
+      WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
+        (l "go" = some (.word 0#64) ∨
+          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m)))) :
+    RfGhost E where
+  InvN := chainInv W D
+  DispatchPre := fun a =>
+    (∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC1 = some (.word 0#64)) ∧
+      ∃ l, E.eval ⟨l, a.globals, a.memory, a.ffi⟩ rfC2 = some (.word 0#64)
+  BD := BD
+  BF := BF
+  costD := costD
+  costF := costF
+  pre := fun a _ h1 h2 _ _ => ⟨⟨_, h1⟩, ⟨_, h2⟩⟩
+  finish := finish
+  dispatch := by
+    rintro a n ⟨i, F, ps, R, hch, hgas, hmu, hh⟩ ⟨⟨l1, hpre1⟩, ⟨l2, hpre2⟩⟩
+    have h0 : (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds a := by
+      unfold Assn.holds
+      rw [view_eq]
+      exact hh
+    have hF : ∀ s' : St σ, s'.globals = a.globals → s'.memory = a.memory →
+        (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆
+          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W i ⋆ R)).holds s' := by
+      intro s' hg hm
+      exact Assn.holds_congr hg hm (Assn.holds_perm h0 (by unfold Fr.full; ac_rfl))
+    have hfl : F.Z.fl = 0#64 := rfC1_flagM hE (hF ⟨l1, a.globals, a.memory, a.ffi⟩ rfl rfl) hpre1
+    have hrun : F.Y.run ≠ 0#64 :=
+      rfC2_run hE (hF ⟨l2, a.globals, a.memory, a.ffi⟩ rfl rfl) hpre2
+    have hrun' : F.Y.run.toNat ≠ 0 := fun h0 => hrun (by bv_omega)
+    have hok := hch.head
+    have ho1 : (if F.Y.run.toNat = 0 then 0 else 1 : Nat) = 1 := if_neg hrun'
+    have ho2 : (if F.Z.fl.toNat = 0 then 1 else 0 : Nat) = 1 := by rw [hfl]; rfl
+    have hFmu : F.mu = 4 * F.gas + 3 := by
+      unfold Fr.mu
+      rw [ho1, ho2]
+    refine WPr.wps (rfDispatch_stepC hE hrest hcall a i F (suspA ps ⋆ R) hok
+      (by unfold Fr.gas at hgas; omega) (Assn.holds_perm h0 (by ac_rfl))) (fun r hr => ?_)
+    rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase,
+      hmem, hcc, hmsg, hee⟩ | ⟨l, g, m, rfl, hl, hpd⟩
+    · exact Or.inl ht.stopped
+    · obtain ⟨F', hF'⟩ : ∃ F' : Fr, F' = ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ := ⟨_, rfl⟩
+      have hmuF : F'.mu < F.mu ∧ F'.gas ≤ F.gas := by
+        subst hF'
+        unfold Fr.mu Fr.gas
+        dsimp only
+        have ha : (if Y'.run.toNat = 0 then 0 else 1 : Nat) ≤ 1 := by split <;> omega
+        have hb : (if Z'.fl.toNat = 0 then 1 else 0 : Nat) ≤ 1 := by split <;> omega
+        rw [ho1, ho2]
+        refine ⟨?_, hle⟩
+        rcases hcase with ⟨_, h2 | h2⟩ | h1
+        · omega
+        · have : (if Y'.run.toNat = 0 then 0 else 1 : Nat) = 0 := by rw [h2]; rfl
+          omega
+        · have : (if Z'.fl.toNat = 0 then 1 else 0 : Nat) = 0 := by rw [h1]; rfl
+          omega
+      refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨F'.mu + muSum ps, by omega, i, F', ps, R, ?_,
+        by omega, Nat.le_refl _, ?_⟩, hl "go" (by decide), hl "done" (by decide)⟩
+      · subst hF'
+        exact hch.replace ⟨hok', hY', hok.acc⟩ rfl rfl rfl rfl hmem hcc hmsg hee
+      · subst hF'
+        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ ⋆ suspA ps ⋆ W i ⋆
+            R).holds (⟨l, g, m, a.ffi⟩ : St σ) := by
+          refine Assn.holds_perm hh' ?_
+          unfold Fr.full chainRest
+          dsimp only
+          rw [hcc]
+          ac_rfl
+        unfold Assn.holds at h1
+        rw [view_eq] at h1
+        exact h1
+    · obtain ⟨i', F', c, e1, e2, e3, e4, e5, e6, e7, e8, e9, hokF', hokc, hlink, hD, hgasP,
+        hhP⟩ := hpd
+      have hchF' : ChainOk (D i') F' ps :=
+        (ChainOk.mono hD hch).replace hokF' e4 e1 e2 e3 e6 e7 e8 e9
+      have hmuc := c.mu_le
+      have hmuF' := F'.mu_le
+      refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨c.mu + (F'.mu + muSum ps), by
+          simp only [muSum] at hmu ⊢
+          omega, i', c, F' :: ps, R, ⟨hokc, hlink, hchF'⟩, ?_, ?_, ?_⟩,
+        hl "go" (by decide), hl "done" (by decide)⟩
+      · simp only [gasSum, List.map_cons, List.sum_cons] at hgas ⊢
+        omega
+      · simp only [muSum, List.map_cons, List.sum_cons]
+        exact Nat.le_refl _
+      · have h1 : (c.full ⋆ suspA (F' :: ps) ⋆ W i' ⋆ R).holds (⟨l, g, m, a.ffi⟩ : St σ) :=
+          Assn.holds_perm hhP (by simp only [suspA]; ac_rfl)
+        unfold Assn.holds at h1
+        rw [view_eq] at h1
+        exact h1
+
+/-- `run_frames` from a chain of frames of measure at most `k`, with handlers
+that may push frames. -/
+theorem run_frames_bound_chainC (W : ι → Assn) (D : ι → Word → Prop) (hE : GuestEnv E)
+    (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
+    (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
+    (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
+    (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
+      WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
+        (l "go" = some (.word 0#64) ∨
+          (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m))))
+    (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
+    (s : St σ) (k : Nat) (hI : chainInv W D k s.globals s.memory) (fuel : Nat) (r : Result σ)
+    (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
+    n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
+  run_frames_bound_ghost hE (rfChainC W D hE hrest hcall BD BF costD costF finish) parameters
+    body hlookup s k hI fuel r n hrun hne
+
 end InitECandidate.Solver.GuestBound
