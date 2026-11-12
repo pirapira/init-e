@@ -59,4 +59,61 @@ theorem sub_inv {U V X1 X2 A M : Nat} (hX2 : X2 < M) (hVU : V ≤ U)
       _ ≡ U - V + X2 * A [MOD M] := Nat.ModEq.add_left _ (show V ≡ X2 * A [MOD M] from hv)
   exact (Nat.ModEq.add_right_cancel' _ h1).symm
 
+variable {σ : Type} {E : Env σ} {Q : Result σ → Prop}
+
+set_option maxHeartbeats 4000000 in
+/-- `if (x.1 | x.2 | x.3) == 0 { if x.0 == 1 { return y; } }; rest`: returns
+`y` only when `x` holds 1. -/
+theorem retCheck4_wp (hE : GuestEnv E) {x y : VarName} {rest : Prog Word} {s : St σ}
+    {w0 w1 w2 w3 y0 y1 y2 y3 : Word}
+    (hx : s.locals x = some (.rStruct [.word w0, .word w1, .word w2, .word w3]))
+    (hy : s.locals y = some (.rStruct [.word y0, .word y1, .word y2, .word y3]))
+    (hcont : WPs E s rest Q)
+    (hret : limbsVal [w0, w1, w2, w3] = 1 →
+      Q (.returned (fun _ => none) s.globals s.memory s.ffi
+        [.rStruct [.word y0, .word y1, .word y2, .word y3]])) :
+    WPs E s (.seq (retCheck4 x y) rest) Q := by
+  intro r hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  rw [runs_ite] at h1
+  simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_op hE.word, evalF_rField,
+    evalF_local, eval_const, evalArgs_cons, evalArgs_nil, hx, Option.map_some,
+    List.getElem?_cons_zero, List.getElem?_cons_succ, wordsProj_nil, wordsProj_cons, wordOp,
+    List.foldr] at h1
+  have skip : r1 = .normal s.locals s.globals s.memory s.ffi → Stopped r ∨ Q r := by
+    intro e
+    subst e
+    exact hcont r hrest
+  obtain ⟨W, hW⟩ : ∃ W : Word, W = OrOp.or w1 (OrOp.or w2 (OrOp.or w3 (0 : Word))) := ⟨_, rfl⟩
+  rw [← hW] at h1
+  by_cases hz : W = 0#64
+  · have hc : evalPanCmp .equal W 0#64 = 1#64 := by
+      rw [hz]
+      rfl
+    rw [hc, if_neg (by decide)] at h1
+    rw [runs_ite] at h1
+    simp (config := { decide := true }) only [evalF_cmp hE.word, evalF_rField, evalF_local,
+      eval_const, hx, List.getElem?_cons_zero] at h1
+    by_cases h01 : w0 = 1#64
+    · have hc2 : evalPanCmp .equal w0 1#64 = 1#64 := by simp [evalPanCmp, h01]
+      rw [hc2, if_neg (by decide)] at h1
+      rw [runs_return] at h1
+      simp (config := { decide := true }) only [evalF_local, hy, payload_words4, if_true] at h1
+      subst h1
+      simp only at hrest
+      subst hrest
+      refine Or.inr (hret ?_)
+      have hz' : w1 ||| (w2 ||| (w3 ||| (0 : Word))) = 0#64 := hW.symm.trans hz
+      rw [BitVec.or_eq_zero_iff, BitVec.or_eq_zero_iff, BitVec.or_eq_zero_iff] at hz'
+      obtain ⟨e1, e2, e3, -⟩ := hz'
+      subst h01 e1 e2 e3
+      rfl
+    · have hc2 : evalPanCmp .equal w0 1#64 = 0#64 := by simp [evalPanCmp, h01]
+      rw [hc2, if_pos (show (0#64 : Word) = 0 from rfl), runs_skip] at h1
+      exact skip h1
+  · have hc : evalPanCmp .equal W 0#64 = 0#64 := by
+      simp [evalPanCmp, hz]
+    rw [hc, if_pos (show (0#64 : Word) = 0 from rfl), runs_skip] at h1
+    exact skip h1
+
 end InitECandidate.Solver.GuestBound
