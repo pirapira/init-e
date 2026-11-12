@@ -411,4 +411,253 @@ theorem memcpy_runs (hE : GuestEnv E) (parameters : List VarName) (body : Prog W
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     exact ⟨_, _, by rw [hg, hf]; rfl, hci⟩
 
+/-! ### `memcpy` writes inside the heap
+
+A returning `memcpy` of at least one byte has stored into the cell of `dst`,
+so that cell lies below the end of the heap. No disjointness is needed. -/
+
+theorem WPs.seq_store_any {a v : Exp Word} {rest : Prog Word}
+    (h : ∀ m, WPs E ⟨s.locals, s.globals, m, s.ffi⟩ rest Q) :
+    WPs E s (.seq (.store a v) rest) Q := by
+  intro r hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  obtain ⟨fuel, n, hrun⟩ := h1
+  rcases store_inv hrun with herr | ⟨m, rfl⟩
+  · cases r1 with
+    | error l g m f => simp only at hrest; subst hrest; exact Or.inl trivial
+    | _ => cases herr
+  · exact h m r hrest
+
+theorem WPs.seq_storeByte_any (hE : GuestEnv E) {a v : Exp Word} {rest : Prog Word}
+    (h : ∀ m, WPs E ⟨s.locals, s.globals, m, s.ffi⟩ rest Q) :
+    WPs E s (.seq (.storeByte a v) rest) Q := by
+  intro r hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  obtain ⟨fuel, n, hrun⟩ := h1
+  rcases storeByte_inv hE.mem hrun with herr | ⟨addr, val, cell, -, -, -, rfl⟩
+  · cases r1 with
+    | error l g m f => simp only at hrest; subst hrest; exact Or.inl trivial
+    | _ => cases herr
+  · exact h _ r hrest
+
+/-- A word store of a loaded word: its address is below the end of the heap. -/
+theorem dom_wstore (hE : GuestEnv E) {ea eb : Exp Word} {rest : Prog Word} {addr : Word}
+    (hea : E.eval s ea = some (.word addr))
+    (h : addr.toNat < 33806089704 → ∀ m, WPs E ⟨s.locals, s.globals, m, s.ffi⟩ rest Q) :
+    WPs E s (.seq (.store ea (.load .one eb)) rest) Q := by
+  intro r hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  obtain ⟨fuel, n, hrun⟩ := h1
+  rcases store_word_inv' hE.mem hrun with herr | ⟨addr', val, m, ha', hv', rfl, hm⟩
+  · cases r1 with
+    | error l g m f => simp only at hrest; subst hrest; exact Or.inl trivial
+    | _ => cases herr
+  rw [hea] at ha'
+  simp only [Option.some.injEq, PanValue.word.injEq] at ha'
+  subst ha'
+  obtain ⟨_, w, -, rfl, -⟩ := eval_load_one hE.mem hv'
+  exact h (hm w rfl).2 m r hrest
+
+/-- A byte store: its cell is below the end of the heap. -/
+theorem dom_bstore (hE : GuestEnv E) {ea eb : Exp Word} {rest : Prog Word} {addr : Word}
+    (hea : E.eval s ea = some (.word addr))
+    (h : (al8 addr).toNat < 33806089704 → ∀ m, WPs E ⟨s.locals, s.globals, m, s.ffi⟩ rest Q) :
+    WPs E s (.seq (.storeByte ea eb) rest) Q := by
+  intro r hr
+  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
+  obtain ⟨fuel, n, hrun⟩ := h1
+  rcases storeByte_inv' hE.mem hrun with herr | ⟨addr', val, cell, ha', -, -, rfl, hd⟩
+  · cases r1 with
+    | error l g m f => simp only at hrest; subst hrest; exact Or.inl trivial
+    | _ => cases herr
+  rw [hea] at ha'
+  simp only [Option.some.injEq, PanValue.word.injEq] at ha'
+  subst ha'
+  rw [hE.bytes] at hd
+  exact h hd _ r hrest
+
+/-- State of `memcpy` with `i = j`; once a byte has been copied, the cell of
+`dst` is known to lie in the heap. -/
+def DomS (dst nW : Word) (j : Nat) (s : St σ) : Prop :=
+  s.locals "dst" = some (.word dst) ∧ s.locals "n" = some (.word nW) ∧
+    s.locals "i" = some (.word (BitVec.ofNat 64 j)) ∧ j ≤ nW.toNat ∧
+    (0 < j → (al8 dst).toNat < 33806089704)
+
+theorem al8_le (a : Word) : (al8 a).toNat ≤ a.toNat := by
+  rw [align8_toNat]
+  omega
+
+theorem off_zero (a : Word) : off a 0 = a := by
+  unfold off
+  simp
+
+theorem dom_fact {j : Nat} (hD : 0 < j → (al8 dst).toNat < 33806089704)
+    (hnew : (al8 (off dst j)).toNat < 33806089704) : (al8 dst).toNat < 33806089704 := by
+  by_cases hj : j = 0
+  · subst hj
+    rw [off_zero] at hnew
+    exact hnew
+  · exact hD (by omega)
+
+theorem dom_assign (hE : GuestEnv E) (k : Word) {kn : Nat} (hk : k.toNat = kn) (hkpos : 0 < kn)
+    (h1 : s.locals "dst" = some (.word dst)) (h2 : s.locals "n" = some (.word nW))
+    (h3 : s.locals "i" = some (.word (BitVec.ofNat 64 j))) (hle : j + kn ≤ nW.toNat)
+    (hF : (al8 dst).toNat < 33806089704) :
+    WPs E s (.assign .local "i" (.op .add [.var .local "i", .const k]))
+      (fun r => ∃ l g' m f', r = .normal l g' m f' ∧ ∃ j', DomS dst nW j' ⟨l, g', m, f'⟩) := by
+  subst hk
+  have hval : BitVec.ofNat 64 j + k = BitVec.ofNat 64 (j + k.toNat) := by
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+  refine WPs.assign (old := BitVec.ofNat 64 j) h3
+    (of_eval (w := BitVec.ofNat 64 (j + k.toNat)) (by rw [← hval]; ev [h3])) ?_
+  exact ⟨_, _, _, _, rfl, j + k.toNat, by lk [h1], by lk [h2], by lk [], hle, fun _ => hF⟩
+
+theorem dom_cond (hE : GuestEnv E) (k : Word) (hk : k.toNat ≤ 64) (hn63 : nW.toNat < 2 ^ 63)
+    (hD : DomS dst nW j s)
+    (hct : CondTrue E s (.cmp .notLower (.var .local "n")
+      (.op .add [.var .local "i", .const k]))) : j + k.toNat ≤ nW.toNat := by
+  obtain ⟨-, h3, h4, hjb, -⟩ := hD
+  obtain ⟨w, c, hcond, hw⟩ := hct
+  have hev := cond_of_eval hcond
+  have := eval_cmp_inv hE (of_eval (w := nW) (by lk [h3]))
+    (of_eval (w := BitVec.ofNat 64 j + k) (by ev [h4])) _ hev
+  simp only [PanValue.word.injEq] at this
+  by_contra hlt
+  have hsum : (BitVec.ofNat 64 j + k).toNat = j + k.toNat := by
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+  have hl : nW < BitVec.ofNat 64 j + k := by
+    rw [BitVec.lt_def, hsum]
+    omega
+  rw [this] at hw
+  simp [evalPanCmp, hl] at hw
+
+theorem dom_loop_w32 (hE : GuestEnv E) (hn63 : nW.toNat < 2 ^ 63)
+    (hI : ∃ j, DomS dst nW j s) :
+    WPs E s (.while MC_W32G MC_W32B) (fun r => ∃ l g' m f', r = .normal l g' m f' ∧
+      ∃ j, DomS dst nW j ⟨l, g', m, f'⟩) := by
+  refine WPs.loop (I := fun a => ∃ j, DomS dst nW j a) hI ?_
+    (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)
+  rintro a ⟨j, hD⟩ hct
+  have hle := dom_cond hE 32#64 (by decide) hn63 hD hct
+  have h32 : (32#64 : Word).toNat = 32 := by decide
+  rw [h32] at hle
+  obtain ⟨h1, h2, h3, hj, hF⟩ := hD
+  refine dom_wstore hE (eval_off0 hE h1 h3) ?_
+  intro hnew m1
+  have hF' := dom_fact hF (Nat.lt_of_le_of_lt (al8_le _) hnew)
+  refine WPs.seq_store_any (fun m2 => WPs.seq_store_any (fun m3 => WPs.seq_store_any
+    (fun m4 => ?_)))
+  exact dom_assign hE 32#64 h32 (by omega) h1 h2 h3 hle hF'
+
+theorem dom_loop_w8 (hE : GuestEnv E) (hn63 : nW.toNat < 2 ^ 63)
+    (hI : ∃ j, DomS dst nW j s) :
+    WPs E s (.while MC_W8G MC_W8B) (fun r => ∃ l g' m f', r = .normal l g' m f' ∧
+      ∃ j, DomS dst nW j ⟨l, g', m, f'⟩) := by
+  refine WPs.loop (I := fun a => ∃ j, DomS dst nW j a) hI ?_
+    (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)
+  rintro a ⟨j, hD⟩ hct
+  have hle := dom_cond hE 8#64 (by decide) hn63 hD hct
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  rw [h8] at hle
+  obtain ⟨h1, h2, h3, hj, hF⟩ := hD
+  refine dom_wstore hE (eval_off0 hE h1 h3) ?_
+  intro hnew m1
+  have hF' := dom_fact hF (Nat.lt_of_le_of_lt (al8_le _) hnew)
+  exact dom_assign hE 8#64 h8 (by omega) h1 h2 h3 hle hF'
+
+theorem dom_loop_b8 (hE : GuestEnv E) (hn63 : nW.toNat < 2 ^ 63)
+    (hI : ∃ j, DomS dst nW j s) :
+    WPs E s (.while MC_B8G MC_B8B) (fun r => ∃ l g' m f', r = .normal l g' m f' ∧
+      ∃ j, DomS dst nW j ⟨l, g', m, f'⟩) := by
+  refine WPs.loop (I := fun a => ∃ j, DomS dst nW j a) hI ?_
+    (fun a k hI _ => ⟨_, _, _, _, rfl, hI⟩)
+  rintro a ⟨j, hD⟩ hct
+  have hle := dom_cond hE 8#64 (by decide) hn63 hD hct
+  have h8 : (8#64 : Word).toNat = 8 := by decide
+  rw [h8] at hle
+  obtain ⟨h1, h2, h3, hj, hF⟩ := hD
+  refine dom_bstore hE (eval_off0 hE h1 h3) ?_
+  intro hnew m1
+  have hF' := dom_fact hF hnew
+  refine WPs.seq_storeByte_any hE (fun m2 => WPs.seq_storeByte_any hE (fun m3 =>
+    WPs.seq_storeByte_any hE (fun m4 => WPs.seq_storeByte_any hE (fun m5 =>
+    WPs.seq_storeByte_any hE (fun m6 => WPs.seq_storeByte_any hE (fun m7 =>
+    WPs.seq_storeByte_any hE (fun m8 => ?_)))))))
+  exact dom_assign hE 8#64 h8 (by omega) h1 h2 h3 hle hF'
+
+theorem dom_loop_b1 (hE : GuestEnv E) (hn63 : nW.toNat < 2 ^ 63) (hn1 : 1 ≤ nW.toNat)
+    (hI : ∃ j, DomS dst nW j s) :
+    WPs E s (.while MC_B1G MC_B1B) (fun _ => (al8 dst).toNat < 33806089704) := by
+  have hcmp : ∀ (a : St σ) (j : Nat), DomS dst nW j a →
+      ∀ x, E.eval a MC_B1G = some x →
+        x = .word (evalPanCmp .lower (BitVec.ofNat 64 j) nW) := by
+    intro a j hD
+    obtain ⟨-, h3, h4, -, -⟩ := hD
+    exact eval_cmp_inv hE (of_eval (w := BitVec.ofNat 64 j) (by lk [h4]))
+      (of_eval (w := nW) (by lk [h3]))
+  have hjt : ∀ j : Nat, j ≤ nW.toNat → (BitVec.ofNat 64 j : Word).toNat = j := by
+    intro j hj
+    rw [BitVec.toNat_ofNat]
+    exact Nat.mod_eq_of_lt (by omega)
+  refine WPs.loop (I := fun a => ∃ j, DomS dst nW j a) hI ?_ ?_
+  · rintro a ⟨j, hD⟩ ⟨w, c, hcond, hw⟩
+    have := hcmp a j hD _ (cond_of_eval hcond)
+    simp only [PanValue.word.injEq] at this
+    obtain ⟨h1, h2, h3, hj, hF⟩ := hD
+    have hlt : j < nW.toNat := by
+      by_contra hge
+      have hnl : ¬ (BitVec.ofNat 64 j : Word) < nW := by
+        rw [BitVec.lt_def, hjt j hj]
+        exact hge
+      rw [this] at hw
+      simp [evalPanCmp, hnl] at hw
+    have h1' : (1#64 : Word).toNat = 1 := by decide
+    refine dom_bstore hE (eval_off0 hE h1 h3) ?_
+    intro hnew m1
+    exact dom_assign hE 1#64 h1' (by omega) h1 h2 h3 (by omega) (dom_fact hF hnew)
+  · rintro a k ⟨j, hD⟩ hcond
+    have := hcmp a j hD _ (cond_of_eval hcond)
+    simp only [PanValue.word.injEq] at this
+    obtain ⟨-, -, -, hj, hF⟩ := hD
+    have hnl := lower_zero this.symm
+    rw [BitVec.lt_def, hjt j hj] at hnl
+    exact hF (by omega)
+
+set_option maxHeartbeats 2000000 in
+/-- A `memcpy` of at least one byte that is not stopped has written the cell of `dst`. -/
+theorem memcpy_dom (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "memcpy" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (dst nW : Word) (hdst : s.locals "dst" = some (.word dst))
+    (hn : s.locals "n" = some (.word nW)) (hn1 : 1 ≤ nW.toNat) (hn63 : nW.toNat < 2 ^ 63)
+    (h : Runs E s body r) : Stopped r ∨ (al8 dst).toNat < 33806089704 := by
+  have hbody := (fun_of_index 16 hE.functions (by guest_decl_at 16) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (fun _ => (al8 dst).toNat < 33806089704)) r h
+  refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
+  have hD0 : DomS dst nW 0
+      ⟨updatePanValueMap s.locals "i" (.word 0#64), s.globals, s.memory, s.ffi⟩ :=
+    ⟨by lk [hdst], by lk [hn], by lk [], Nat.zero_le _, fun h => absurd h (Nat.lt_irrefl 0)⟩
+  refine WPs.seq (fun a => ∃ j, DomS dst nW j a) ?_ ?_
+  · refine WPs.ite_both ?_
+    intro w hw
+    split
+    · exact WPs.skip ⟨_, _, _, _, rfl, 0, hD0⟩
+    · exact WPs.seq (fun a => ∃ j, DomS dst nW j a) (dom_loop_w32 hE hn63 ⟨0, hD0⟩)
+        (fun a hI => dom_loop_w8 hE hn63 hI)
+  · intro a hI
+    refine WPs.seq (fun a => ∃ j, DomS dst nW j a) (dom_loop_b8 hE hn63 hI) ?_
+    intro a' hI'
+    intro r' hr'
+    obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr'
+    rcases dom_loop_b1 hE hn63 hn1 hI' r1 h1 with hst | hF
+    · cases r1 with
+      | normal l g m f => exact absurd hst (fun h => h)
+      | _ => simp only at hrest; subst hrest; exact Or.inl hst
+    · exact Or.inr hF
+
 end InitECandidate.Solver.GuestBound

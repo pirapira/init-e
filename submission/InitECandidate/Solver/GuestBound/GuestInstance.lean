@@ -103,6 +103,28 @@ theorem guest_memEnv (state : PanValueProgramState Word) :
           exact ⟨w, hm, h.symm⟩
         | _ => simp at h
     · simp at h
+  storeDom := by
+    refine ⟨Guest.guestMemoryAccess, rfl, ?_⟩
+    intro memory b address value memory' h
+    simp only [Guest.guestMemoryAccess, panValueMemoryAccessOfModel] at h
+    split at h
+    · rename_i hd
+      simp only [decide_eq_true_eq] at hd
+      have := hd.2.1
+      rw [BitVec.lt_def] at this
+      exact this
+    · cases h
+  storeByteDom := by
+    refine ⟨Guest.guestMemoryAccess, rfl, ?_⟩
+    intro memory b address value memory' h
+    simp only [Guest.guestMemoryAccess, panValueMemoryAccessOfModel] at h
+    split at h
+    · rename_i hd
+      simp only [decide_eq_true_eq] at hd
+      have := hd.2.1
+      rw [BitVec.lt_def] at this
+      exact this
+    · simp at h
 
 /-- The environment of a stepped guest run is a `GuestEnv`. -/
 theorem guest_guestEnv (state : PanValueProgramState Word)
