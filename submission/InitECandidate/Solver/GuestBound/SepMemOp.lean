@@ -16,16 +16,25 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- The memory fields of a frame. -/
+/-- The frame fields beyond the stack: the memory buffer's three fields, the
+running flag, and the return-data pointer and length. -/
 structure MemSt where
   len : Word
   cap : Word
   mem : Word
+  run : Word
+  rd : Word
+  rl : Word
 
-/-- The memory buffer and its fields. -/
+/-- The cells of `MemSt` other than the buffer itself. -/
+def MemTail (e : Word) (Y : MemSt) : Assn :=
+  .mem (e + 32#64) ↦ .word Y.len ⋆ .mem (e + 40#64) ↦ .word Y.cap ⋆
+    .mem (e + 24#64) ↦ .word Y.mem ⋆ .mem (e + 104#64) ↦ .word Y.run ⋆
+    .mem (e + 120#64) ↦ .word Y.rd ⋆ .mem (e + 128#64) ↦ .word Y.rl
+
+/-- The memory buffer and the cells of `MemSt`. -/
 def MemExtra (e : Word) (Y : MemSt) : Assn :=
-  Assn.Range Y.mem (Y.mem + Y.cap) ⋆ .mem (e + 32#64) ↦ .word Y.len ⋆
-    .mem (e + 40#64) ↦ .word Y.cap ⋆ .mem (e + 24#64) ↦ .word Y.mem
+  Assn.Range Y.mem (Y.mem + Y.cap) ⋆ MemTail e Y
 
 /-- The pure side for the memory buffer: aligned, length a multiple of 32, and
 the buffer ends at `frame_mem_ptr`. -/
@@ -37,15 +46,16 @@ structure MBufOk (Y : MemSt) (fv : Word) : Prop where
   top : Y.mem.toNat + Y.cap.toNat = fv.toNat
 
 /-- `FrameOp` without what `charge_with_memory` touches. -/
-def RestCM (M : Word) (K : Word → Prop) (e : Word) (X : OpSt) : Assn :=
+def RestCM (M : Word) (K : Word → Prop) (e : Word) (X : OpSt) (run rd rl : Word) : Assn :=
   Assn.Range X.base (X.base + 32#64 * X.cap) ⋆ .mem (e + 16#64) ↦ .word X.sp ⋆
     .mem (e + 232#64) ↦ .word X.cap ⋆ .mem (e + 8#64) ↦ .word X.base ⋆ .mem e ↦ .word X.pc ⋆
-    JunkW M K X.pv X.base X.cap
+    JunkW M K X.pv X.base X.cap ⋆ .mem (e + 104#64) ↦ .word run ⋆
+    .mem (e + 120#64) ↦ .word rd ⋆ .mem (e + 128#64) ↦ .word rl
 
 theorem FrameM_cmw (M : Word) (K : Word → Prop) (e fv : Word) (X : OpSt) (Y : MemSt) :
     (FrameOp M K e fv X ⋆ MemExtra e Y) =
-      (CMW e Y.len Y.cap Y.mem X.pv fv X.gl X.used ⋆ RestCM M K e X) := by
-  unfold FrameOp OpW StackW MemExtra CMW MemW RestCM
+      (CMW e Y.len Y.cap Y.mem X.pv fv X.gl X.used ⋆ RestCM M K e X Y.run Y.rd Y.rl) := by
+  unfold FrameOp OpW StackW MemExtra MemTail CMW MemW RestCM
   ac_rfl
 
 /-- The handler stopped early, with the buffer state and `frame_mem_ptr` free to differ. -/
@@ -58,7 +68,8 @@ def AbortM (M : Word) (K : Word → Prop) (e : Word) (R : Assn) (ffi : FfiState 
 /-- What a handler guarantees, at the level of the frame with its memory buffer. -/
 def HandlerQM (M : Word) (K : Word → Prop) (e : Word) (R : Assn) (ffi : FfiState σ)
     (X0 : OpSt) (r : Result σ) : Prop :=
-  AbortM M K e R ffi X0 r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Adv X X0 n ∧ 0 < n ∧
+  AbortM M K e R ffi X0 r ∨ ∃ fv X Y n, FrameOk M K fv X ∧ MBufOk Y fv ∧ Adv X X0 n ∧
+    (0 < n ∨ Y.run = 0#64) ∧
     (FrameOp M K e fv X ⋆ MemExtra e Y ⋆ R).holds r.st ∧
     ∃ l g m, r = .returned l g m ffi [.word 0#64]
 
@@ -69,7 +80,7 @@ theorem HandlerQ.toM {M : Word} {K : Word → Prop} {e fv : Word} {R : Assn} {ff
   rcases h with (ht | ⟨X, n, hok, hp, hh, hex⟩) | ⟨X, n, hok, hp, hn, hh, hex⟩
   · exact Or.inl (Or.inl ht)
   · exact Or.inl (Or.inr ⟨fv, X, Y, n, hok, hY, hp, hh, hex⟩)
-  · exact Or.inr ⟨fv, X, Y, n, hok, hY, hp, hn, hh, hex⟩
+  · exact Or.inr ⟨fv, X, Y, n, hok, hY, hp, Or.inl hn, hh, hex⟩
 
 theorem HandlerQM.restore {M : Word} {K : Word → Prop} {e : Word} {R : Assn}
     {ffi : FfiState σ} {X0 : OpSt} {x : VarName} {old : Option (PanValue Word)} {r : Result σ}
@@ -164,12 +175,13 @@ theorem op_charge_mem (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word}
     (hQ : AcceptsM M K e R s.ffi X0 Q)
     (hq : ∀ (fv' x total cap' : Word) g m,
       FrameOk M K fv' { X with gl := X.gl - total, used := X.used + total } →
-      MBufOk ⟨Y.len + x, cap', Y.mem⟩ fv' →
+      MBufOk { Y with len := Y.len + x, cap := cap' } fv' →
       Adv { X with gl := X.gl - total, used := X.used + total } X0 (n + base.toNat) →
       (satW b0 b1 b2 b3 = 0#64 ∨
         (satW a0 a1 a2 a3).toNat + (satW b0 b1 b2 b3).toNat ≤ (Y.len + x).toNat) →
       (FrameOp M K e fv' { X with gl := X.gl - total, used := X.used + total } ⋆
-        MemExtra e ⟨Y.len + x, cap', Y.mem⟩ ⋆ R).holds (⟨s.locals, g, m, s.ffi⟩ : St σ) →
+        MemExtra e { Y with len := Y.len + x, cap := cap' } ⋆ R).holds
+          (⟨s.locals, g, m, s.ffi⟩ : St σ) →
       WPr E ⟨s.locals, g, m, s.ffi⟩ q Q) :
     WPr E s (.seq (.call (some (none, none)) "charge_with_memory" args) q) Q := by
   have hmok : MemOk Y.len Y.cap Y.mem X.pv fv :=
@@ -198,7 +210,8 @@ theorem op_charge_mem (hE : GuestEnv E) {args : List (Exp Word)} {q : Prog Word}
       ⟨by show (X.gl - total).toNat + (n + base.toNat) ≤ X0.gl.toNat; have := hp.1; omega, hp.2⟩
       (by rw [hlx]; exact hacc) ?_
     exact Assn.holds_assoc_r (Assn.holds_unfocus (FrameM_cmw M K e fv'
-      { X with gl := X.gl - total, used := X.used + total } ⟨Y.len + x, cap', Y.mem⟩) hk)
+      { X with gl := X.gl - total, used := X.used + total }
+      { Y with len := Y.len + x, cap := cap' }) hk)
   · intro l g m ffi exc v _ hh
     rcases Assn.holds_or_elim hh with hh | hh
     · obtain ⟨⟨_, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim hh

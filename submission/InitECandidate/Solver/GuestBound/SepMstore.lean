@@ -73,8 +73,7 @@ theorem op_store32 (hE : GuestEnv E) {e1 e2 : Exp Word} {q : Prog Word}
   have hfp := hok.ok.fp
   have hpv := hok.ok.pv_hi
   have hmc : (Y.mem + Y.cap).toNat = Y.mem.toNat + Y.cap.toNat := by bv_omega
-  have hF : (Assn.Range Y.mem (Y.mem + Y.cap) ⋆ (.mem (e + 32#64) ↦ .word Y.len ⋆
-      .mem (e + 40#64) ↦ .word Y.cap ⋆ .mem (e + 24#64) ↦ .word Y.mem ⋆ FrameOp M K e fv X) ⋆
+  have hF : (Assn.Range Y.mem (Y.mem + Y.cap) ⋆ (MemTail e Y ⋆ FrameOp M K e fv X) ⋆
       R).holds s :=
     Assn.holds_perm h (by unfold MemExtra; ac_rfl)
   refine WPr.seq_call_framedT hF (Qc := fun r =>
@@ -151,12 +150,12 @@ theorem op_mstore_frameM (hE : GuestEnv E) (parameters : List VarName) (body : P
     have h2 : Y0.mem.toNat + cap'.toNat = fv'.toNat := htop
     bv_omega
   refine op_store32 hE (out := Y0.mem + satW a0 a1 a2 a3) (w0 := c0) (w1 := c1) (w2 := c2)
-    (w3 := c3) (Y := ⟨Y0.len + x, cap', Y0.mem⟩)
+    (w3 := c3) (Y := { Y0 with len := Y0.len + x, cap := cap' })
     (fun y hy => by
       rw [eval_local] at hy
       simp (config := { decide := true }) [update_lookup] at hy
       exact hy.symm)
-    (mem_addr_eval hE (Y := ⟨Y0.len + x, cap', Y0.mem⟩) hh (by lk []))
+    (mem_addr_eval hE (Y := { Y0 with len := Y0.len + x, cap := cap' }) hh (by lk []))
     (by show Y0.mem.toNat ≤ _; omega)
     (by
       show (Y0.mem + satW a0 a1 a2 a3).toNat + 32 ≤ Y0.mem.toNat + cap'.toNat
@@ -183,8 +182,7 @@ theorem op_storeByte_mem (hE : GuestEnv E) {a v : Exp Word} {q : Prog Word} {add
   have hfp := hok.ok.fp
   have hpv := hok.ok.pv_hi
   have hmc : (Y.mem + Y.cap).toNat = Y.mem.toNat + Y.cap.toNat := by bv_omega
-  have hF : (Assn.Range Y.mem (Y.mem + Y.cap) ⋆ (.mem (e + 32#64) ↦ .word Y.len ⋆
-      .mem (e + 40#64) ↦ .word Y.cap ⋆ .mem (e + 24#64) ↦ .word Y.mem ⋆ FrameOp M K e fv X) ⋆
+  have hF : (Assn.Range Y.mem (Y.mem + Y.cap) ⋆ (MemTail e Y ⋆ FrameOp M K e fv X) ⋆
       R).holds s :=
     Assn.holds_perm h (by unfold MemExtra; ac_rfl)
   refine WPr.seq_storeByte_range hE hF ha (by omega) (by omega) (fun m hm => ?_)
@@ -237,8 +235,8 @@ theorem op_mstore8_frameM (hE : GuestEnv E) (parameters : List VarName) (body : 
     have h2 : Y0.mem.toNat + cap'.toNat = fv'.toNat := htop
     bv_omega
   refine op_storeByte_mem hE (addr := Y0.mem + satW a0 a1 a2 a3)
-    (Y := ⟨Y0.len + x, cap', Y0.mem⟩)
-    (mem_addr_eval hE (Y := ⟨Y0.len + x, cap', Y0.mem⟩) hh (by lk []))
+    (Y := { Y0 with len := Y0.len + x, cap := cap' })
+    (mem_addr_eval hE (Y := { Y0 with len := Y0.len + x, cap := cap' }) hh (by lk []))
     (by show Y0.mem.toNat ≤ _; omega)
     (by
       show (Y0.mem + satW a0 a1 a2 a3).toNat < Y0.mem.toNat + cap'.toNat

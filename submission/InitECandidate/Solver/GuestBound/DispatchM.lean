@@ -45,7 +45,8 @@ theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Wo
     WPr E s (.seq (.call (some (none, none)) f args) (.return (.const 0#64)))
       (HandlerQM M K e R s.ffi X0) := by
   refine WPr.seq (fun s' => ∃ g m fv' X Y n, s' = ⟨s.locals, g, m, s.ffi⟩ ∧ FrameOk M K fv' X ∧
-      MBufOk Y fv' ∧ Adv X X0 n ∧ 0 < n ∧ (FrameOp M K e fv' X ⋆ MemExtra e Y ⋆ R).holds s')
+      MBufOk Y fv' ∧ Adv X X0 n ∧ (0 < n ∨ Y.run = 0#64) ∧
+      (FrameOp M K e fv' X ⋆ MemExtra e Y ⋆ R).holds s')
     (WPr.call_spec (HandlerQM M K e R s.ffi X0)
       (fun parameters body _ cl hlk _ _ =>
         hf parameters body hlk ⟨cl, s.globals, s.memory, s.ffi⟩ M K e fv R X0 Y0 hok hY hgl
