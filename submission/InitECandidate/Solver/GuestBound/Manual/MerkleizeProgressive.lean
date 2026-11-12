@@ -16,24 +16,6 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- Sequencing when the first part may also leave. -/
-theorem WPs.seqG {p q : Prog Word} (R : St σ → Prop)
-    (hp : WPs E s p (fun r1 => match r1 with
-      | .normal l g m f => R ⟨l, g, m, f⟩
-      | r1 => Q r1))
-    (hq : ∀ s', R s' → WPs E s' q Q) : WPs E s (.seq p q) Q := by
-  intro r hr
-  obtain ⟨r1, h1, hrest⟩ := runs_seq.mp hr
-  rcases hp r1 h1 with hs | hpost
-  · cases r1 with
-    | normal l g m f => exact absurd hs Stopped.not_normal
-    | _ => simp only at hrest; subst hrest; exact Or.inl hs
-  · cases r1 with
-    | normal l g m f => exact hq _ hpost r hrest
-    | _ => simp only at hrest; subst hrest; exact Or.inr hpost
-
-theorem WPs.of_true {p : Prog Word} (h : ∀ r, Q r) : WPs E s p Q := fun r _ => Or.inr (h r)
-
 /-- A declaring call, whatever the callee does. -/
 theorem WPs.decCall_any {x : VarName} {sh : Shape} {f : FunName} {args : List (Exp Word)}
     {body : Prog Word}
