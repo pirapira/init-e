@@ -127,9 +127,9 @@ def hk : List VarName → Prog Word → Bool
   | G, .seq a b => hk G a && hk G b
   | G, .ite _ a b => hk G a && hk G b
   | G, .while _ b => hk G b
-  | G, .dec x _ _ b => hk (G.erase x) b
+  | G, .dec x _ _ b => hk (G.filter (· != x)) b
   | G, .decCall x _ f _ b =>
-      if f == "heap_mark" then hk (x :: G) b else f != "heap_release" && hk (G.erase x) b
+      if f == "heap_mark" then hk (x :: G) b else f != "heap_release" && hk (G.filter (· != x)) b
   | G, .assign .local x _ => !G.contains x
   | G, .assign .global x e =>
       x != "heap_ptr" || (match e with
@@ -354,5 +354,121 @@ theorem callSteps_hk (G : List VarName) {f : FunName}
             obtain ⟨rfl, -⟩ := hrun
             first
               | exact ⟨hrb, fun _ _ _ _ _ _ h => by cases h⟩
+
+/-- `trap_with` changes no global. -/
+theorem trap_with_globals (hE : GuestEnv E) : FunKeeps (globalsKeeper E) "trap_with" :=
+  keepFn_sound (globalsKeeper E) hE.functions 1 "trap_with"
+    (show keepFn globalsLeaf Guest.Software.guestAst 1 "trap_with" = true by decide +kernel)
+
+/-- The guard `if c { trap_with(…); }` changes no global. -/
+theorem trapIte_globals (hE : GuestEnv E) {c : Exp Word} {arguments : List (Exp Word)}
+    {s : St σ} {r : Result σ}
+    (h : Runs E s (.ite c (.call (some (none, none)) "trap_with" arguments) .skip) r) :
+    r.st.globals = s.globals := by
+  obtain ⟨fuel, n, hrun⟩ := h
+  exact keepWith_sound (globalsKeeper E) (fun f => f == "trap_with")
+    (fun f hf => by
+      have : f = "trap_with" := by simpa using hf
+      subst this
+      exact trap_with_globals hE)
+    fuel _ s r n
+    (show keepWith globalsLeaf (fun f => f == "trap_with")
+      (.ite c (.call (some (none, none)) "trap_with" arguments) .skip) = true by
+      simp [keepWith, destLocal, globalsLeaf]) hrun
+
+theorem st_globals_restore (x : VarName) (old : Option (PanValue Word)) (r : Result σ) :
+    (restorePanValueFfiLocal x old r).st.globals = r.st.globals := by
+  cases r <;> rfl
+
+set_option maxHeartbeats 2000000 in
+/-- `alloc` keeps the heap pointer in the heap, whatever its argument and outcome. -/
+theorem alloc_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "alloc" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (hs : HeapOk s.globals) (h : Runs E s body r) :
+    HeapOk r.st.globals := by
+  have hbody := (fun_of_index 7 hE.functions (by guest_decl_at 7) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  obtain ⟨pv, hpv, hple⟩ := id hs
+  rw [runs_dec] at h
+  simp only [eval_global, hpv, shape_word, shape_matches_self, if_true] at h
+  obtain ⟨r1, h1, rfl⟩ := h
+  rw [st_globals_restore]
+  obtain ⟨ra, ha, hrest⟩ := runs_seq.mp h1
+  have hga := trapIte_globals hE ha
+  have hgd := trapIte_guard hE ha
+  cases ra with
+  | normal l g m f =>
+    obtain ⟨rfl, rfl, rfl, rfl, -⟩ := hgd
+    simp only at hrest
+    rw [runs_dec] at hrest
+    split at hrest
+    · split at hrest
+      · obtain ⟨r2, h2, rfl⟩ := hrest
+        rw [st_globals_restore]
+        obtain ⟨rb, hb, hrest2⟩ := runs_seq.mp h2
+        have hgb := trapIte_globals hE hb
+        have hgd2 := trapIte_guard hE hb
+        cases rb with
+        | normal l g m f =>
+          obtain ⟨rfl, rfl, rfl, rfl, hc0⟩ := hgd2
+          simp only at hrest2
+          -- the guard was false: `q` is a word not above the end of the heap
+          rw [evalF_cmp hE.word] at hc0
+          simp only [eval_const] at hc0
+          split at hc0
+          · rename_i x y hx hy
+            simp only [Option.some.injEq, PanValue.word.injEq] at hx hc0
+            subst hx
+            have hle : y.toNat ≤ 2952790016 := by
+              have := lower_zero hc0
+              rw [BitVec.lt_def] at this
+              have hE' : (2952790016#64 : Word).toNat = 2952790016 := by decide
+              omega
+            obtain ⟨r3, h3, hrest3⟩ := runs_seq.mp hrest2
+            rw [runs_assign_global, hy] at h3
+            simp only at h3
+            split at h3
+            · subst h3
+              simp only at hrest3
+              rw [runs_return] at hrest3
+              subst hrest3
+              have hok : HeapOk (updatePanValueMap s.globals "heap_ptr" (PanValue.word y)) :=
+                ⟨y, by simp [updatePanValueMap], hle⟩
+              split
+              · split
+                · exact hok
+                · exact hok
+              · exact hok
+            · subst h3
+              simp only [St.err] at hrest3
+              subst hrest3
+              exact hs
+          · cases hc0
+        | error l g m f => simp only at hrest2; subst hrest2; rw [hgb]; exact hs
+        | raised l g m f e v => simp only at hrest2; subst hrest2; rw [hgb]; exact hs
+        | finalFfi l g m f e => simp only at hrest2; subst hrest2; rw [hgb]; exact hs
+        | _ => exact hgd2.elim
+      · subst hrest
+        exact hs
+    · subst hrest
+      exact hs
+  | error l g m f => simp only at hrest; subst hrest; rw [hga]; exact hs
+  | raised l g m f e v => simp only at hrest; subst hrest; rw [hga]; exact hs
+  | finalFfi l g m f e => simp only at hrest; subst hrest; rw [hga]; exact hs
+  | _ => exact hgd.elim
+
+/-- `heap_release(m)` with `m` within the heap keeps the heap pointer in the heap. -/
+theorem heap_release_keeps (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "heap_release" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (hs : HeapOk s.globals)
+    (hm : ∃ w : Word, s.locals "m" = some (.word w) ∧ w.toNat ≤ 2952790016)
+    (h : Runs E s body r) : HeapOk r.st.globals := by
+  obtain ⟨pv, hp, -⟩ := hs
+  obtain ⟨w, hw, hle⟩ := hm
+  have := heap_release_runs hE parameters body hlookup s r pv w hp hw h
+  subst this
+  exact ⟨w, by simp [PanValueFfiControlResult.st, updatePanValueMap], hle⟩
 
 end InitECandidate.Solver.GuestBound
