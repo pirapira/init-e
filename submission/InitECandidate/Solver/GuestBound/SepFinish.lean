@@ -37,10 +37,10 @@ def RestoreSpec (E : Env σ) (W : Assn) : Prop :=
         (W ⋆ R).holds (⟨l, g, m, s.ffi⟩ : St σ))
 
 /-- The `finish_child` branch re-establishes the chain invariant at a smaller measure. -/
-def ChildSpec (E : Env σ) (W : Assn) (D : Word → Prop) : Prop :=
-  ∀ (a : St σ) (n : Nat) (F : Fr) (ps : List Fr) (R : Assn), ChainOk D F ps →
+def ChildSpec {ι : Type} (E : Env σ) (W : ι → Assn) (D : ι → Word → Prop) : Prop :=
+  ∀ (a : St σ) (n : Nat) (i : ι) (F : Fr) (ps : List Fr) (R : Assn), ChainOk (D i) F ps →
     F.gas + gasSum ps < 2 ^ 64 - 1 → F.mu + muSum ps ≤ n → F.C.kind ≠ 0#64 →
-    (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a →
+    (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds a →
     WPr E a rfChild (fun r => Trap r ∨ ∃ l g m, r = .normal l g m a.ffi ∧
       l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m)
 
@@ -134,13 +134,13 @@ theorem rfKind_eval (hE : GuestEnv E) {F : Fr} {A : Assn}
     simp [hcv, hk]
 
 /-- The end-of-frame block on a chain of frames. -/
-theorem finish_chain (hE : GuestEnv E) {W : Assn} {D : Word → Prop} (hW : RestoreSpec E W)
-    (hC : ChildSpec E W D) (a : St σ) (n : Nat) (hI : chainInv W D n a.globals a.memory) :
+theorem finish_chain {ι : Type} (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word → Prop}
+    (hW : ∀ i, RestoreSpec E (W i)) (hC : ChildSpec E W D) (a : St σ) (n : Nat) (hI : chainInv W D n a.globals a.memory) :
     WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
       (l "go" = some (.word 0#64) ∨
         (l "go" = a.locals "go" ∧ ∃ n', n' < n ∧ chainInv W D n' g m))) := by
-  obtain ⟨F, ps, R, hch, hgas, hmu, hh⟩ := hI
-  have h0 : (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a := by
+  obtain ⟨i, F, ps, R, hch, hgas, hmu, hh⟩ := hI
+  have h0 : (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds a := by
     unfold Assn.holds
     rw [view_eq]
     exact hh
@@ -157,15 +157,15 @@ theorem finish_chain (hE : GuestEnv E) {W : Assn} {D : Word → Prop} (hW : Rest
   have ha' : a' = a := ha
   rw [ha']
   clear ha ha' a'
-  refine frame_epilogue_seq hE hW (A := F.full ⋆ suspA ps ⋆ R)
+  refine frame_epilogue_seq hE (hW i) (A := F.full ⋆ suspA ps ⋆ R)
     (Assn.holds_perm h0 (by ac_rfl)) (fun r ht => Or.inl ht) (fun g m h1 => ?_)
-  have h2 : (F.full ⋆ suspA ps ⋆ W ⋆ R).holds (⟨a.locals, g, m, a.ffi⟩ : St σ) :=
+  have h2 : (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds (⟨a.locals, g, m, a.ffi⟩ : St σ) :=
     Assn.holds_perm h1 (by ac_rfl)
   refine WPr.ite_both (fun w hw => ?_)
   have hk := rfKind_eval hE h2 w hw
   split
   · rename_i hw0
-    refine WPr.conseq (hC ⟨a.locals, g, m, a.ffi⟩ n F ps R hch hgas hmu (hk.mp hw0) h2) ?_
+    refine WPr.conseq (hC ⟨a.locals, g, m, a.ffi⟩ n i F ps R hch hgas hmu (hk.mp hw0) h2) ?_
     rintro r (ht | ⟨l, g', m', rfl, hgo, hn⟩)
     · exact Or.inl ht
     · exact Or.inr ⟨l, g', m', rfl, Or.inr ⟨hgo, hn⟩⟩
@@ -184,10 +184,11 @@ theorem finish_chain (hE : GuestEnv E) {W : Assn} {D : Word → Prop} (hW : Rest
 /-- `run_frames` from a chain of frames of measure at most `k`: the step bound,
 given the remaining handlers, the two cost bounds, `state_restore` and the
 `finish_child` branch. -/
-theorem run_frames_bound_world (W : Assn) (D : Word → Prop) (hE : GuestEnv E)
+theorem run_frames_bound_world {ι : Type} (W : ι → Assn) (D : ι → Word → Prop)
+    (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (hW : RestoreSpec E W) (hC : ChildSpec E W D)
+    (hW : ∀ i, RestoreSpec E (W i)) (hC : ChildSpec E W D)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
     (s : St σ) (k : Nat) (hI : chainInv W D k s.globals s.memory) (fuel : Nat) (r : Result σ)

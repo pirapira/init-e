@@ -18,16 +18,16 @@ open Flapjack
 variable {σ : Type} {E : Env σ}
 
 /-- `run_frames` from a chain of frames over the world `WorldA Rg`. -/
-theorem run_frames_bound_A (Rg : Reg) (hE : GuestEnv E)
+theorem run_frames_bound_A (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (hC : ChildSpec E (WorldA Rg) Rg.live)
+    (hC : ChildSpec E WorldA Reg.live)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
-    (s : St σ) (k : Nat) (hI : chainInv (WorldA Rg) Rg.live k s.globals s.memory) (fuel : Nat)
+    (s : St σ) (k : Nat) (hI : chainInv WorldA Reg.live k s.globals s.memory) (fuel : Nat)
     (r : Result σ) (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_world (WorldA Rg) Rg.live hE hrest BD BF costD costF (restore_spec hE Rg) hC
+  run_frames_bound_world WorldA Reg.live hE hrest BD BF costD costF (restore_spec hE) hC
     parameters body hlookup s k hI fuel r n hrun hne
 
 theorem rollback_raises (hE : GuestEnv E) :

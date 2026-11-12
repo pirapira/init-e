@@ -165,12 +165,15 @@ theorem view_eq (s : St σ) : s.view = viewOf s.globals s.memory := by
   funext k
   cases k <;> rfl
 
-/-- The invariant of `run_frames` at measure at most `n`; `W` is what the
-world state (accounts, storage, journal) owns. -/
-def chainInv (W : Assn) (D : Word → Prop) (n : Nat) (g : VarName → Option (PanValue Word))
+/-- The invariant of `run_frames` at measure at most `n`. `W i` is what the
+world state owns and `D i` its live tables, for an index `i` (the world's
+registry) that may change from step to step. -/
+def chainInv {ι : Type} (W : ι → Assn) (D : ι → Word → Prop) (n : Nat)
+    (g : VarName → Option (PanValue Word))
     (m : Word → Option (PanValue Word)) : Prop :=
-  ∃ (F : Fr) (ps : List Fr) (R : Assn), ChainOk D F ps ∧ F.gas + gasSum ps < 2 ^ 64 - 1 ∧
-    F.mu + muSum ps ≤ n ∧ (F.full ⋆ suspA ps ⋆ W ⋆ R).holdsV (viewOf g m)
+  ∃ (i : ι) (F : Fr) (ps : List Fr) (R : Assn), ChainOk (D i) F ps ∧
+    F.gas + gasSum ps < 2 ^ 64 - 1 ∧ F.mu + muSum ps ≤ n ∧
+    (F.full ⋆ suspA ps ⋆ W i ⋆ R).holdsV (viewOf g m)
 
 theorem ChainOk.head {D : Word → Prop} {F : Fr} {ps : List Fr} (h : ChainOk D F ps) :
     F.Ok D := by
@@ -201,7 +204,7 @@ theorem ChainOk.replace {D : Word → Prop} {F F' : Fr} {ps : List Fr} (h : Chai
     · rw [hK, hM]; exact hl.KM
 
 /-- The loop interface for a chain of frames; the end-of-frame block is assumed. -/
-noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)
+noncomputable def rfChain {ι : Type} (W : ι → Assn) (D : ι → Word → Prop) (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)
     (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
     (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
       WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
@@ -219,12 +222,12 @@ noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hres
   pre := fun a _ h1 h2 _ _ => ⟨⟨_, h1⟩, ⟨_, h2⟩⟩
   finish := finish
   dispatch := by
-    rintro a n ⟨F, ps, R, hch, hgas, hmu, hh⟩ ⟨⟨l1, hpre1⟩, ⟨l2, hpre2⟩⟩
+    rintro a n ⟨i, F, ps, R, hch, hgas, hmu, hh⟩ ⟨⟨l1, hpre1⟩, ⟨l2, hpre2⟩⟩
     have hF : ∀ s' : St σ, s'.globals = a.globals → s'.memory = a.memory →
         (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆
-          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W ⋆ R)).holds s' := by
+          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W i ⋆ R)).holds s' := by
       intro s' hg hm
-      have h0 : (F.full ⋆ suspA ps ⋆ W ⋆ R).holds a := by
+      have h0 : (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds a := by
         unfold Assn.holds
         rw [view_eq]
         exact hh
@@ -235,7 +238,7 @@ noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hres
     have hrun' : F.Y.run.toNat ≠ 0 := fun h0 => hrun (by bv_omega)
     have hok := hch.head
     refine WPr.wps (rfDispatch_stepM hE hrest a F.M F.K F.e F.fv
-      (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W ⋆ R) F.X F.Y F.Z hok.ok hok.buf
+      (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W i ⋆ R) F.X F.Y F.Z hok.ok hok.buf
       (by unfold Fr.gas at hgas; omega) (hF a rfl rfl)) (fun r hr => ?_)
     rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase,
       hmem, hcc, hmsg, hee⟩
@@ -257,12 +260,13 @@ noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hres
           omega
         · have : (if Z'.fl.toNat = 0 then 1 else 0 : Nat) = 0 := by rw [h1]; rfl
           omega
-      refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨F'.mu + muSum ps, by omega, F', ps, R, ?_, by omega,
+      refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨F'.mu + muSum ps, by omega, i, F', ps, R, ?_, by omega,
         Nat.le_refl _, ?_⟩, hl "go" (by decide), hl "done" (by decide)⟩
       · subst hF'
         exact hch.replace ⟨hok', hY', hok.acc⟩ rfl rfl rfl rfl hmem hcc hmsg hee
       · subst hF'
-        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ ⋆ suspA ps ⋆ W ⋆ R).holds
+        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ ⋆ suspA ps ⋆ W i ⋆
+            R).holds
             (⟨l, g, m, a.ffi⟩ : St σ) := by
           refine Assn.holds_perm hh' ?_
           unfold Fr.full
@@ -274,7 +278,8 @@ noncomputable def rfChain (W : Assn) (D : Word → Prop) (hE : GuestEnv E) (hres
         exact h1
 
 /-- `run_frames` from a chain of frames of measure at most `k`. -/
-theorem run_frames_bound_chain (W : Assn) (D : Word → Prop) (hE : GuestEnv E)
+theorem run_frames_bound_chain {ι : Type} (W : ι → Assn) (D : ι → Word → Prop)
+    (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
     (finish : ∀ (a : St σ) (n : Nat), chainInv W D n a.globals a.memory →
