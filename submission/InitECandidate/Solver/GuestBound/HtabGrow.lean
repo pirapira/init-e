@@ -33,8 +33,9 @@ theorem WPs.decCall_alloc (hE : GuestEnv E) {x : VarName} {e : Exp Word} {body :
 
 /-- `memcpy(e1, e2, e3)` as a statement, on disjoint ranges. -/
 theorem WPs.call_memcpy (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {dst src nW : Word}
-    (h1 : E.eval s e1 = some (.word dst)) (h2 : ∀ y, E.eval s e2 = some y → y = .word src)
-    (h3 : E.eval s e3 = some (.word nW)) (P : CpPre dst src nW)
+    (h1 : ∀ y, E.eval s e1 = some y → y = .word dst)
+    (h2 : ∀ y, E.eval s e2 = some y → y = .word src)
+    (h3 : ∀ y, E.eval s e3 = some y → y = .word nW) (P : CpPre dst src nW)
     (h : ∀ m', CopyInv s.memory dst src nW.toNat m' → Q (.normal s.locals s.globals m' s.ffi)) :
     WPs E s (.call (some (none, none)) "memcpy" [e1, e2, e3]) Q := by
   intro r hr
@@ -43,13 +44,23 @@ theorem WPs.call_memcpy (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {dst src nW : Wo
   · exact Or.inl (Stopped.of_error herr)
   have hparams := (fun_of_index 16 hE.functions (by guest_decl_at 16) (by decide +kernel)
     hlookup).2
-  simp only [evalArgs_cons, evalArgs_nil, h1, h3] at hvalues
+  simp only [evalArgs_cons, evalArgs_nil] at hvalues
+  cases he1 : E.eval s e1 with
+  | none => rw [he1] at hvalues; simp at hvalues
+  | some v1 =>
   cases he2 : E.eval s e2 with
-  | none => rw [he2] at hvalues; simp at hvalues
+  | none => rw [he1, he2] at hvalues; simp at hvalues
   | some v2 =>
+  cases he3 : E.eval s e3 with
+  | none => rw [he1, he2, he3] at hvalues; simp at hvalues
+  | some v3 =>
+    have := h1 v1 he1
+    subst this
     have := h2 v2 he2
     subst this
-    rw [he2] at hvalues
+    have := h3 v3 he3
+    subst this
+    rw [he1, he2, he3] at hvalues
     simp only [Option.map_some, Option.some.injEq] at hvalues
     subst hvalues
     rw [hparams] at hbind
@@ -171,8 +182,8 @@ theorem htab_grow_exec (hE : GuestEnv E) (parameters : List VarName) (body : Pro
   intro N hN hNin
   rw [hsK] at hN
   refine WPs.seq_mem (fun m' => CopyInv s.memory pv v.keys ((v.nc.toNat + 1) * v.st.toNat) m')
-    (WPs.call_memcpy hE (dst := pv) (src := v.keys) (nW := (v.nc + 1#64) * v.st) (by lk [])
-      (eval_load_rd hE (eval_addc hE (a := t) 32#64 (by lk [ht])) hkeys) (by ev [evalPanOp])
+    (WPs.call_memcpy hE (dst := pv) (src := v.keys) (nW := (v.nc + 1#64) * v.st) (of_eval (by lk []))
+      (eval_load_rd hE (eval_addc hE (a := t) 32#64 (by lk [ht])) hkeys) (of_eval (by ev [evalPanOp]))
       ⟨by rw [hcK]; omega, by rw [hcK]; omega, Or.inl (by rw [hcK]; omega), by rw [hcK]; omega⟩
       (fun m' hc => ⟨m', rfl, by rw [hcK] at hc; exact hc⟩)) ?_
   intro m1 c1
@@ -190,8 +201,8 @@ theorem htab_grow_exec (hE : GuestEnv E) (parameters : List VarName) (body : Pro
     exact hnd
   refine WPs.seq_mem (fun m' => CopyInv (setCell m1 (t + 32#64) pv) N v.nodes
       ((v.nc.toNat + 1) * 32) m')
-    (WPs.call_memcpy hE (dst := N) (src := v.nodes) (nW := (v.nc + 1#64) * 32#64) (by lk [])
-      (eval_load_rd hE (eval_addc hE (a := t) 40#64 (by lk [ht])) hRdN) (by ev [evalPanOp])
+    (WPs.call_memcpy hE (dst := N) (src := v.nodes) (nW := (v.nc + 1#64) * 32#64) (of_eval (by lk []))
+      (eval_load_rd hE (eval_addc hE (a := t) 40#64 (by lk [ht])) hRdN) (of_eval (by ev [evalPanOp]))
       ⟨by rw [hcN]; have := hOin.1; omega, by rw [hcN]; omega, Or.inl (by rw [hcN]; omega),
         by rw [hcN]; omega⟩
       (fun m' hc => ⟨m', rfl, by rw [hcN] at hc; exact hc⟩)) ?_
@@ -212,8 +223,8 @@ theorem htab_grow_exec (hE : GuestEnv E) (parameters : List VarName) (body : Pro
     exact hord
   refine WPs.seq_mem (fun m' => CopyInv (setCell m2 (t + 40#64) N) O v.order
       ((v.nc.toNat + 1) * 8) m')
-    (WPs.call_memcpy hE (dst := O) (src := v.order) (nW := (v.nc + 1#64) * 8#64) (by lk [])
-      (eval_load_rd hE (eval_addc hE (a := t) 48#64 (by lk [ht])) hRdO) (by ev [evalPanOp])
+    (WPs.call_memcpy hE (dst := O) (src := v.order) (nW := (v.nc + 1#64) * 8#64) (of_eval (by lk []))
+      (eval_load_rd hE (eval_addc hE (a := t) 48#64 (by lk [ht])) hRdO) (of_eval (by ev [evalPanOp]))
       ⟨by rw [hcO]; have := hqin.1; omega, by rw [hcO]; omega, Or.inl (by rw [hcO]; omega),
         by rw [hcO]; omega⟩
       (fun m' hc => ⟨m', rfl, by rw [hcO] at hc; exact hc⟩)) ?_
