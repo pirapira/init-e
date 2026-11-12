@@ -14,16 +14,25 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- Heap pointer, live tables, journal and trie nodes. `D` is a set of table
-addresses known to be live; frames refer to their tables through it. `B` is
-a set of ranges known to be free blocks (buffers owned by frames). -/
-def WorldTJ (D : Word → Prop) (B : Word → Word → Prop) (g : VarName → Option (PanValue Word))
+/-- What the rest of the proof may rely on about the heap: `D` table addresses
+known to be live (frames name their tables through it), `B` ranges known to
+be free blocks (buffers), `Cn` cells known to hold a given word inside a free
+block (fields of container records such as `ts`). -/
+structure Reg where
+  D : Word → Prop
+  B : Word → Word → Prop
+  Cn : Word → Word → Prop
+
+/-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
+def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
     (m : Word → Option (PanValue Word)) : Prop :=
   ∃ (pv : Word) (T : Word → Option HtabV) (N : Word → Option Word) (J C n : Word),
     g "heap_ptr" = some (.word pv) ∧ InHeap pv ∧ g "journal" = some (.word J) ∧
     g "journal_cap" = some (.word C) ∧ g "journal_n" = some (.word n) ∧
-    HeapW m pv T N J C n ∧ (∀ t, D t → ∃ v, T t = some v) ∧
-    ∀ lo hi, B lo hi → FreeOK pv T N J C lo hi
+    HeapW m pv T N J C n ∧ (∀ t, Rg.D t → ∃ v, T t = some v) ∧
+    (∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi) ∧
+    ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
+      ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi
 
 /-- A comparison that evaluated to a word: both sides are words. -/
 theorem cmp_word_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
@@ -108,8 +117,8 @@ theorem JournalOK.shrink {m : Word → Option (PanValue Word)} {pv : Word}
   ⟨by have := h.n_le; omega, h.al, h.lo, h.hi, h.off, fun i hi => h.entry i (by omega)⟩
 
 /-- The loop invariant of `state_restore`, relative to the entry state `s`. -/
-def RestI (D : Word → Prop) (B : Word → Word → Prop) (s a : St σ) : Prop :=
-  a.ffi = s.ffi ∧ WorldTJ D B a.globals a.memory ∧
+def RestI (Rg : Reg) (s a : St σ) : Prop :=
+  a.ffi = s.ffi ∧ WorldTJ Rg a.globals a.memory ∧
     (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → a.globals x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       a.memory addr = s.memory addr
@@ -129,19 +138,29 @@ theorem stepT_dom {D : Word → Prop} {T : Word → Option HtabV} (hD : ∀ t, D
   · obtain ⟨v, hv⟩ := hD t ht
     exact ⟨v, by simp [e, hv]⟩
 
-theorem worldTJ_step {D : Word → Prop} {B : Word → Word → Prop}
+theorem worldTJ_step {Rg : Reg}
     {g g' : VarName → Option (PanValue Word)}
     {m m' : Word → Option (PanValue Word)} {pv pv' t : Word} {T : Word → Option HtabV}
     {N : Word → Option Word} {v v' : HtabV} {J C n n' : Word}
     (hp' : g' "heap_ptr" = some (.word pv')) (hpH' : InHeap pv')
     (hg : ∀ x, x ≠ "heap_ptr" → g' x = g x) (hJg : g "journal" = some (.word J))
     (hCg : g "journal_cap" = some (.word C)) (hng : g "journal_n" = some (.word n'))
-    (hW : HeapW m pv T N J C n) (hD : ∀ t, D t → ∃ v, T t = some v)
-    (hB : ∀ lo hi, B lo hi → FreeOK pv T N J C lo hi) (hn : n'.toNat ≤ n.toNat)
-    (hs : TabStep m pv T t v m' pv' v') : WorldTJ D B g' m' :=
-  ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
+    (hW : HeapW m pv T N J C n) (hD : ∀ t, Rg.D t → ∃ v, T t = some v)
+    (hB : ∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi)
+    (hCn : ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
+      ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi)
+    (hn : n'.toNat ≤ n.toNat)
+    (hs : TabStep m pv T t v m' pv' v') : WorldTJ Rg g' m' := by
+  refine ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
-    hW.tab_step hs hn hpH'.1, stepT_dom hD t v', fun lo hi h => (hB lo hi h).tab_step hs⟩
+    hW.tab_step hs hn hpH'.1, stepT_dom hD t v', fun lo hi h => (hB lo hi h).tab_step hs,
+    fun x w h => ?_⟩
+  obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w h
+  refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩
+  unfold Rd at hr ⊢
+  rw [hs.frame x h8 (fun hfoot => ?_) (by have := hf.hi_; omega)]
+  · exact hr
+  · rcases hf.tab t v hs.hT x hfoot with h1 | h1 <;> omega
 
 set_option maxHeartbeats 4000000 in
 /-- `state_restore(snap)` keeps heap pointer, tables and journal well formed,
@@ -149,10 +168,10 @@ changes no global other than `heap_ptr` and `journal_n`, and no memory
 outside the heap. -/
 theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "state_restore" E.functions = some (parameters, body))
-    (D : Word → Prop) (B : Word → Word → Prop) (s : St σ) (r : Result σ)
-    (hW : WorldTJ D B s.globals s.memory)
+    (Rg : Reg) (s : St σ) (r : Result σ)
+    (hW : WorldTJ Rg s.globals s.memory)
     (h : Runs E s body r) :
-    Stopped r ∨ ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧ WorldTJ D B g' m' ∧
+    Stopped r ∨ ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧ WorldTJ Rg g' m' ∧
       (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
@@ -161,18 +180,18 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m', r = .returned l g' m' s.ffi [.word 0#64] ∧
-    WorldTJ D B g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
+    WorldTJ Rg g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
-  refine WPs.seqG (RestI D B s) (WPs.loopG (I := RestI D B s)
+  refine WPs.seqG (RestI Rg s) (WPs.loopG (I := RestI Rg s)
       ⟨rfl, hW, fun _ _ _ => rfl, fun _ _ => rfl⟩
     ?_ (fun a k hI _ => hI)) ?_
   rotate_left
   · rintro a ⟨hf, hWa, hga, hma⟩
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     exact ⟨_, _, _, by rw [hf], hWa, hga, hma⟩
-  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB⟩, hga, hma⟩ hct
-  dsimp only at hf hp hJg hCg hng hHW hD hB hga hma
+  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB, hCn⟩, hga, hma⟩ hct
+  dsimp only at hf hp hJg hCg hng hHW hD hB hCn hga hma
   have hT := hHW.tabs
   have hJ := hHW.jrn
   subst hf
@@ -253,10 +272,10 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
       subst g m ffi
       simp only [restorePanValueFfiLocal]
       rcases hcase with rfl | ⟨Lw, hL, hLk, hrel⟩
-      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB⟩,
+      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB, hCn⟩,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2), hma⟩
       · obtain ⟨v', hs⟩ := TabStep.of_del hT hT0 hok hL hLk hrel
-        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hnle hs,
+        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hCn hnle hs,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2),
           fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
   · have hwz : evalPanCmp .notEqual fl (0#64 : Word) = 1#64 := by simp [evalPanCmp, hfl]
@@ -304,7 +323,7 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
         (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
           SetPost ma t0 pv v0 s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
       simp only [restorePanValueFfiLocal]
-      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hnle hs,
+      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hCn hnle hs,
         fun x h1 h2 => (hgl x h1).trans ((g1o x h2).trans (hga x h1 h2)),
         fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
 

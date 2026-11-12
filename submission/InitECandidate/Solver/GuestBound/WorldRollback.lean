@@ -42,15 +42,14 @@ theorem TabStep.of_truncate {m m' : Word → Option (PanValue Word)} {pv t : Wor
 /-- `htab_truncate(e1, e2);` on a live table: the world is kept, globals are
 unchanged, memory outside the heap is unchanged. -/
 theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Word}
-    {D : Word → Prop} {B : Word → Word → Prop}
-    (h1 : ∀ y, E.eval s e1 = some y → y = .word t)
-    (h2 : ∀ y, E.eval s e2 = some y → y = .word nv) (hD : D t)
-    (hW : WorldTJ D B s.globals s.memory)
-    (h : ∀ m', WorldTJ D B s.globals m' →
+    {Rg : Reg} (h1 : ∀ y, E.eval s e1 = some y → y = .word t)
+    (h2 : ∀ y, E.eval s e2 = some y → y = .word nv) (hD : Rg.D t)
+    (hW : WorldTJ Rg s.globals s.memory)
+    (h : ∀ m', WorldTJ Rg s.globals m' →
       (∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a) →
       Q (.normal s.locals s.globals m' s.ffi)) :
     WPs E s (.call (some (none, none)) "htab_truncate" [e1, e2]) Q := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT⟩ := hW
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT⟩ := hW
   obtain ⟨v, hTt⟩ := hDT t hD
   have hat := hHW.tabs.at_ t v hTt
   obtain ⟨kind, rep, hok⟩ := hat.ok
@@ -81,32 +80,37 @@ theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Wor
     have hs := TabStep.of_truncate hHW.tabs hTt hok hok' hsb hfr
     exact h m' ⟨pv, stepT T t v', N, J, C, n, hp, hpH, hJg, hCg, hng,
       hHW.tab_step hs (Nat.le_refl _) hpH.1, stepT_dom hDT t v',
-      fun lo hi hb => (hBT lo hi hb).tab_step hs⟩ hs.out
+      fun lo hi hb => (hBT lo hi hb).tab_step hs, fun x w hcn => by
+        obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hcn
+        refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩
+        unfold Rd at hr ⊢
+        rw [hs.frame x h8 (fun hfoot => ?_) (by have := hf.hi_; omega)]
+        · exact hr
+        · rcases hf.tab t v hs.hT x hfoot with h1 | h1 <;> omega⟩ hs.out
 
 set_option maxHeartbeats 2000000 in
 /-- `rollback_child_access(child)` for a frame record outside the heap whose
 access-table fields name live tables. -/
 theorem rollback_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "rollback_child_access" E.functions = some (parameters, body))
-    (D : Word → Prop) (B : Word → Word → Prop) (s : St σ) (r : Result σ)
-    (child t1 n1 t2 n2 : Word)
+    (Rg : Reg) (s : St σ) (r : Result σ) (child t1 n1 t2 n2 : Word)
     (hc : s.locals "child" = some (.word child)) (hlo : 2952790016 ≤ child.toNat)
     (hhi : child.toNat + 280 ≤ 2 ^ 62)
     (r1 : Rd s.memory (child + 168#64) t1) (r2 : Rd s.memory (child + 264#64) n1)
     (r3 : Rd s.memory (child + 176#64) t2) (r4 : Rd s.memory (child + 272#64) n2)
-    (hD1 : D t1) (hD2 : D t2) (hW : WorldTJ D B s.globals s.memory) (h : Runs E s body r) :
+    (hD1 : Rg.D t1) (hD2 : Rg.D t2) (hW : WorldTJ Rg s.globals s.memory) (h : Runs E s body r) :
     Stopped r ∨ ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
-      WorldTJ D B s.globals m' ∧
+      WorldTJ Rg s.globals m' ∧
       ∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a := by
   have hbody := (fun_of_index 593 hE.functions (by guest_decl_at 593) (by decide +kernel)
     hlookup).1
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l m', r = .returned l s.globals m' s.ffi [.word 0#64] ∧
-    WorldTJ D B s.globals m' ∧
+    WorldTJ Rg s.globals m' ∧
     ∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a)) r h
   refine WPs.seqG (fun a => ∃ m1, a = ⟨s.locals, s.globals, m1, s.ffi⟩ ∧
-      WorldTJ D B s.globals m1 ∧
+      WorldTJ Rg s.globals m1 ∧
       ∀ x : Word, (x.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ x.toNat) → m1 x = s.memory x)
     (WPs.call_truncate_world hE (eval_load_rd hE (eval_addc hE 168#64 hc) r1)
       (eval_load_rd hE (eval_addc hE 264#64 hc) r2) hD1 hW (fun m1 hW1 hf1 => ⟨m1, rfl, hW1, hf1⟩))
@@ -123,7 +127,7 @@ theorem rollback_world (hE : GuestEnv E) (parameters : List VarName) (body : Pro
     rw [hf1 _ (Or.inr (by omega))]
     exact r4
   refine WPs.seqG (fun a => ∃ m2, a = ⟨s.locals, s.globals, m2, s.ffi⟩ ∧
-      WorldTJ D B s.globals m2 ∧
+      WorldTJ Rg s.globals m2 ∧
       ∀ x : Word, (x.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ x.toNat) → m2 x = s.memory x)
     (WPs.call_truncate_world hE (s := ⟨s.locals, s.globals, m1, s.ffi⟩)
       (eval_load_rd hE (eval_addc hE 176#64 hc) r3')
