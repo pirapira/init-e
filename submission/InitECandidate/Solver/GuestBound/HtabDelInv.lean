@@ -1073,4 +1073,25 @@ theorem del_ok_splice (hok : HtabOK m t v kind rep) {Lw pos moved p g gl sb bP :
       cases hki
     exact leaf_key_frame hok hK i hi1 hi2 (by rw [← hkO _ hiL hiP]; exact hki) j hj
 
+/-- The header after a delete: same blocks and capacity, one entry fewer. -/
+def SameTable (v v' : HtabV) : Prop :=
+  v'.kl = v.kl ∧ v'.st = v.st ∧ v'.cp = v.cp ∧ v'.nc = v.nc ∧ v'.keys = v.keys ∧
+    v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.next = v.next ∧ v'.cnt = v.cnt - 1#64
+
+/-- `htab_del` of a stored key keeps the table invariant and removes one entry. -/
+theorem htab_del_ok (hok : HtabOK m t v kind rep) {Lw : Word} (hL : LiveN v kind Lw.toNat)
+    (hLk : kind Lw.toNat = .leaf) {m' : Word → Option (PanValue Word)}
+    (hrel : DelRel m t v Lw m') :
+    ∃ v' kind', HtabOK m' t v' kind' rep ∧ SameTable v v' := by
+  obtain ⟨pos, moved, p, g, lc, rc, gl, hpos, hmoved, hsp, rfl⟩ := hrel
+  unfold delFinal delB
+  by_cases hr : v.root = Lw
+  · simp only [if_pos hr]
+    exact ⟨_, _, del_ok_root hok hL hLk hr hpos hmoved, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  · simp only [if_neg hr]
+    obtain ⟨hp, hg, hlc, hrc, hgl⟩ := hsp hr
+    obtain ⟨bP, F⟩ := splice_facts hok hL hLk hr hp hg hlc hrc hgl
+    exact ⟨_, _, del_ok_splice hok hL hLk hr hpos hmoved hp hg F, rfl, rfl, rfl, rfl, rfl, rfl,
+      rfl, rfl, rfl⟩
+
 end InitECandidate.Solver.GuestBound
