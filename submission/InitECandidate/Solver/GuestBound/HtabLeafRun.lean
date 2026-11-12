@@ -34,6 +34,8 @@ theorem htab_new_leaf_exec (hE : GuestEnv E) (parameters : List VarName) (body :
       n.toNat < v'.next.toNat ∧ kind' n.toNat = .leaf ∧
       (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
       v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+      (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
+        (Rd m' (nodeField v' i o) w ↔ Rd s.memory (nodeField v i o) w)) ∧
       (∃ pv' : Word, g' "heap_ptr" = some (.word pv') ∧ InHeap pv' ∧
         v'.order.toNat + (v'.nc.toNat + 1) * 8 ≤ pv'.toNat ∧ pv.toNat ≤ pv'.toNat) ∧
       ∀ A : Word, (A.toNat + 8 ≤ t.toNat ∨ t.toNat + 88 ≤ A.toNat) →
@@ -51,6 +53,8 @@ theorem htab_new_leaf_exec (hE : GuestEnv E) (parameters : List VarName) (body :
       n.toNat < v'.next.toNat ∧ kind' n.toNat = .leaf ∧
       (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
       v.next.toNat ≤ v'.next.toNat ∧ (kind n.toNat = .free ∨ n.toNat = v.next.toNat) ∧
+      (∀ (i o : Nat) (w : Word), i ≤ v.nc.toNat → i ≠ n.toNat → o < 32 → o % 8 = 0 →
+        (Rd m' (nodeField v' i o) w ↔ Rd s.memory (nodeField v i o) w)) ∧
       (∃ pv' : Word, g' "heap_ptr" = some (.word pv') ∧ InHeap pv' ∧
         v'.order.toNat + (v'.nc.toNat + 1) * 8 ≤ pv'.toNat ∧ pv.toNat ≤ pv'.toNat) ∧
       ∀ A : Word, (A.toNat + 8 ≤ t.toNat ∨ t.toNat + 88 ≤ A.toNat) →
@@ -70,9 +74,12 @@ theorem htab_new_leaf_exec (hE : GuestEnv E) (parameters : List VarName) (body :
         exact k
     · exact Or.inr rfl
   have hfr := new_node_frame hok hrel
+  have hrd := fun {v' kind' rep' det'} (h' : HtabOKd m' t v' kind' rep' det') =>
+    new_node_rd hok hpH hend hrel h'
   obtain ⟨v1, kind1, hok1, e1, e2, e3, e4, hn1, hn2, hkf, hfl, hkold, hnext, hloc, pv', hp',
     hpH', hend', hpp⟩ := htab_new_node_ok hok hp hpH hend hrel
   have hlay1 := hok1.wf.layout
+  have hncle : v.nc.toNat ≤ v1.nc.toNat := new_node_nc hok hrel hok1
   obtain ⟨l1, l2, l3, l4⟩ := id hlay1
   have hnl1 := hok1.wf.next_le
   have hnle : n.toNat ≤ v1.nc.toNat := by omega
@@ -118,12 +125,19 @@ theorem htab_new_leaf_exec (hE : GuestEnv E) (parameters : List VarName) (body :
       v1.free⟩, (fun i => if i = n.toNat then NodeKind.leaf else kind1 i),
     rfl, ?_, e1, e2, by show v1.cnt + 1#64 = _; rw [e3], e4,
     hn1, hn2, if_pos rfl, fun i hi hin => (if_neg hin).trans (hkold i hi hin), hnext, hwas,
-    ⟨pv', hp', hpH', hend', hpp⟩, fun A hT hP hB => ?_⟩
+    fun i o w hi hin ho ho8 => ?_, ⟨pv', hp', hpH', hend', hpp⟩, fun A hT hP hB => ?_⟩
   · exact leaf_ok hok1 hn1 hn2 hkf hfl c hslot (if_pos rfl) (fun i hin => if_neg hin)
       (fun j hj => by
         show (if n.toNat = n.toNat then srcBit s.memory keyp else rep n.toNat) j = _
         rw [if_pos rfl]
         exact (hsrc j hj).symm) (fun i hin => if_neg hin) (fun i => Iff.rfl)
+  · refine Iff.trans ?_ (hrd hok1 i o w hi ho ho8)
+    show Rd (leafMem mc t v1 n val) (nodeField v1 i o) w ↔ _
+    unfold Rd
+    rw [leafMem_node hlay1 hnle hok1.wf.cnt_le hks c hslot (i := i) (by
+      rcases hloc with ⟨a, b, c', d⟩ | hge
+      · rw [d]; exact hi
+      · exact Nat.le_trans hi hncle) hin ho]
   · rw [leafMem_frame hlay1 hnle hok1.wf.cnt_le hks c hslot A hT (by
       rcases hloc with ⟨a, b, c', d⟩ | hge
       · rw [a, c', d]

@@ -449,4 +449,123 @@ theorem new_node_frame {det : Nat → Prop} {m m' : Word → Option (PanValue Wo
         c2.cells A (by omega), setCell_ne' _ (NE (by rw [hH 32 (by omega)]; omega)),
         c1.cells A (by omega)]
 
+/-- The leaf stores leave the other nodes' cells alone. -/
+theorem leafMem_node (hlay : HtabLayout t v) {n keyp val : Word} (hnle : n.toNat ≤ v.nc.toNat)
+    (hcl : v.cnt.toNat ≤ v.nc.toNat) (hks : v.kl.toNat ≤ v.st.toNat)
+    (c : CopyInv m0 (v.keys + n * v.st) keyp v.kl.toNat mc)
+    (hslot : (v.keys + n * v.st).toNat = v.keys.toNat + n.toNat * v.st.toNat) {i o : Nat}
+    (hi : i ≤ v.nc.toNat) (hin : i ≠ n.toNat) (ho : o < 32) :
+    leafMem mc t v n val (nodeField v i o) = m0 (nodeField v i o) := by
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  have hmulS : n.toNat * v.st.toNat + v.st.toNat ≤ (v.nc.toNat + 1) * v.st.toNat := by
+    have := Nat.mul_le_mul_right v.st.toNat (show n.toNat + 1 ≤ v.nc.toNat + 1 by omega)
+    have e : (n.toNat + 1) * v.st.toNat = n.toNat * v.st.toNat + v.st.toNat := by ring
+    omega
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have h24 := hdr_toNat hlay (k := 24) (by omega)
+  have hA := node_toNat hlay hi ho
+  unfold leafMem
+  rw [setCell_ne' _ (NE (by rw [h24]; omega)),
+    setCell_ne' _ (NE (by rw [ord_toNat hlay hcl]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 24) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 16) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 8) (by omega)]; omega)),
+    setCell_ne' _ (NE (by rw [node_toNat hlay hnle (o := 0) (by omega)]; omega))]
+  exact c.cells _ (by rw [hslot]; omega)
+
+/-- `htab_grow` copies the node cells. -/
+theorem grow_node_rd {det : Nat → Prop} {m : Word → Option (PanValue Word)}
+    (hok : HtabOKd m t v kind rep det) {pv N O q : Word}
+    {mF : Word → Option (PanValue Word)} (hpH : InHeap pv)
+    (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat) (R : GrowRel m t v pv N O q mF)
+    (i o : Nat) (w : Word) (hi : i ≤ v.nc.toNat) (ho : o < 32) (ho8 : o % 8 = 0) :
+    Rd mF (N + BitVec.ofNat 64 (i * 32 + o)) w ↔ Rd m (nodeField v i o) w := by
+  obtain ⟨hN, inN, hO, inO, hq, inq, m1, m2, m3, c1, c2, c3, rfl⟩ := R
+  have hlay := hok.wf.layout
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  obtain ⟨hple, hp8⟩ := hpH
+  obtain ⟨hNle, hN8⟩ := inN
+  obtain ⟨hOle, hO8⟩ := inO
+  have hbig : (v.nc.toNat + 1) * v.st.toNat ≤ (v.nc.toNat * 2 + 1) * v.st.toNat :=
+    Nat.mul_le_mul_right _ (by omega)
+  have hT : ∀ k, k < 88 → (t + BitVec.ofNat 64 k).toNat = t.toNat + k :=
+    fun k hk => hdr_toNat hlay hk
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have hX : (off N (i * 32 + o)).toNat = N.toNat + (i * 32 + o) := off_toNat (by omega)
+  have hY : (off v.nodes (i * 32 + o)).toNat = v.nodes.toNat + (i * 32 + o) :=
+    off_toNat (by omega)
+  show Rd _ (off N (i * 32 + o)) w ↔ Rd m (off v.nodes (i * 32 + o)) w
+  have e1 : setCell (setCell (setCell m3 (t + 48#64) O) (t + 16#64) (v.cp * 2#64)) (t + 80#64)
+      (v.nc * 2#64) (off N (i * 32 + o)) = m2 (off N (i * 32 + o)) := by
+    rw [setCell_ne' _ (NE (by rw [hT 80 (by omega)]; omega)),
+      setCell_ne' _ (NE (by rw [hT 16 (by omega)]; omega)),
+      setCell_ne' _ (NE (by rw [hT 48 (by omega)]; omega)), c3.cells _ (Or.inl (by omega)),
+      setCell_ne' _ (NE (by rw [hT 40 (by omega)]; omega))]
+  have e2 : setCell m1 (t + 32#64) pv (off v.nodes (i * 32 + o)) =
+      m (off v.nodes (i * 32 + o)) := by
+    rw [setCell_ne' _ (NE (by rw [hT 32 (by omega)]; omega)), c1.cells _ (Or.inl (by omega))]
+  unfold Rd
+  rw [e1, ← e2]
+  exact rd_iff_bytes w (by omega) (by have := hok.nodes8; omega) (by omega) (by omega)
+    (fun k hk => by rw [off_off, off_off]; exact c2.copied _ (by omega))
+
+/-- After `htab_new_node`, the node cells read as before. -/
+theorem new_node_rd {det det' : Nat → Prop} {m m' : Word → Option (PanValue Word)}
+    (hok : HtabOKd m t v kind rep det) {g g' : VarName → Option (PanValue Word)} {pv n : Word}
+    (hpH : InHeap pv) (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat)
+    (hrel : NewNodeRel m t v kind rep det g pv m' g' n) {v' : HtabV} {kind' : Nat → NodeKind}
+    {rep' : KeyRep} (hok' : HtabOKd m' t v' kind' rep' det')
+    (i o : Nat) (w : Word) (hi : i ≤ v.nc.toNat) (ho : o < 32) (ho8 : o % 8 = 0) :
+    Rd m' (nodeField v' i o) w ↔ Rd m (nodeField v i o) w := by
+  have hlay := hok.wf.layout
+  have hnd' : Rd m' (t + 40#64) v'.nodes := hok'.wf.hdr.2.2.2.2.2.1
+  have hnd : Rd m (t + 40#64) v.nodes := hok.wf.hdr.2.2.2.2.2.1
+  have hne : ∀ k, k < 88 → k ≠ 40 → t + 40#64 ≠ t + BitVec.ofNat 64 k :=
+    fun k hk hkk h => hkk ((hdr_eq_hdr hlay (k := 40) (by omega) hk).mp h).symm
+  rcases hrel with ⟨-, -, -, nf, -, rfl⟩ | ⟨-, -, m1, v1, ⟨hok1, -, -, -, -, -, -, -, hcase⟩, rfl⟩
+  · have e : v'.nodes = v.nodes := Rd.inj hnd' (hnd.frame _ (hne 72 (by omega) (by omega)))
+    unfold nodeField
+    rw [e]
+    exact rd_hdrSet_node hlay hi ho (k := 72) (by omega) nf w
+  · have hlay1 := hok1.wf.layout
+    have hnd1 : Rd m1 (t + 40#64) v1.nodes := hok1.wf.hdr.2.2.2.2.2.1
+    have e : v'.nodes = v1.nodes := Rd.inj hnd' (hnd1.frame _ (hne 64 (by omega) (by omega)))
+    rcases hcase with ⟨rfl, rfl, -⟩ | ⟨N, O, q, hR, rfl, -⟩
+    · unfold nodeField
+      rw [e]
+      exact rd_hdrSet_node hlay hi ho (k := 64) (by omega) _ w
+    · have h2 : (2#64 : Word).toNat = 2 := by decide
+      have hnc2 : (v.nc * 2#64).toNat = v.nc.toNat * 2 := by
+        rw [BitVec.toNat_mul, h2]
+        obtain ⟨-, -, -, l4⟩ := hlay
+        exact Nat.mod_eq_of_lt (by omega)
+      unfold nodeField
+      rw [e]
+      refine (rd_hdrSet_node hlay1 (i := i) (o := o) (show i ≤ (v.nc * 2#64).toNat by
+        rw [hnc2]; omega) ho (k := 64) (by omega) _ w).trans ?_
+      exact grow_node_rd hok hpH hend hR i o w hi ho ho8
+
+/-- `htab_new_node` does not shrink the table. -/
+theorem new_node_nc {det det' : Nat → Prop} {m m' : Word → Option (PanValue Word)}
+    (hok : HtabOKd m t v kind rep det) {g g' : VarName → Option (PanValue Word)} {pv n : Word}
+    (hrel : NewNodeRel m t v kind rep det g pv m' g' n) {v' : HtabV} {kind' : Nat → NodeKind}
+    {rep' : KeyRep} (hok' : HtabOKd m' t v' kind' rep' det') : v.nc.toNat ≤ v'.nc.toNat := by
+  have hlay := hok.wf.layout
+  have hnc' : Rd m' (t + 80#64) v'.nc := hok'.wf.hdr.2.2.2.2.2.2.2.2.2.2
+  have hnc : Rd m (t + 80#64) v.nc := hok.wf.hdr.2.2.2.2.2.2.2.2.2.2
+  have hne : ∀ k, k < 88 → k ≠ 80 → t + 80#64 ≠ t + BitVec.ofNat 64 k :=
+    fun k hk hkk h => hkk ((hdr_eq_hdr hlay (k := 80) (by omega) hk).mp h).symm
+  rcases hrel with ⟨-, -, -, nf, -, rfl⟩ | ⟨-, -, m1, v1, ⟨hok1, -, -, -, -, -, -, -, hcase⟩, rfl⟩
+  · rw [Rd.inj hnc' (hnc.frame _ (hne 72 (by omega) (by omega)))]
+  · have hnc1 : Rd m1 (t + 80#64) v1.nc := hok1.wf.hdr.2.2.2.2.2.2.2.2.2.2
+    rw [Rd.inj hnc' (hnc1.frame _ (hne 64 (by omega) (by omega)))]
+    rcases hcase with ⟨-, rfl, -⟩ | ⟨N, O, q, hR, rfl, -⟩
+    · exact Nat.le_refl _
+    · have h2 : (2#64 : Word).toNat = 2 := by decide
+      show v.nc.toNat ≤ (v.nc * 2#64).toNat
+      rw [BitVec.toNat_mul, h2]
+      obtain ⟨-, -, -, l4⟩ := hlay
+      rw [Nat.mod_eq_of_lt (by omega)]
+      omega
+
 end InitECandidate.Solver.GuestBound
