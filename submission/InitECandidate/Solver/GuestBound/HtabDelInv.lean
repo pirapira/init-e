@@ -1094,4 +1094,77 @@ theorem htab_del_ok (hok : HtabOK m t v kind rep) {Lw : Word} (hL : LiveN v kind
     exact ⟨_, _, del_ok_splice hok hL hLk hr hpos hmoved hp hg F, rfl, rfl, rfl, rfl, rfl, rfl,
       rfl, rfl, rfl⟩
 
+/-- `a` is not a header, node or order cell of the table at `t`. -/
+def Outside (t : Word) (v : HtabV) (a : Word) : Prop :=
+  (a.toNat < t.toNat ∨ t.toNat + 88 ≤ a.toNat) ∧
+    (a.toNat < v.nodes.toNat ∨ v.order.toNat + (v.nc.toNat + 1) * 8 ≤ a.toNat)
+
+theorem setCell_out_hdr (hlay : HtabLayout t v) {k : Nat} (hk : k < 88) {a : Word} (x : Word)
+    (ha : a.toNat < t.toNat ∨ t.toNat + 88 ≤ a.toNat) :
+    setCell m (t + BitVec.ofNat 64 k) x a = m a := by
+  apply setCell_ne
+  intro h
+  have := congrArg BitVec.toNat h
+  rw [hdr_toNat hlay hk] at this
+  omega
+
+theorem setCell_out_node (hlay : HtabLayout t v) {i o : Nat} (hi : i ≤ v.nc.toNat) (ho : o < 32)
+    {a : Word} (x : Word)
+    (ha : a.toNat < v.nodes.toNat ∨ v.order.toNat + (v.nc.toNat + 1) * 8 ≤ a.toNat) :
+    setCell m (nodeField v i o) x a = m a := by
+  apply setCell_ne
+  intro h
+  have := congrArg BitVec.toNat h
+  rw [node_toNat hlay hi ho] at this
+  obtain ⟨-, -, h3, -⟩ := hlay
+  omega
+
+theorem setCell_out_ord (hlay : HtabLayout t v) {p : Nat} (hp : p ≤ v.nc.toNat) {a : Word}
+    (x : Word) (ha : a.toNat < v.nodes.toNat ∨ v.order.toNat + (v.nc.toNat + 1) * 8 ≤ a.toNat) :
+    setCell m (orderSlot v p) x a = m a := by
+  apply setCell_ne
+  intro h
+  have := congrArg BitVec.toNat h
+  rw [ord_toNat hlay hp] at this
+  obtain ⟨-, -, h3, -⟩ := hlay
+  omega
+
+/-- `htab_del` only writes header, node and order cells. -/
+theorem del_frame (hok : HtabOK m t v kind rep) {Lw : Word} (hL : LiveN v kind Lw.toNat)
+    (hLk : kind Lw.toNat = .leaf) {m' : Word → Option (PanValue Word)}
+    (hrel : DelRel m t v Lw m') (a : Word) (ha : Outside t v a) : m' a = m a := by
+  obtain ⟨pos, moved, p, g, lc, rc, gl, hpos, hmoved, hsp, rfl⟩ := hrel
+  obtain ⟨ha1, ha2⟩ := ha
+  have hwf := hok.wf
+  have hlay := hwf.layout
+  have hnl := hwf.next_le
+  have hcl := hwf.cnt_le
+  obtain ⟨hL1, hL2, hL3⟩ := hL
+  obtain ⟨_, _, pos', _, _, hpos', _, _, hposlt, _⟩ := hwf.leaf_ok _ hL1 hL2 hLk
+  have := Rd.inj hpos' hpos
+  subst this
+  obtain ⟨moved', hmoved', _, hm2, _, _⟩ := hwf.order_ok (v.cnt.toNat - 1) (by omega)
+  have := Rd.inj hmoved' hmoved
+  subst this
+  unfold delFinal delB
+  by_cases hr : v.root = Lw
+  · simp only [if_pos hr, delA]
+    simp (disch := omega) only [setCell_out_hdr hlay, setCell_out_node hlay,
+      setCell_out_ord hlay]
+  · simp only [if_neg hr]
+    obtain ⟨hp, hg, hlc, hrc, hgl⟩ := hsp hr
+    obtain ⟨bP, F⟩ := splice_facts hok ⟨hL1, hL2, hL3⟩ hLk hr hp hg hlc hrc hgl
+    have hP2 := F.P2
+    have hS2 := F.S2
+    have h0 : (0#64 : Word).toNat = 0 := by decide
+    have hGnc : g.toNat ≤ v.nc.toNat := by
+      by_cases hg0 : g = 0#64
+      · rw [hg0, h0]; omega
+      · have := (F.Gn hg0).2.1; omega
+    generalize (if lc = Lw then rc else lc) = sb at hS2 F ⊢
+    unfold delX
+    split_ifs <;>
+      simp (disch := omega) only [delA, setCell_out_hdr hlay, setCell_out_node hlay,
+        setCell_out_ord hlay]
+
 end InitECandidate.Solver.GuestBound
