@@ -38,9 +38,9 @@ def RoundPost (st : St σ) (Qb Pb fnum fden anum aden res hp : Word) (r : Result
 
 set_option maxHeartbeats 256000000 in
 theorem pc_round (hE : GuestEnv E) {st : St σ}
-    {g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp Pw iw nw mk : Word}
+    {g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp iw nw mk : Word}
     (geo : PCGeo g1 g2 t1 t2 Qb Pb fnum fden anum aden res hp)
-    (l_pairs : st.locals "pairs" = some (.word Pw)) (l_i : st.locals "i" = some (.word iw))
+    (l_i : st.locals "i" = some (.word iw))
     (l_nt : st.locals "nontrivial" = some (.word nw))
     (l_g1 : st.locals "g1" = some (.word g1)) (l_g2 : st.locals "g2" = some (.word g2))
     (l_t1 : st.locals "t1" = some (.word t1)) (l_t2 : st.locals "t2" = some (.word t2))
@@ -60,11 +60,12 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
   obtain ⟨og1b, og1c, ot1b, ot1c, og2b, og2c, ot2b, ot2c, oq1, oq2, op1, op2⟩ := off
   have hqinf := keepFn_sound (quietKeeper E) hE.functions 3 "ecp_is_inf" ecp_is_inf_quiet
   unfold RoundPost
-  refine WPs.dec (w := Pw + iw * 192#64) (of_eval (by ev [evalPanOp, l_pairs, l_i])) ?_
+  refine WPs.dec_ev (fun vch hvch => ?_)
+  obtain ⟨_, _, Cw, -, -, -, rfl⟩ := eval_op2_inv hE.word hvch
   -- parse the G1 point
   have B1 := BufsK.ofChain (K := 1) ch1 hb ahp st.memory
   refine WPs.decCall_word (fun e1 g m1 ffi hret => ?_)
-  obtain ⟨hg, hf, e, hv, B1a, B1ok⟩ := parseg1_ret hE hret (D := Pw + iw * 192#64) (O := g1)
+  obtain ⟨hg, hf, e, hv, B1a, B1ok⟩ := parseg1_ret hE hret (D := Cw) (O := g1)
     (by lk []) (by lk [l_g1]) B1 (by simp) (by simp) (by simp) (Or.inr (by simp))
     (Or.inr (by simp)) (Or.inr (by simp))
   simp only [List.cons.injEq, PanValue.word.injEq, and_true] at hv
@@ -73,7 +74,7 @@ theorem pc_round (hE : GuestEnv E) {st : St σ}
   try dsimp only
   generalize hL1 : updatePanValueMap _ "e1" (PanValue.word e1) = L1
   have L1_e : L1 "e1" = some (.word e1) := by rw [← hL1]; lk []
-  have L1_chunk : L1 "chunk" = some (.word (Pw + iw * 192#64)) := by rw [← hL1]; lk []
+  have L1_chunk : L1 "chunk" = some (.word Cw) := by rw [← hL1]; lk []
 LOOKUPS1
   refine WPs.seqG (fun st' => st' = ⟨L1, st.globals, m1, st.ffi⟩ ∧ e1 = 0#64)
     (WPs.ite_both (fun w hw => ?_)) ?_
@@ -92,7 +93,7 @@ RETPATH4
   -- parse the G2 point
   have B2 := BufsK.ofChain (K := 2) ch2 hb ahp m1
   refine WPs.decCall_word (fun e2 g m2 ffi hret => ?_)
-  obtain ⟨hg, hf, e, hv, B2a, B2ok⟩ := parseg2_ret hE hret (D := Pw + iw * 192#64 + 64#64)
+  obtain ⟨hg, hf, e, hv, B2a, B2ok⟩ := parseg2_ret hE hret (D := Cw + 64#64)
     (O := g2) (by ev [L1_chunk]) (by lk [L1_g2]) hG B2 (by simp) (by simp) (by simp)
     (Or.inr (by simp)) (Or.inr (by simp)) (Or.inr (by simp))
   simp only [List.cons.injEq, PanValue.word.injEq, and_true] at hv

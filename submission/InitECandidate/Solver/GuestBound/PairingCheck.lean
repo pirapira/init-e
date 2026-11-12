@@ -5,7 +5,7 @@ import InitECandidate.Solver.GuestBound.PairingRound
 
 From any state whose heap pointer is an aligned word in the heap, every
 non-error run of `bn254_pairing_check` takes at most `10^88` steps. Nothing
-is assumed about the input bytes or about the `bn_gamma` table: the call of
+is assumed about the arguments, the input bytes or the `bn_gamma` table: the call of
 `bn254_init` may or may not allocate it, and its entries only ever reach
 `fq_mul` as second operands. The loop over the pairs has an unconditional
 cost; `fq12_inv` after it is bounded by `fq12_inv_cost`, whose precondition
@@ -55,8 +55,8 @@ set_option maxHeartbeats 128000000 in
 theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
     (body : Prog Word)
     (hlookup : lookupPanFunction "bn254_pairing_check" E.functions = some (parameters, body))
-    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat) (Pw : Word)
-    (hpairs : s.locals "pairs" = some (.word Pw)) (hH : HeapOk s.globals)
+    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat)
+    (hH : HeapOk s.globals)
     (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 := by
   have hbody := (fun_of_index 691 hE.functions (by guest_decl_at 691) (by decide +kernel)
@@ -73,11 +73,10 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
       ⟨cl, s.globals, s.memory, s.ffi⟩ _ n' hH hrun'⟩
   intro st' hst'
   obtain ⟨hl', pv, hp, hpH⟩ := hst'
-  have hpairs' : st'.locals "pairs" = some (.word Pw) := by rw [hl']; exact hpairs
-  clear hl' hpairs hH hrun hne
+  clear hl' hH hrun hne
   clear r n fuel s
   revert st'
-  intro s hp hpairs
+  intro s hp
   refine WPc.decCall_sub (Fn.«heap_mark» hE) (by budget) (fun v g m ffi hret => ?_)
   obtain ⟨hg, hm, hf, hv⟩ := heap_mark_ret hE hret.ret hp
   simp only [List.cons.injEq, and_true] at hv
@@ -123,18 +122,17 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   generalize hL : updatePanValueMap _ "res" (PanValue.word q10) = L
   generalize hG : updatePanValueMap _ "heap_ptr" (PanValue.word q11) = G
   have hGq : G "heap_ptr" = some (.word q11) := by rw [← hG]; lk []
-  have L_pairs : L "pairs" = some (.word Pw) := by rw [← hL]; lk [hpairs]
-  have L_g1 : L "g1" = some (.word pv) := by rw [← hL]; lk [hpairs]
-  have L_g2 : L "g2" = some (.word q1) := by rw [← hL]; lk [hpairs]
-  have L_t1 : L "t1" = some (.word q2) := by rw [← hL]; lk [hpairs]
-  have L_t2 : L "t2" = some (.word q3) := by rw [← hL]; lk [hpairs]
-  have L_Q : L "Q" = some (.word q4) := by rw [← hL]; lk [hpairs]
-  have L_P : L "P" = some (.word q5) := by rw [← hL]; lk [hpairs]
-  have L_fnum : L "fnum" = some (.word q6) := by rw [← hL]; lk [hpairs]
-  have L_fden : L "fden" = some (.word q7) := by rw [← hL]; lk [hpairs]
-  have L_anum : L "anum" = some (.word q8) := by rw [← hL]; lk [hpairs]
-  have L_aden : L "aden" = some (.word q9) := by rw [← hL]; lk [hpairs]
-  have L_mark : L "mark" = some (.word pv) := by rw [← hL]; lk [hpairs]
+  have L_g1 : L "g1" = some (.word pv) := by rw [← hL]; lk []
+  have L_g2 : L "g2" = some (.word q1) := by rw [← hL]; lk []
+  have L_t1 : L "t1" = some (.word q2) := by rw [← hL]; lk []
+  have L_t2 : L "t2" = some (.word q3) := by rw [← hL]; lk []
+  have L_Q : L "Q" = some (.word q4) := by rw [← hL]; lk []
+  have L_P : L "P" = some (.word q5) := by rw [← hL]; lk []
+  have L_fnum : L "fnum" = some (.word q6) := by rw [← hL]; lk []
+  have L_fden : L "fden" = some (.word q7) := by rw [← hL]; lk []
+  have L_anum : L "anum" = some (.word q8) := by rw [← hL]; lk []
+  have L_aden : L "aden" = some (.word q9) := by rw [← hL]; lk []
+  have L_mark : L "mark" = some (.word pv) := by rw [← hL]; lk []
   have hB0 : Bufs q11 s.memory [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] q11 [q10, q9, q8, q7, q6, q5 + 768#64, q5 + 384#64, q5, q4 + 768#64, q4 + 384#64, q4] [] s.memory :=
     (BufsK.ofChain (K := 12) geo.chain12 geo.hb geo.ahp s.memory).to12
   -- anum = aden = 1
@@ -159,7 +157,6 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   try dsimp only
   generalize hL2 : updatePanValueMap (updatePanValueMap L "nontrivial" (PanValue.word 0#64)) "i"
     (PanValue.word 0#64) = L2
-  have L2_pairs : L2 "pairs" = some (.word Pw) := by rw [← hL2]; lk [L_pairs]
   have L2_g1 : L2 "g1" = some (.word pv) := by rw [← hL2]; lk [L_g1]
   have L2_g2 : L2 "g2" = some (.word q1) := by rw [← hL2]; lk [L_g2]
   have L2_t1 : L2 "t1" = some (.word q2) := by rw [← hL2]; lk [L_t1]
@@ -189,8 +186,8 @@ theorem bn254_pairing_check_cost (hE : GuestEnv E) (parameters : List VarName)
   · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hf, hloc, ⟨iw, hi⟩, ⟨nw, hnt⟩, hB⟩ -
     simp only at hg hf hloc hi hnt hB
     subst ga fa
-    refine WPs.conseq (pc_round hE (st := ⟨la, G, ma, s.ffi⟩) (Pw := Pw) (iw := iw) (nw := nw)
-      (mk := pv) geo ((hloc _ (by decide) (by decide)).trans L2_pairs) hi hnt
+    refine WPs.conseq (pc_round hE (st := ⟨la, G, ma, s.ffi⟩) (iw := iw) (nw := nw)
+      (mk := pv) geo hi hnt
       ((hloc _ (by decide) (by decide)).trans L2_g1) ((hloc _ (by decide) (by decide)).trans L2_g2)
       ((hloc _ (by decide) (by decide)).trans L2_t1) ((hloc _ (by decide) (by decide)).trans L2_t2)
       ((hloc _ (by decide) (by decide)).trans L2_Q) ((hloc _ (by decide) (by decide)).trans L2_P)
