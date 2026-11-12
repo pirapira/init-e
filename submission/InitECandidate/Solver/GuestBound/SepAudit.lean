@@ -121,3 +121,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms op_dispatch_frameM
 #print axioms rfDispatch_stepM
 #print axioms run_frames_bound_frameM
+#print axioms st_be32_framed
+#print axioms st_be64_framed
+#print axioms u256_to_be32_framed
+#print axioms op_mstore_frameM

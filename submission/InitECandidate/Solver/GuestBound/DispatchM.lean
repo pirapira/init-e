@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.SepMemOps
+import InitECandidate.Solver.GuestBound.SepMstore
 import InitECandidate.Solver.GuestBound.DispatchOps
 
 /-!
@@ -28,6 +28,10 @@ theorem HandlerSpec.toM {f : FunName} (h : HandlerSpec E f) : HandlerSpecM E f :
 theorem op_mload_specM (hE : GuestEnv E) : HandlerSpecM E "op_mload" :=
   fun p b hl s M K e fv R X0 Y0 hok hY hgl hh =>
     op_mload_frameM hE p b hl s M K e fv R X0 Y0 hok hY hgl hh
+
+theorem op_mstore_specM (hE : GuestEnv E) : HandlerSpecM E "op_mstore" :=
+  fun p b hl s M K e fv R X0 Y0 hok hY hgl hh =>
+    op_mstore_frameM hE p b hl s M K e fv R X0 Y0 hok hY hgl hh
 
 /-- A leaf of the dispatcher, from the handler's memory-level theorem. -/
 theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Word))
@@ -64,7 +68,7 @@ theorem handler_leafM {f : FunName} (hf : HandlerSpecM E f) (args : List (Exp Wo
       (Or.inr ⟨fv', X, Y, n, hokX, hYX, hp, hn, Assn.holds_congr rfl rfl hh, _, _, _, rfl⟩)
 
 /-- The handlers proved by hand at the memory level. -/
-def memOps : List FunName := ["op_mload"]
+def memOps : List FunName := ["op_mload", "op_mstore"]
 
 /-- The handlers still to be proved, at the memory level. -/
 def restOpsM : List FunName := restOps.filter (fun f => !memOps.contains f)
@@ -75,8 +79,9 @@ theorem handlers_provedM (hE : GuestEnv E) :
   rcases List.mem_append.mp hf with h1 | h2
   · exact (handlers_proved hE f h1).toM
   · simp only [memOps, List.mem_cons, List.not_mem_nil, or_false] at h2
-    subst h2
-    exact op_mload_specM hE
+    rcases h2 with rfl | rfl
+    · exact op_mload_specM hE
+    · exact op_mstore_specM hE
 
 /-- The dispatcher at the memory level. -/
 theorem op_dispatch_frameM (hE : GuestEnv E) (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f)

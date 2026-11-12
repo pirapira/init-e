@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.RfInstanceM
+import InitECandidate.Solver.GuestBound.SepMemOps
 import InitECandidate.Solver.GuestBound.KeyNibbles
 
 /-!
