@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.HtabDet
+import InitECandidate.Solver.GuestBound.HtabNode
 
 /-!
 # Hash tables: linking a new leaf into the trie
@@ -431,5 +431,228 @@ theorem set_link_ok {M M' : Word → Option (PanValue Word)} {t : Word} {V : Hta
     have hini : i ≠ ni.toNat := fun e => by rw [e, hnik] at hk; cases hk
     rw [hR'o _ hini]
     exact hKey i (by omega) j _ hj (hok.leaf_key i hi1 hi2 hk j hj)
+
+set_option maxHeartbeats 8000000 in
+/-- The first key of an empty table: the detached leaf becomes the root. -/
+theorem set_root_ok {M : Word → Option (PanValue Word)} {t : Word} {V : HtabV}
+    {K : Nat → NodeKind} {R : KeyRep} {det : Nat → Prop}
+    (hok : HtabOKd M t V K R det) {nl : Word} (hdet : ∀ i, det i ↔ i = nl.toNat)
+    (hr0 : V.root = 0) (hnl : LiveN V K nl.toNat) (hnlk : K nl.toNat = .leaf)
+    (hnl0 : Rd M (nodeField V nl.toNat 0) 0) :
+    HtabOK (setCell M (t + 56#64) nl) t (setRoot V nl) K R := by
+  have hwf := hok.wf
+  have hlay := hwf.layout
+  have hnxl := hwf.next_le
+  have h00 : (0 : Word).toNat = 0 := rfl
+  obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+  have hne : ∀ k, k < 88 → k ≠ 56 → t + BitVec.ofNat 64 k ≠ t + 56#64 :=
+    fun k hk hkk h => hkk ((hdr_eq_hdr hlay hk (by omega)).mp h)
+  have N : ∀ (i o : Nat) (w : Word), i < V.next.toNat → o < 32 →
+      (Rd (setCell M (t + 56#64) nl) (nodeField V i o) w ↔ Rd M (nodeField V i o) w) :=
+    fun i o w hi ho => rd_hdrSet_node hlay (by omega) ho (k := 56) (by omega) nl w
+  have O : ∀ (pos : Nat) (w : Word), pos ≤ V.nc.toNat →
+      (Rd (setCell M (t + 56#64) nl) (orderSlot V pos) w ↔ Rd M (orderSlot V pos) w) :=
+    fun pos w hp => rd_hdrSet_ord hlay hp (k := 56) (by omega) nl w
+  have hPar : ∀ (i : Nat) (q : Word), 1 ≤ i → ParentOkd M V K det i q →
+      ParentOk (setCell M (t + 56#64) nl) (setRoot V nl) K i q := by
+    rintro i q hi1 ⟨hpar, -⟩
+    rcases hpar with ⟨-, hroot'⟩ | ⟨a, b, k, hch⟩
+    · rw [hr0] at hroot'
+      omega
+    · exact Or.inr ⟨a, b, k, hch.imp (N _ 8 _ b (by omega)).mpr (N _ 16 _ b (by omega)).mpr⟩
+  have hChild : ∀ (i : Nat) (c : Word), ChildOk M V K i c →
+      ChildOk (setCell M (t + 56#64) nl) (setRoot V nl) K i c := by
+    rintro i c ⟨a, b, k, hrd⟩
+    exact ⟨a, b, k, (N _ 0 _ b (by omega)).mpr hrd⟩
+  refine
+    { wf :=
+        { hdr := ⟨hkl.frame _ (hne 0 (by omega) (by omega)),
+            hst.frame _ (hne 8 (by omega) (by omega)), hcp.frame _ (hne 16 (by omega) (by omega)),
+            hcnt.frame _ (hne 24 (by omega) (by omega)),
+            hkeys.frame _ (hne 32 (by omega) (by omega)),
+            hnd.frame _ (hne 40 (by omega) (by omega)),
+            hord.frame _ (hne 48 (by omega) (by omega)), Rd.here _ _ _,
+            hnext.frame _ (hne 64 (by omega) (by omega)),
+            hfree.frame _ (hne 72 (by omega) (by omega)),
+            hnc.frame _ (hne 80 (by omega) (by omega))⟩
+          layout := hlay
+          next_pos := hwf.next_pos
+          next_le := hwf.next_le
+          cnt_le := hwf.cnt_le
+          root_ok := Or.inr ⟨hnl.1, hnl.2.1, hnl.2.2, (N _ 0 _ hnl.2.1 (by omega)).mpr hnl0⟩
+          free_chain := ?_
+          internal_ok := ?_
+          leaf_ok := ?_
+          order_ok := ?_ }
+      keys := ⟨?_⟩
+      keys8 := hok.keys8
+      nodes8 := hok.nodes8
+      order8 := hok.order8
+      nc_pos := hok.nc_pos
+      kl_st := hok.kl_st
+      kl8 := hok.kl8
+      leaf_key := ?_ }
+  · obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := FreeChain.kind_mem fl _ hfl
+    exact ⟨fl, FreeChain.congr (v := V) (kind := K) (v' := setRoot V nl) (Nat.le_refl _) fl _ hfl
+      (fun i hi => ⟨(hmem i hi).1, fun w hw => (N i 0 w (hmem i hi).2.2 (by omega)).mpr hw⟩)⟩
+  · intro i hi1 hi2 hk
+    have hi2 : i < V.next.toNat := hi2
+    have hdi : ¬ det i := fun h => by rw [(hdet i).mp h, hnlk] at hk; cases hk
+    obtain ⟨q, l, r, b, hq, hl, hr, hb, hbne, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
+    obtain ⟨hpar, hcl, hcr, -, -, hlr⟩ := hrest hdi
+    exact ⟨q, l, r, b, (N _ 0 _ hi2 (by omega)).mpr hq, (N _ 8 _ hi2 (by omega)).mpr hl,
+      (N _ 16 _ hi2 (by omega)).mpr hr, (N _ 24 _ hi2 (by omega)).mpr hb, hbne, hPar i q hi1 hpar,
+      hChild i l hcl, hChild i r hcr, hlr⟩
+  · intro i hi1 hi2 hk
+    have hi2 : i < V.next.toNat := hi2
+    obtain ⟨q, value, pos, hq, hv, hpos, hb, hpar, hlt, hord'⟩ := hwf.leaf_ok i hi1 hi2 hk
+    refine ⟨q, value, pos, (N _ 0 _ hi2 (by omega)).mpr hq, (N _ 8 _ hi2 (by omega)).mpr hv,
+      (N _ 16 _ hi2 (by omega)).mpr hpos, (N _ 24 _ hi2 (by omega)).mpr hb, ?_, hlt,
+      (O _ _ (by have := hwf.cnt_le; omega)).mpr hord'⟩
+    by_cases hin : i = nl.toNat
+    · subst hin
+      exact Or.inl ⟨Rd.inj hq hnl0, rfl⟩
+    · exact hPar i q hi1 (hpar (fun h => hin ((hdet i).mp h)))
+  · intro pos hpos
+    have hpos : pos < V.cnt.toNat := hpos
+    obtain ⟨i, hi, a, b, k, hrd⟩ := hwf.order_ok pos hpos
+    exact ⟨i, (O _ _ (by have := hwf.cnt_le; omega)).mpr hi, a, b, k,
+      (N _ 16 _ b (by omega)).mpr hrd⟩
+  · intro i hi1 hi2 hk b l r hb hl hr
+    have hi2 : i < V.next.toNat := hi2
+    have hdi : ¬ det i := fun h => by rw [(hdet i).mp h, hnlk] at hk; cases hk
+    have hb0 := (N _ 24 _ hi2 (by omega)).mp hb
+    have hl0 := (N _ 8 _ hi2 (by omega)).mp hl
+    have hr0' := (N _ 16 _ hi2 (by omega)).mp hr
+    obtain ⟨q, l', r', b', -, hl', hr', -, -, hrest⟩ := hwf.internal_ok i hi1 hi2 hk
+    obtain ⟨-, hcl, hcr, -⟩ := hrest hdi
+    have el : l = l' := Rd.inj hl0 hl'
+    subst el
+    have er : r = r' := Rd.inj hr0' hr'
+    subst er
+    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := hok.bits i hi1 hi2 hk hdi b l r hb0 hl0 hr0'
+    exact ⟨g1, g2, g3, g4, fun bl h => g5 bl ((N _ 24 _ hcl.2.1 (by omega)).mp h),
+      fun br h => g6 br ((N _ 24 _ hcr.2.1 (by omega)).mp h)⟩
+  · intro i hi1 hi2 hk j hj
+    have hi2 : i < V.next.toNat := hi2
+    exact keybit_frame hlay hok.keys8 hok.kl_st hok.kl8
+      (fun a ha _ => setCell_key_hdr hlay (k := 56) (by omega) nl ha) (by omega) hj
+      (hok.leaf_key i hi1 hi2 hk j hj)
+
+set_option maxHeartbeats 8000000 in
+/-- Overwriting the value of a stored key. -/
+theorem set_value_ok {M : Word → Option (PanValue Word)} {t : Word} {V : HtabV}
+    {K : Nat → NodeKind} {R : KeyRep} (hok : HtabOK M t V K R) {L val : Word}
+    (hL : LiveN V K L.toNat) (hLk : K L.toNat = .leaf) :
+    HtabOK (setCell M (nodeField V L.toNat 8) val) t V K R := by
+  have hwf := hok.wf
+  have hlay := hwf.layout
+  have hnxl := hwf.next_le
+  obtain ⟨l1, l2, l3, l4⟩ := id hlay
+  have hLle : L.toNat ≤ V.nc.toNat := by have := hL.2.1; omega
+  have hLa := node_toNat hlay hLle (o := 8) (by omega)
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
+  have H : ∀ (k : Nat) (w : Word), k < 88 → Rd M (t + BitVec.ofNat 64 k) w →
+      Rd (setCell M (nodeField V L.toNat 8) val) (t + BitVec.ofNat 64 k) w :=
+    fun k w hk h => h.frame _ (NE (by rw [hdr_toNat hlay hk, hLa]; omega))
+  have N : ∀ (i o : Nat) (w : Word), i < V.next.toNat → o < 32 → (i = L.toNat → o ≠ 8) →
+      o % 8 = 0 → (Rd (setCell M (nodeField V L.toNat 8) val) (nodeField V i o) w ↔
+        Rd M (nodeField V i o) w) := by
+    intro i o w hi ho hc ho8
+    rw [rd_setCell, if_neg (NE (by
+      rw [node_toNat hlay (i := i) (by omega) ho, hLa]
+      intro e
+      have : i = L.toNat := by omega
+      exact hc this (by omega)))]
+  have O : ∀ (pos : Nat) (w : Word), pos ≤ V.nc.toNat →
+      (Rd (setCell M (nodeField V L.toNat 8) val) (orderSlot V pos) w ↔
+        Rd M (orderSlot V pos) w) := by
+    intro pos w hp
+    rw [rd_setCell, if_neg (NE (by rw [ord_toNat hlay hp, hLa]; omega))]
+  have nL : ∀ i, K i = .internal → i ≠ L.toNat := fun i k e => by rw [e, hLk] at k; cases k
+  have hPar : ∀ (i : Nat) (q : Word), ParentOk M V K i q →
+      ParentOk (setCell M (nodeField V L.toNat 8) val) V K i q := by
+    rintro i q (h | ⟨a, b, k, hch⟩)
+    · exact Or.inl h
+    · exact Or.inr ⟨a, b, k, hch.imp (N _ 8 _ b (by omega) (fun e => absurd e (nL _ k))
+        (by omega)).mpr (N _ 16 _ b (by omega) (fun _ => by omega) (by omega)).mpr⟩
+  have hChild : ∀ (i : Nat) (c : Word), ChildOk M V K i c →
+      ChildOk (setCell M (nodeField V L.toNat 8) val) V K i c := by
+    rintro i c ⟨a, b, k, hrd⟩
+    exact ⟨a, b, k, (N _ 0 _ b (by omega) (fun _ => by omega) (by omega)).mpr hrd⟩
+  refine
+    { wf :=
+        { hdr := ⟨H 0 _ (by omega) hkl, H 8 _ (by omega) hst, H 16 _ (by omega) hcp,
+            H 24 _ (by omega) hcnt, H 32 _ (by omega) hkeys, H 40 _ (by omega) hnd,
+            H 48 _ (by omega) hord, H 56 _ (by omega) hroot, H 64 _ (by omega) hnext,
+            H 72 _ (by omega) hfree, H 80 _ (by omega) hnc⟩
+          layout := hlay
+          next_pos := hwf.next_pos
+          next_le := hwf.next_le
+          cnt_le := hwf.cnt_le
+          root_ok := hwf.root_ok.imp id (fun ⟨a, b, k, hrd⟩ =>
+            ⟨a, b, k, (N _ 0 _ b (by omega) (fun _ => by omega) (by omega)).mpr hrd⟩)
+          free_chain := ?_
+          internal_ok := ?_
+          leaf_ok := ?_
+          order_ok := ?_ }
+      keys := ⟨?_⟩
+      keys8 := hok.keys8
+      nodes8 := hok.nodes8
+      order8 := hok.order8
+      nc_pos := hok.nc_pos
+      kl_st := hok.kl_st
+      kl8 := hok.kl8
+      leaf_key := ?_ }
+  · obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := FreeChain.kind_mem fl _ hfl
+    exact ⟨fl, FreeChain.congr (v := V) (kind := K) (v' := V) (Nat.le_refl _) fl _ hfl
+      (fun i hi => ⟨(hmem i hi).1, fun w hw =>
+        (N i 0 w (hmem i hi).2.2 (by omega) (fun _ => by omega) (by omega)).mpr hw⟩)⟩
+  · intro i hi1 hi2 hk
+    have hiL := nL i hk
+    obtain ⟨q, l, r, b, hq, hl, hr, hb, hbne, hpar, hcl, hcr, hlr⟩ :=
+      hwf.internal_ok i hi1 hi2 hk
+    exact ⟨q, l, r, b, (N _ 0 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hq,
+      (N _ 8 _ hi2 (by omega) (fun e => absurd e hiL) (by omega)).mpr hl,
+      (N _ 16 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hr,
+      (N _ 24 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hb, hbne, hPar i q hpar,
+      hChild i l hcl, hChild i r hcr, hlr⟩
+  · intro i hi1 hi2 hk
+    obtain ⟨q, value, pos, hq, hv, hpos, hb, hpar, hlt, hord'⟩ := hwf.leaf_ok i hi1 hi2 hk
+    have hv' : ∃ value', Rd (setCell M (nodeField V L.toNat 8) val) (nodeField V i 8) value' := by
+      by_cases hiL : i = L.toNat
+      · subst hiL
+        exact ⟨val, Rd.here _ _ _⟩
+      · exact ⟨value, (N _ 8 _ hi2 (by omega) (fun e => absurd e hiL) (by omega)).mpr hv⟩
+    obtain ⟨value', hv''⟩ := hv'
+    exact ⟨q, value', pos, (N _ 0 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hq, hv'',
+      (N _ 16 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hpos,
+      (N _ 24 _ hi2 (by omega) (fun _ => by omega) (by omega)).mpr hb, hPar i q hpar, hlt,
+      (O _ _ (by have := hwf.cnt_le; omega)).mpr hord'⟩
+  · intro pos hpos
+    obtain ⟨i, hi, a, b, k, hrd⟩ := hwf.order_ok pos hpos
+    exact ⟨i, (O _ _ (by have := hwf.cnt_le; omega)).mpr hi, a, b, k,
+      (N _ 16 _ b (by omega) (fun _ => by omega) (by omega)).mpr hrd⟩
+  · intro i hi1 hi2 hk b l r hb hl hr
+    have hiL := nL i hk
+    have hb0 := (N _ 24 _ hi2 (by omega) (fun _ => by omega) (by omega)).mp hb
+    have hl0 := (N _ 8 _ hi2 (by omega) (fun e => absurd e hiL) (by omega)).mp hl
+    have hr0 := (N _ 16 _ hi2 (by omega) (fun _ => by omega) (by omega)).mp hr
+    obtain ⟨q, l', r', b', -, hl', hr', -, -, -, hcl, hcr, -⟩ := hwf.internal_ok i hi1 hi2 hk
+    have el : l = l' := Rd.inj hl0 hl'
+    subst el
+    have er : r = r' := Rd.inj hr0 hr'
+    subst er
+    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := hok.keys.internal_bits i hi1 hi2 hk b l r hb0 hl0 hr0
+    exact ⟨g1, g2, g3, g4,
+      fun bl h => g5 bl ((N _ 24 _ hcl.2.1 (by omega) (fun _ => by omega) (by omega)).mp h),
+      fun br h => g6 br ((N _ 24 _ hcr.2.1 (by omega) (fun _ => by omega) (by omega)).mp h)⟩
+  · intro i hi1 hi2 hk j hj
+    exact keybit_frame hlay hok.keys8 hok.kl_st hok.kl8
+      (fun a _ ha => setCell_key_node hlay hLle (by omega) val ha) (by omega) hj
+      (hok.leaf_key i hi1 hi2 hk j hj)
 
 end InitECandidate.Solver.GuestBound
