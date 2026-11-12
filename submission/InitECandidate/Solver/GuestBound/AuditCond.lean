@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.Fq12Frob
+import InitECandidate.Solver.GuestBound.Miller
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -32,3 +32,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms ecp_add12_bufs
 #print axioms memcpy_self
 #print axioms fq12_frob_canon
+#print axioms bn254_init_noop
+#print axioms fq12_cast_canon
+#print axioms fq12_twist_canon
+#print axioms bn254_miller_raw_bufs
