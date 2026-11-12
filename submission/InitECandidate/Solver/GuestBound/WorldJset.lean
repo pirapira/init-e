@@ -142,7 +142,7 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     WorldTJ Rg g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT⟩ := hW
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT, hIT⟩ := hW
   obtain ⟨v, hTt, hvkl⟩ := hDT t kl hD
   subst kl
   have hat := hHW.tabs.at_ t v hTt
@@ -300,6 +300,14 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     unfold Rd at hr ⊢
     rw [keep2 x (by rcases hf.jrn with h3 | h3 <;> omega), hm1 x (Or.inl (by omega))]
     exact hr
+  have hI2 : ImOK Rg m2 qv T N J C := by
+    refine hIT.frame hpq (fun x hx => ?_)
+    obtain ⟨b1, b2, b3⟩ := hIT.cell_bounds hHW hx
+    rw [keep2 x ?_, hm1 x (Or.inl (by omega))]
+    rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+    · have hin := seg_cell_in (hHW.nodes.at_ a k hN) hk hx
+      rcases hHW.jn a k hN with h3 | h3 <;> omega
+    · rcases (hIT.free lo hi hI).2.jrn with h3 | h3 <;> omega
   refine WPs.seqG (fun a => ∃ l g' m', a = ⟨l, g', m', s.ffi⟩ ∧ WorldTJ Rg g' m' ∧
       (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
@@ -337,7 +345,7 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     obtain ⟨pv', v'', hp', hpH', hs⟩ := TabStep.of_set hW2.tabs hTt hqH
       (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
         SetPost m2 t qv v s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
-    refine ⟨_, g', m', rfl, worldTJ_step hp' hpH' hgl g5J g5C g5n hW2 hDT hB2 hC2 hNT
+    refine ⟨_, g', m', rfl, worldTJ_step hp' hpH' hgl g5J g5C g5n hW2 hDT hB2 hC2 hNT hI2
       (Nat.le_refl _) hs, fun x h1 h2 => (hgl x h1).trans (g5o x h1 h2), fun addr ha => ?_⟩
     rw [hs.out addr ha, keep2 addr (by unfold HBASE at ha hJlo; omega),
       hm1 addr (by have hlo := hat.lo; unfold HBASE at ha hlo; omega)]

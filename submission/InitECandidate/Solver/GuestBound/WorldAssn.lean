@@ -96,7 +96,7 @@ def WorldP (Rg : Reg) (V : View) : Prop :=
   WorldTJ Rg (fun x => V (.glob x)) (fun a => V (.mem a))
 
 theorem worldP_local (Rg : Reg) : Local HeapKeys (WorldP Rg) := by
-  rintro V V' hV ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩
+  rintro V V' hV ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩
   have hg : ∀ x, x ∈ worldGlobals → V' (.glob x) = V (.glob x) := fun x hx => hV (.glob x) hx
   have hm : ∀ a : Word, a.toNat % 8 = 0 → HBASE ≤ a.toNat → a.toNat < pv.toNat →
       V' (.mem a) = V (.mem a) := by
@@ -105,7 +105,10 @@ theorem worldP_local (Rg : Reg) : Local HeapKeys (WorldP Rg) := by
     exact hV (.mem a) ⟨by omega, by omega⟩
   refine ⟨pv, T, N, J, C, n, (hg _ (by simp [worldGlobals])).trans hp, hpH,
     (hg _ (by simp [worldGlobals])).trans hJg, (hg _ (by simp [worldGlobals])).trans hCg,
-    (hg _ (by simp [worldGlobals])).trans hng, hW.frame hm, hD, hB, fun x w h => ?_, hNd⟩
+    (hg _ (by simp [worldGlobals])).trans hng, hW.frame hm, hD, hB, fun x w h => ?_, hNd,
+    hIm.frame (Nat.le_refl _) (fun x hx => by
+      obtain ⟨b1, b2, b3⟩ := hIm.cell_bounds hW hx
+      exact hm x b1 b2 b3)⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w h
   refine ⟨?_, h8, hi, hhi, hf⟩
   show V' (.mem x) = _

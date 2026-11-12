@@ -32,3 +32,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms node_new_ext_world
 #print axioms WorldTJ.node_child
 #print axioms node_invalidate_world
+#print axioms ImOK.tab_step
+#print axioms ImOK.node_add
+#print axioms ImOK.store_node
+#print axioms SegsOK.frame

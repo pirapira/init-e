@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.WorldNode
+import InitECandidate.Solver.GuestBound.WorldHeap
 
 /-!
 # Nibble segments of trie nodes
@@ -11,8 +11,6 @@ an immutable block of `Im` and is a nibble array. `SegsOK.frame`: the property
 survives any step that changes neither those two cells of a node nor a cell
 of an immutable block.
 
-This file only has the definitions and the frame lemma; `SegsOK` is not yet
-part of `WorldTJ` (see the note on pirapira/init-e#21).
 -/
 
 namespace InitECandidate.Solver.GuestBound
@@ -50,7 +48,7 @@ def SegsOK (Im : Word → Word → Prop) (m : Word → Option (PanValue Word))
 
 /-- The cells `SegsOK` depends on. -/
 def SegCell (Im : Word → Word → Prop) (N : Word → Option Word) (x : Word) : Prop :=
-  (∃ a k, N a = some k ∧ (x = a + 32#64 ∨ x = a + 40#64)) ∨
+  (∃ a k, N a = some k ∧ (k = 1#64 ∨ k = 2#64) ∧ (x = a + 32#64 ∨ x = a + 40#64)) ∨
     (x.toNat % 8 = 0 ∧ ∃ lo hi, Im lo hi ∧ lo.toNat ≤ x.toNat ∧ x.toNat < hi.toNat)
 
 theorem SegsOK.frame (h : SegsOK Im m N) (hm : ∀ x, SegCell Im N x → m' x = m x) :
@@ -60,7 +58,7 @@ theorem SegsOK.frame (h : SegsOK Im m N) (hm : ∀ x, SegCell Im N x → m' x = 
   have rd : ∀ x w, (x = a + 32#64 ∨ x = a + 40#64) → Rd m x w → Rd m' x w := by
     intro x w hx hr
     unfold Rd at hr ⊢
-    rw [hm x (Or.inl ⟨a, k, hN, hx⟩)]
+    rw [hm x (Or.inl ⟨a, k, hN, hk, hx⟩)]
     exact hr
   refine ⟨sp, nl, rd _ _ (Or.inl rfl) r1, rd _ _ (Or.inr rfl) r2, ?_⟩
   rcases hcase with h0 | ⟨lo, hi, hI, hlo8, h1, h2, hn⟩

@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.WorldHeap
+import InitECandidate.Solver.GuestBound.TrieSeg
 
 /-!
 # `state_restore` keeps the tables and the journal
@@ -18,12 +18,89 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 known to be live, with their key length (frames name their tables through it), `B` ranges known to
 be free blocks (buffers), `Cn` cells known to hold a given word inside a free
 block (fields of container records such as `ts`), `Nd` addresses known to be
-trie nodes. -/
+trie nodes, `Im` blocks that are never written again (nibble arrays). -/
 structure Reg where
   D : Word → Word → Prop
   B : Word → Word → Prop
   Cn : Word → Word → Prop
   Nd : Word → Prop
+  Im : Word → Word → Prop
+
+/-- Immutable blocks and the nibble segments of trie nodes: the blocks are
+free of every structure and of the writable blocks `B`, and every leaf or
+extension segment is empty or a nibble array inside one of them. -/
+structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
+    (T : Word → Option HtabV) (N : Word → Option Word) (J C : Word) : Prop where
+  free : ∀ lo hi, Rg.Im lo hi → lo.toNat % 8 = 0 ∧ FreeOK pv T N J C lo hi
+  offB : ∀ lo hi a b, Rg.B lo hi → Rg.Im a b → hi.toNat ≤ a.toNat ∨ b.toNat ≤ lo.toNat
+  segs : SegsOK Rg.Im m N
+
+/-- A segment cell of a node is an aligned cell inside the node. -/
+theorem seg_cell_in {m : Word → Option (PanValue Word)} {pv a k x : Word}
+    {N : Word → Option Word} (hat : NodeAt m pv N a k) (hk : k = 1#64 ∨ k = 2#64)
+    (hx : x = a + 32#64 ∨ x = a + 40#64) :
+    x.toNat % 8 = 0 ∧ a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k := by
+  have hal := hat.al
+  have htop := hat.top
+  have hsz : 56 ≤ nodeSize k := by
+    rcases hk with rfl | rfl <;> simp [nodeSize]
+  have e32 : (a + 32#64).toNat = a.toNat + 32 := by bv_omega
+  have e40 : (a + 40#64).toNat = a.toNat + 40 := by bv_omega
+  rcases hx with rfl | rfl <;> omega
+
+/-- The segments survive a heap step that misses the segment cells. -/
+theorem SegsOK.step {Im : Word → Word → Prop} {m m' : Word → Option (PanValue Word)}
+    {pv pv' : Word} {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
+    {F : Word → Prop} (h : SegsOK Im m N) (hW : HeapW m pv T N J C n)
+    (hfree : ∀ lo hi, Im lo hi → FreeOK pv T N J C lo hi) (hs : HeapStep m pv m' pv' F)
+    (hF : ∀ x, SegCell Im N x → ¬ F x) : SegsOK Im m' N := by
+  refine h.frame (fun x hx => ?_)
+  refine hs.frame x ?_ (hF x hx) ?_
+  · rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨h8, -⟩
+    · exact (seg_cell_in (hW.nodes.at_ a k hN) hk hx).1
+    · exact h8
+  · rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+    · have hat := hW.nodes.at_ a k hN
+      have := seg_cell_in hat hk hx
+      have := hat.hi
+      omega
+    · have := (hfree lo hi hI).hi_
+      omega
+
+/-- After a table step. -/
+theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' t : Word}
+    {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word} {v v' : HtabV}
+    (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
+    (hs : TabStep m pv T t v m' pv' v') : ImOK Rg m' pv' (stepT T t v') N J C := by
+  refine ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
+    h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep (fun x hx hfoot => ?_)⟩
+  rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+  · have hin := seg_cell_in (hW.nodes.at_ a k hN) hk hx
+    rcases hW.tn t v a k hs.hT hN x hfoot with h3 | h3 <;> omega
+  · rcases (h.free lo hi hI).2.tab t v hs.hT x hfoot with h3 | h3 <;> omega
+
+/-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
+theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
+    {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
+    (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n) (hx : SegCell Rg.Im N x) :
+    x.toNat % 8 = 0 ∧ HBASE ≤ x.toNat ∧ x.toNat < pv.toNat := by
+  rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨h8, lo, hi, hI, h1, h2⟩
+  · have hat := hW.nodes.at_ a k hN
+    have hin := seg_cell_in hat hk hx
+    have h1 := hat.hi
+    have h2 := hat.lo
+    exact ⟨hin.1, by omega, by omega⟩
+  · have hf := (h.free lo hi hI).2
+    have := hf.lo_
+    have := hf.hi_
+    exact ⟨h8, by omega, by omega⟩
+
+/-- `ImOK` after a change that leaves its cells alone (same structures). -/
+theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' : Word}
+    {T : Word → Option HtabV} {N : Word → Option Word} {J C : Word}
+    (h : ImOK Rg m pv T N J C) (hpv : pv.toNat ≤ pv'.toNat)
+    (hm : ∀ x, SegCell Rg.Im N x → m' x = m x) : ImOK Rg m' pv' T N J C :=
+  ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB, h.segs.frame hm⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
@@ -35,7 +112,7 @@ def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
     (∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi) ∧
     (∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
       ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi) ∧
-    ∀ a, Rg.Nd a → ∃ k, N a = some k
+    (∀ a, Rg.Nd a → ∃ k, N a = some k) ∧ ImOK Rg m pv T N J C
 
 /-- A comparison that evaluated to a word: both sides are words. -/
 theorem cmp_word_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
@@ -160,12 +237,13 @@ theorem worldTJ_step {Rg : Reg}
     (hB : ∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi)
     (hCn : ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
       ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi)
-    (hNd : ∀ a, Rg.Nd a → ∃ k, N a = some k) (hn : n'.toNat ≤ n.toNat)
+    (hNd : ∀ a, Rg.Nd a → ∃ k, N a = some k) (hIm : ImOK Rg m pv T N J C)
+    (hn : n'.toNat ≤ n.toNat)
     (hs : TabStep m pv T t v m' pv' v') : WorldTJ Rg g' m' := by
   refine ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
     hW.tab_step hs hn hpH'.1, stepT_dom hD hs.hT hs.kl, fun lo hi h => (hB lo hi h).tab_step hs,
-    fun x w h => ?_, hNd⟩
+    fun x w h => ?_, hNd, hIm.tab_step hW hs⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w h
   refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩
   unfold Rd at hr ⊢
@@ -201,8 +279,8 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
   · rintro a ⟨hf, hWa, hga, hma⟩
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     exact ⟨_, _, _, by rw [hf], hWa, hga, hma⟩
-  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB, hCn, hNd⟩, hga, hma⟩ hct
-  dsimp only at hf hp hJg hCg hng hHW hD hB hCn hNd hga hma
+  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB, hCn, hNd, hIm⟩, hga, hma⟩ hct
+  dsimp only at hf hp hJg hCg hng hHW hD hB hCn hNd hIm hga hma
   have hT := hHW.tabs
   have hJ := hHW.jrn
   subst hf
@@ -283,10 +361,10 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
       subst g m ffi
       simp only [restorePanValueFfiLocal]
       rcases hcase with rfl | ⟨Lw, hL, hLk, hrel⟩
-      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB, hCn, hNd⟩,
+      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB, hCn, hNd, hIm⟩,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2), hma⟩
       · obtain ⟨v', hs⟩ := TabStep.of_del hT hT0 hok hL hLk hrel
-        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hCn hNd hnle hs,
+        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hCn hNd hIm hnle hs,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2),
           fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
   · have hwz : evalPanCmp .notEqual fl (0#64 : Word) = 1#64 := by simp [evalPanCmp, hfl]
@@ -334,7 +412,7 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
         (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
           SetPost ma t0 pv v0 s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
       simp only [restorePanValueFfiLocal]
-      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hCn hNd hnle hs,
+      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hCn hNd hIm hnle hs,
         fun x h1 h2 => (hgl x h1).trans ((g1o x h2).trans (hga x h1 h2)),
         fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
 

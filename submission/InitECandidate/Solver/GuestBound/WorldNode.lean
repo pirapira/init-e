@@ -18,7 +18,7 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 /-- The kind of a known node is what its first cell holds. -/
 theorem WorldTJ.node_kind {a k : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a) (hk : Rd m a k) :
     k.toNat ≤ 3 ∧ HBASE ≤ a.toNat ∧ a.toNat + nodeSize k ≤ 2952790016 ∧ a.toNat % 8 = 0 := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   obtain ⟨k', hk'⟩ := hNd a ha
   have hat := hW.nodes.at_ a k' hk'
   have : k' = k := Rd.inj hat.kind hk
@@ -27,17 +27,39 @@ theorem WorldTJ.node_kind {a k : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a) (hk :
   have := hpH.1
   exact ⟨hat.k3, hat.lo, by omega, hat.al⟩
 
+/-- `ImOK` after a store into a node, away from the segment cells. -/
+theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word → Option Word}
+    {J C n : Word} (w : Word) (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
+    (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
+    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
+    ImOK Rg (setCell m x w) pv T N J C := by
+  refine h.frame (Nat.le_refl _) (fun y hy => setCell_ne _ ?_)
+  rintro rfl
+  rcases hy with ⟨b, j, hb, hj, hy⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+  · by_cases e : b = a
+    · subst e
+      have : j = k := Option.some.inj (hb.symm.trans hN)
+      subst this
+      rcases hy with hy | hy
+      · exact (hns hj).1 hy
+      · exact (hns hj).2 hy
+    · have hi' := seg_cell_in (hW.nodes.at_ b j hb) hj hy
+      rcases hW.nodes.disj b j a k hb hN e with h3 | h3 <;> omega
+  · rcases (h.free lo hi hI).2.node a k hN with h3 | h3 <;> omega
+
 /-- A store into a non-structural cell of a known node. -/
 theorem WorldTJ.node_other {a k x : Word} (w : Word) (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     (hk : Rd m a k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
-    (hx : ¬ StructCell a k x) : WorldTJ Rg g (setCell m x w) := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
+    (hx : ¬ StructCell a k x)
+    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
+    WorldTJ Rg g (setCell m x w) := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   obtain ⟨k', hk'⟩ := hNd a ha
   have hat := hW.nodes.at_ a k' hk'
   have : k' = k := Rd.inj hat.kind hk
   subst this
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW.node_other w hk' hin hx, hD, hB,
-    fun y v hc => ?_, hNd⟩
+    fun y v hc => ?_, hNd, hIm.store_node w hW hk' hin hns⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hc
   refine ⟨hr.frame _ ?_, h8, hi, hhi, hf⟩
   rintro rfl
@@ -49,7 +71,7 @@ theorem WorldTJ.node_child {a k x c : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     (hslot : (k = 2#64 ∧ x = a + 48#64) ∨
       (k = 3#64 ∧ ∃ i : Nat, i < 16 ∧ x = a + BitVec.ofNat 64 (32 + 8 * i)))
     (hc : c = 0#64 ∨ Rg.Nd c) : WorldTJ Rg g (setCell m x c) := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   obtain ⟨k', hk'⟩ := hNd a ha
   have hat := hW.nodes.at_ a k' hk'
   have : k' = k := Rd.inj hat.kind hk
@@ -64,7 +86,16 @@ theorem WorldTJ.node_child {a k x c : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     · exact Or.inr (Or.inr ⟨hk3, i, hi, rfl⟩)
   have hin := hsx.inside hat
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW.node_child hk' hslot hcN, hD, hB,
-    fun y v hcn => ?_, hNd⟩
+    fun y v hcn => ?_, hNd, hIm.store_node c hW hk' hin (fun hj => ?_)⟩
+  rotate_left
+  · have e32 : (a + 32#64).toNat = a.toNat + 32 := by have := hat.top; bv_omega
+    have e40 : (a + 40#64).toNat = a.toNat + 40 := by have := hat.top; bv_omega
+    have e48 : (a + 48#64).toNat = a.toNat + 48 := by have := hat.top; bv_omega
+    rcases hslot with ⟨hk2, rfl⟩ | ⟨hk3, -⟩
+    · exact ⟨fun e => by have := congrArg BitVec.toNat e; omega,
+        fun e => by have := congrArg BitVec.toNat e; omega⟩
+    · subst hk3
+      rcases hj with hj | hj <;> exact absurd hj (by decide)
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hcn
   refine ⟨hr.frame _ ?_, h8, hi, hhi, hf⟩
   rintro rfl
@@ -131,12 +162,14 @@ theorem node_invalidate_world (hE : GuestEnv E) (parameters : List VarName) (bod
   obtain ⟨hin8, hs8⟩ := cache_cell (c := 8) (Or.inl rfl) hk0 hk3 htop
   obtain ⟨hin16, hs16⟩ := cache_cell (c := 16) (Or.inr (Or.inl rfl)) hk0 hk3 htop
   obtain ⟨hin24, hs24⟩ := cache_cell (c := 24) (Or.inr (Or.inr rfl)) hk0 hk3 htop
-  have W1 := hW.node_other 0#64 ha hk hin8 hs8
+  have e32 : (a + 32#64).toNat = a.toNat + 32 := by bv_omega
+  have e40 : (a + 40#64).toNat = a.toNat + 40 := by bv_omega
+  have W1 := hW.node_other 0#64 ha hk hin8 hs8 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
   have k1 : Rd (setCell s.memory (a + 8#64) 0#64) a k := hk.frame _ (NE (by omega))
-  have W2 := W1.node_other 0#64 ha k1 hin16 hs16
+  have W2 := W1.node_other 0#64 ha k1 hin16 hs16 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
   have k2 : Rd (setCell (setCell s.memory (a + 8#64) 0#64) (a + 16#64) 0#64) a k :=
     k1.frame _ (NE (by omega))
-  have W3 := W2.node_other 0#64 ha k2 hin24 hs24
+  have W3 := W2.node_other 0#64 ha k2 hin24 hs24 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
   have k3 := k2.frame (a' := a + 24#64) 0#64 (NE (by omega))
   refine WPs.seq_store hE (addr := a + 8#64) (w := 0#64) (eval_addc hE 8#64 hnd)
     (of_eval (eval_const _ _)) ?_
