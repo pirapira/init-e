@@ -210,15 +210,20 @@ set_option maxHeartbeats 4000000 in
 returned is a free node that is not on the free list. -/
 theorem htab_new_node_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
     {g g' : VarName → Option (PanValue Word)} {pv n : Word}
-    {m' : Word → Option (PanValue Word)}
+    {m' : Word → Option (PanValue Word)} (hp : g "heap_ptr" = some (.word pv)) (hpH : InHeap pv)
+    (hend : v.order.toNat + (v.nc.toNat + 1) * 8 ≤ pv.toNat)
     (hrel : NewNodeRel m t v kind rep det g pv m' g' n) :
     ∃ v' kind', HtabOKd m' t v' kind' rep det ∧ v'.kl = v.kl ∧ v'.st = v.st ∧ v'.cnt = v.cnt ∧
       v'.root = v.root ∧ 1 ≤ n.toNat ∧ n.toNat < v'.next.toNat ∧ kind' n.toNat = .free ∧
       (∃ fl, FreeChain m' v' kind' v'.free fl ∧ n.toNat ∉ fl) ∧
       (∀ i, i < v.next.toNat → i ≠ n.toNat → kind' i = kind i) ∧
-      v.next.toNat ≤ v'.next.toNat := by
-  rcases hrel with ⟨hf0, rfl, -, nf, hnf, rfl⟩ | ⟨hf0, rfl, m1, v1, ⟨hok1, e1, e2, e3, e4, e5, e6,
-    hle, -⟩, rfl⟩
+      v.next.toNat ≤ v'.next.toNat ∧
+      ((v'.keys = v.keys ∧ v'.nodes = v.nodes ∧ v'.order = v.order ∧ v'.nc = v.nc) ∨
+        pv.toNat ≤ v'.keys.toNat) ∧
+      ∃ pv' : Word, g' "heap_ptr" = some (.word pv') ∧ InHeap pv' ∧
+        v'.order.toNat + (v'.nc.toNat + 1) * 8 ≤ pv'.toNat ∧ pv.toNat ≤ pv'.toNat := by
+  rcases hrel with ⟨hf0, rfl, rfl, nf, hnf, rfl⟩ | ⟨hf0, rfl, m1, v1, ⟨hok1, e1, e2, e3, e4, e5, e6,
+    hle, hcase⟩, rfl⟩
   · -- popped the free list
     have hwf := hok.wf
     have hlay := hwf.layout
@@ -245,7 +250,8 @@ theorem htab_new_node_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
             (rd_hdrSet_node hlay (by have := (hmem i hi).2.2; omega) (by omega) (k := 72)
               (by omega) f w).mpr hw⟩)
       refine ⟨⟨v.kl, v.st, v.cp, v.nc, v.cnt, v.keys, v.nodes, v.order, v.root, v.next, f⟩, kind,
-        ?_, rfl, rfl, rfl, rfl, a, b, hki, ⟨rest, hchain, hnot⟩, fun _ _ _ => rfl, Nat.le_refl _⟩
+        ?_, rfl, rfl, rfl, rfl, a, b, hki, ⟨rest, hchain, hnot⟩, fun _ _ _ => rfl, Nat.le_refl _,
+        Or.inl ⟨rfl, rfl, rfl, rfl⟩, pv, hp, hpH, hend, Nat.le_refl _⟩
       refine hok.reshape (Nat.le_refl _) (fun _ _ => rfl) (fun i h1 h2 => absurd h2 (by omega))
         (Nat.le_refl _) hnl ⟨rest, hc⟩ hlay ?_ hok.keys8 hok.nodes8 hok.order8 ?_ ?_ ?_
       · exact ⟨hkl.frame _ (hne 0 (by omega) (by omega)), hst.frame _ (hne 8 (by omega) (by omega)),
@@ -291,7 +297,7 @@ theorem htab_new_node_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
             (by omega) _ w).mpr hw⟩)
     refine ⟨⟨v1.kl, v1.st, v1.cp, v1.nc, v1.cnt, v1.keys, v1.nodes, v1.order, v1.root,
         v.next + 1#64, v1.free⟩, (fun i => if i = v.next.toNat then NodeKind.free else kind i), ?_,
-      e1, e2, e3, e4, ?_, ?_, if_pos rfl, ⟨fl, hchain, ?_⟩, fun i _ hi => if_neg hi, ?_⟩
+      e1, e2, e3, e4, ?_, ?_, if_pos rfl, ⟨fl, hchain, ?_⟩, fun i _ hi => if_neg hi, ?_, ?_, ?_⟩
     · refine hok1.reshape (Nat.le_refl _) (fun i hi => if_neg (by rw [e5] at hi; omega))
         (fun i hi1 hi2 => by rw [e5] at hi1; rw [hn1] at hi2; exact if_pos (by omega))
         (by rw [e5, hn1]; omega) (by rw [hn1]; omega) ⟨fl, hfl⟩ hlay ?_ hok1.keys8 hok1.nodes8
@@ -319,5 +325,23 @@ theorem htab_new_node_ok {det : Nat → Prop} (hok : HtabOKd m t v kind rep det)
       omega
     · show v.next.toNat ≤ (v.next + 1#64).toNat
       omega
+    · rcases hcase with ⟨-, rfl, -⟩ | ⟨N, O, q, -, rfl, -⟩
+      · exact Or.inl ⟨rfl, rfl, rfl, rfl⟩
+      · exact Or.inr (Nat.le_refl _)
+    · rcases hcase with ⟨-, rfl, rfl⟩ | ⟨N, O, q, hR, rfl, rfl⟩
+      · exact ⟨pv, hp, hpH, hend, Nat.le_refl _⟩
+      · have h2 : (2#64 : Word).toNat = 2 := by decide
+        have hnc2 : (v.nc * 2#64).toNat = v.nc.toNat * 2 := by
+          rw [BitVec.toNat_mul, h2]
+          have := hok.wf.layout.2.2.1
+          exact Nat.mod_eq_of_lt (by omega)
+        refine ⟨q, by simp [updatePanValueMap], hR.inq, ?_, ?_⟩
+        · show O.toNat + ((v.nc * 2#64).toNat + 1) * 8 ≤ q.toNat
+          rw [hnc2]
+          exact hR.hq
+        · have := hR.hN
+          have := hR.hO
+          have := hR.hq
+          omega
 
 end InitECandidate.Solver.GuestBound
