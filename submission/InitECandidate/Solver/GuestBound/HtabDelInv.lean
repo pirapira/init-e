@@ -237,7 +237,7 @@ theorem del_ok_root (hok : HtabOK m t v kind rep) {Lw pos moved : Word}
         exact c3,
       (hN _ 0 _ (by omega) (by omega) (by omega) (fun hh => hcL hh.1) (by omega)).mpr c4⟩
   obtain ⟨hkl, hst, hcp, hcnt, hkeys, hnd, hord, hroot, hnext, hfree, hnc⟩ := hwf.hdr
-  refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, Or.inl rfl, ?free, ?fnext, ?int, ?leaf,
+  refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, Or.inl rfl, ?fchain, ?int, ?leaf,
     ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.nc_pos,
     hok.kl_st, hok.kl8, ?lkey⟩
   case hdr =>
@@ -252,28 +252,25 @@ theorem del_ok_root (hok : HtabOK m t v kind rep) {Lw pos moved : Word}
   case cnt =>
     show (v.cnt - 1#64).toNat ≤ v.nc.toNat
     omega
-  case free =>
-    exact Or.inr ⟨hL1, hL2, if_pos rfl⟩
-  case fnext =>
-    intro i hi1 hi2 hki
-    have hi2 : i < v.next.toNat := hi2
-    have hold : ∀ f : Word, (f = 0 ∨ (1 ≤ f.toNat ∧ f.toNat < v.next.toNat ∧
-        kind f.toNat = .free)) → (f = 0 ∨ (1 ≤ f.toNat ∧ f.toNat < v.next.toNat ∧
-        (if f.toNat = Lw.toNat then NodeKind.free else kind f.toNat) = .free)) := by
-      rintro f (h | ⟨a, b, c⟩)
-      · exact Or.inl h
-      · exact Or.inr ⟨a, b, hkfree _ c⟩
-    by_cases hiL : i = Lw.toNat
-    · subst hiL
-      exact ⟨v.free, hL0, hold _ hwf.free_ok⟩
-    · have hki' : kind i = .free := by rw [← hkindL _ hiL]; exact hki
-      obtain ⟨f, hf, hcond⟩ := hwf.free_next i hi1 hi2 hki'
-      have him : i ≠ moved'.toNat := by
+  case fchain =>
+    obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := hfl.kind_mem
+    refine ⟨Lw.toNat :: fl, rfl, hL1, hL2, if_pos rfl, ?_, v.free, hL0, ?_⟩
+    · intro hin
+      have := (hmem _ hin).1
+      rw [hLk] at this
+      cases this
+    · refine FreeChain.congr (v := v) (kind := kind)
+        (v' := ⟨v.kl, v.st, v.cp, v.nc, v.cnt - 1#64, v.keys, v.nodes, v.order, 0#64, v.next, Lw⟩)
+        (Nat.le_refl v.next.toNat) fl _ hfl ?_
+      intro i hi
+      obtain ⟨hk, i1, i2⟩ := hmem i hi
+      have hiL : i ≠ Lw.toNat := by
         intro h
-        rw [h, hmk] at hki'
-        cases hki'
-      exact ⟨f, (hN _ 0 _ (by omega) (by omega) (by omega) (fun hh => hiL hh.1)
-        (by omega)).mpr hf, hold _ hcond⟩
+        rw [h, hLk] at hk
+        cases hk
+      exact ⟨hkfree _ hk, fun w hw =>
+        (hN _ 0 _ (by omega) (by omega) (by omega) (fun hh => hiL hh.1) (by omega)).mpr hw⟩
   case int =>
     intro i hi1 hi2 hki
     have hi2 : i < v.next.toNat := hi2
@@ -802,7 +799,7 @@ theorem del_ok_splice (hok : HtabOK m t v kind rep) {Lw pos moved p g gl sb bP :
     intro hg0
     rw [hg0, h0] at e
     omega
-  refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, ?root, ?free, ?fnext, ?int, ?leaf,
+  refine ⟨⟨?hdr, hlay, hwf.next_pos, hwf.next_le, ?cnt, ?root, ?fchain, ?int, ?leaf,
     ?order⟩, ⟨?bits⟩, hok.keys8, hok.nodes8, hok.order8, hok.nc_pos,
     hok.kl_st, hok.kl8, ?lkey⟩
   case hdr =>
@@ -846,24 +843,44 @@ theorem del_ok_splice (hok : HtabOK m t v kind rep) {Lw pos moved p g gl sb bP :
             rw [hkO _ hRL hRP]
             exact r3,
           (hN0 _ _ (by omega) hRL hRP hRS).mpr r4⟩
-  case free =>
-    exact Or.inr ⟨hL1, hL2, if_pos (Or.inl rfl)⟩
-  case fnext =>
-    intro i hi1 hi2 hki
-    have hi2 : i < v.next.toNat := hi2
-    by_cases hiL : i = Lw.toNat
-    · subst hiL
-      exact ⟨p, hL0, Or.inr ⟨hP1, hP2, if_pos (Or.inr rfl)⟩⟩
-    by_cases hiP : i = p.toNat
-    · subst hiP
-      exact ⟨v.free, hP0, hold _ hwf.free_ok⟩
-    have hki' : kind i = .free := by rw [← hkO _ hiL hiP]; exact hki
-    obtain ⟨f, hf, hcond⟩ := hwf.free_next i hi1 hi2 hki'
-    have hiS : i ≠ sb.toNat := by
-      intro h
-      rw [h] at hki'
-      exact F.Sk hki'
-    exact ⟨f, (hN0 _ _ (by omega) hiL hiP hiS).mpr hf, hold _ hcond⟩
+  case fchain =>
+    obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := hfl.kind_mem
+    have hPnot : p.toNat ∉ fl := by
+      intro hin
+      have := (hmem _ hin).1
+      rw [F.Pk] at this
+      cases this
+    have hLnot : Lw.toNat ∉ fl := by
+      intro hin
+      have := (hmem _ hin).1
+      rw [hLk] at this
+      cases this
+    refine ⟨Lw.toNat :: p.toNat :: fl, rfl, hL1, hL2, if_pos (Or.inl rfl), ?_, p, hL0, rfl, hP1,
+      hP2, if_pos (Or.inr rfl), hPnot, v.free, hP0, ?_⟩
+    · intro hin
+      rcases List.mem_cons.mp hin with h | h
+      · exact hPL h.symm
+      · exact hLnot h
+    · refine FreeChain.congr (v := v) (kind := kind)
+        (v' := ⟨v.kl, v.st, v.cp, v.nc, v.cnt - 1#64, v.keys, v.nodes, v.order,
+          if g = 0#64 then sb else v.root, v.next, Lw⟩)
+        (Nat.le_refl v.next.toNat) fl _ hfl ?_
+      intro i hi
+      obtain ⟨hk, i1, i2⟩ := hmem i hi
+      have hiL : i ≠ Lw.toNat := by
+        intro h
+        rw [h, hLk] at hk
+        cases hk
+      have hiP : i ≠ p.toNat := by
+        intro h
+        rw [h, F.Pk] at hk
+        cases hk
+      have hiS : i ≠ sb.toNat := by
+        intro h
+        rw [h] at hk
+        exact F.Sk hk
+      exact ⟨hkfree _ hk, fun w hw => (hN0 _ _ (by omega) hiL hiP hiS).mpr hw⟩
   case int =>
     intro i hi1 hi2 hki
     have hi2 : i < v.next.toNat := hi2

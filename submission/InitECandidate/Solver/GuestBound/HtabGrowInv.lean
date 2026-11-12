@@ -46,7 +46,7 @@ theorem HtabOKd.transport {det : Nat → Prop} (hok : HtabOKd m t v kind rep det
       ChildOk m' ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩ kind i c := by
     rintro i c ⟨c1, c2, c3, c4⟩
     exact ⟨c1, c2, c3, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr c4⟩
-  refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, hwf.free_ok, ?_, ?_, ?_, ?_⟩, ?_, hK8, hN8, hO8,
+  refine ⟨⟨hhdr, hlay, hwf.next_pos, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, hK8, hN8, hO8,
     (by have := hok.nc_pos; show 1 ≤ nc'.toNat; omega), hok.kl_st, hok.kl8, ?_⟩
   · show v.next.toNat ≤ nc'.toNat + 1
     omega
@@ -56,10 +56,12 @@ theorem HtabOKd.transport {det : Nat → Prop} (hok : HtabOKd m t v kind rep det
     · exact Or.inl h
     · exact Or.inr ⟨r1, r2, r3, rd,
         (hN v.root.toNat 0 _ (by omega) (by omega) (by omega)).mpr r4⟩
-  · intro i hi1 hi2 hk
-    have hi2 : i < v.next.toNat := hi2
-    obtain ⟨f, hf, hc⟩ := hwf.free_next i hi1 hi2 hk
-    exact ⟨f, (hN _ 0 _ (by omega) (by omega) (by omega)).mpr hf, hc⟩
+  · obtain ⟨fl, hfl⟩ := hwf.free_chain
+    have hmem := hfl.kind_mem
+    exact ⟨fl, FreeChain.congr (v := v) (kind := kind)
+      (v' := ⟨v.kl, v.st, cp', nc', v.cnt, K, N, O, v.root, v.next, v.free⟩)
+      (Nat.le_refl v.next.toNat) fl _ hfl (fun i hi => ⟨(hmem i hi).1,
+      fun w hw => (hN _ 0 _ (by have := (hmem i hi).2.2; omega) (by omega) (by omega)).mpr hw⟩)⟩
   · intro i hi1 hi2 hk
     have hi2 : i < v.next.toNat := hi2
     obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hrest⟩ := hwf.internal_ok i hi1 hi2 hk

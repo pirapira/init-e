@@ -27,11 +27,7 @@ structure HtabWFd (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
   cnt_le : v.cnt.toNat ≤ v.nc.toNat
   root_ok : v.root = 0 ∨ (1 ≤ v.root.toNat ∧ v.root.toNat < v.next.toNat ∧
     kind v.root.toNat ≠ .free ∧ ¬ det v.root.toNat ∧ Rd m (nodeField v v.root.toNat 0) 0)
-  free_ok : v.free = 0 ∨ (1 ≤ v.free.toNat ∧ v.free.toNat < v.next.toNat ∧
-    kind v.free.toNat = .free)
-  free_next : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .free →
-    ∃ f : Word, Rd m (nodeField v i 0) f ∧
-      (f = 0 ∨ (1 ≤ f.toNat ∧ f.toNat < v.next.toNat ∧ kind f.toNat = .free))
+  free_chain : ∃ fl : List Nat, FreeChain m v kind v.free fl
   internal_ok : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .internal →
     ∃ p l r b : Word, Rd m (nodeField v i 0) p ∧ Rd m (nodeField v i 8) l ∧
       Rd m (nodeField v i 16) r ∧ Rd m (nodeField v i 24) b ∧ b ≠ v.kl * 8#64 ∧
@@ -79,8 +75,7 @@ theorem HtabOK.toDet (h : HtabOK m t v kind rep) : HtabOKd m t v kind rep (fun _
       next_le := h.wf.next_le
       cnt_le := h.wf.cnt_le
       root_ok := h.wf.root_ok.imp id (fun ⟨a, b, c, d⟩ => ⟨a, b, c, fun x => x, d⟩)
-      free_ok := h.wf.free_ok
-      free_next := h.wf.free_next
+      free_chain := h.wf.free_chain
       internal_ok := by
         intro i h1 h2 hk
         obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hpar, hcl, hcr, hlr⟩ := h.wf.internal_ok i h1 h2 hk
@@ -109,8 +104,7 @@ theorem HtabOKd.toOK (h : HtabOKd m t v kind rep (fun _ => False)) : HtabOK m t 
       next_le := h.wf.next_le
       cnt_le := h.wf.cnt_le
       root_ok := h.wf.root_ok.imp id (fun ⟨a, b, c, _, d⟩ => ⟨a, b, c, d⟩)
-      free_ok := h.wf.free_ok
-      free_next := h.wf.free_next
+      free_chain := h.wf.free_chain
       internal_ok := by
         intro i h1 h2 hk
         obtain ⟨p, l, r, b, hp, hl, hr, hb, hbne, hrest⟩ := h.wf.internal_ok i h1 h2 hk

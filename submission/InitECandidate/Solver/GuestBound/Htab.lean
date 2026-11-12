@@ -295,6 +295,36 @@ def ChildOk (m : Word → Option (PanValue Word)) (v : HtabV) (kind : Nat → No
   1 ≤ c.toNat ∧ c.toNat < v.next.toNat ∧ kind c.toNat ≠ .free ∧
     Rd m (nodeField v c.toNat 0) (BitVec.ofNat 64 i)
 
+/-- The free list: `fl` lists the free nodes from `head`, linked through field 0. -/
+def FreeChain (m : Word → Option (PanValue Word)) (v : HtabV) (kind : Nat → NodeKind) :
+    Word → List Nat → Prop
+  | head, [] => head = 0#64
+  | head, i :: rest => head.toNat = i ∧ 1 ≤ i ∧ i < v.next.toNat ∧ kind i = .free ∧ i ∉ rest ∧
+      ∃ f : Word, Rd m (nodeField v i 0) f ∧ FreeChain m v kind f rest
+
+theorem FreeChain.kind_mem {m : Word → Option (PanValue Word)} {v : HtabV}
+    {kind : Nat → NodeKind} : ∀ (fl : List Nat) (hd : Word), FreeChain m v kind hd fl →
+      ∀ i, i ∈ fl → kind i = .free ∧ 1 ≤ i ∧ i < v.next.toNat
+  | [], _, _, i, hi => by cases hi
+  | j :: rest, _, ⟨_, h2, h3, h4, _, f, _, hc⟩, i, hi => by
+      rcases List.mem_cons.mp hi with h | h
+      · subst h
+        exact ⟨h4, h2, h3⟩
+      · exact FreeChain.kind_mem rest f hc i h
+
+/-- A free list survives changes that keep its nodes free and their links readable. -/
+theorem FreeChain.congr {m m' : Word → Option (PanValue Word)} {v v' : HtabV}
+    {kind kind' : Nat → NodeKind} (hnext : v.next.toNat ≤ v'.next.toNat) :
+    ∀ (fl : List Nat) (hd : Word), FreeChain m v kind hd fl →
+      (∀ i, i ∈ fl → kind' i = .free ∧
+        ∀ w, Rd m (nodeField v i 0) w → Rd m' (nodeField v' i 0) w) →
+      FreeChain m' v' kind' hd fl
+  | [], _, h, _ => h
+  | j :: rest, _, ⟨h1, h2, h3, _, h5, f, hf, hc⟩, hall =>
+      ⟨h1, h2, Nat.lt_of_lt_of_le h3 hnext, (hall j List.mem_cons_self).1, h5, f,
+        (hall j List.mem_cons_self).2 f hf,
+        FreeChain.congr hnext rest f hc (fun i hi => hall i (List.mem_cons_of_mem _ hi))⟩
+
 /-- The table at `t` is well formed in memory `m`, with header fields `v` and
 node classification `kind`. -/
 structure HtabWF (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
@@ -307,13 +337,8 @@ structure HtabWF (m : Word → Option (PanValue Word)) (t : Word) (v : HtabV)
   /-- The root is absent or a live node without a parent. -/
   root_ok : v.root = 0 ∨ (1 ≤ v.root.toNat ∧ v.root.toNat < v.next.toNat ∧
     kind v.root.toNat ≠ .free ∧ Rd m (nodeField v v.root.toNat 0) 0)
-  /-- The free list head is absent or a free node. -/
-  free_ok : v.free = 0 ∨ (1 ≤ v.free.toNat ∧ v.free.toNat < v.next.toNat ∧
-    kind v.free.toNat = .free)
-  /-- A free node's parent field is the next free node. -/
-  free_next : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .free →
-    ∃ f : Word, Rd m (nodeField v i 0) f ∧
-      (f = 0 ∨ (1 ≤ f.toNat ∧ f.toNat < v.next.toNat ∧ kind f.toNat = .free))
+  /-- The free nodes on the free list. -/
+  free_chain : ∃ fl : List Nat, FreeChain m v kind v.free fl
   /-- An internal node: bit index below the key length, two distinct live children. -/
   internal_ok : ∀ i, 1 ≤ i → i < v.next.toNat → kind i = .internal →
     ∃ p l r b : Word, Rd m (nodeField v i 0) p ∧ Rd m (nodeField v i 8) l ∧
@@ -351,12 +376,7 @@ theorem htabWF_new (m : Word → Option (PanValue Word)) (t kl cp keys nodes ord
     have : (0#64).toNat = 0 := by decide
     omega
   root_ok := Or.inl rfl
-  free_ok := Or.inl rfl
-  free_next := by
-    intro i h1 h2
-    have : (1#64).toNat = 1 := by decide
-    simp only at h2
-    omega
+  free_chain := ⟨[], rfl⟩
   internal_ok := by intro i _ _ h; cases h
   leaf_ok := by intro i _ _ h; cases h
   order_ok := by

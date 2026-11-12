@@ -143,8 +143,15 @@ theorem htab_new_node_exec (hE : GuestEnv E) (parameters : List VarName) (body :
       refine WPs.ret (of_eval (w := v.next) (by lk [])) ?_
       refine ⟨_, a.globals, _, v.next, by simp only [restorePanValueFfiLocal]; rw [hf],
         Or.inr ⟨hf0, rfl, a.memory, v1, ⟨hok1, e1, e2, e3, e4, e5, e6, hle, hcase⟩, rfl⟩⟩
-  · obtain ⟨hf1, hf2, hfk⟩ := hwf.free_ok.resolve_left hf0
-    obtain ⟨nf, hnf, -⟩ := hwf.free_next _ hf1 hf2 hfk
+  · obtain ⟨hf1, hf2, nf, hnf⟩ : 1 ≤ v.free.toNat ∧ v.free.toNat < v.next.toNat ∧
+        ∃ nf, Rd s.memory (nodeField v v.free.toNat 0) nf := by
+      obtain ⟨fl, hfl⟩ := hwf.free_chain
+      cases fl with
+      | nil => exact absurd hfl hf0
+      | cons i rest =>
+        obtain ⟨hi, a, b, -, -, nf, hnf, -⟩ := hfl
+        subst hi
+        exact ⟨a, b, nf, hnf⟩
     refine WPs.seqG (fun _ => False) ?_ (fun _ hF => hF.elim)
     refine WPs.ite (w := 1#64) (fun y hy => by
       rw [eval_cmp_inv hE (of_eval (w := v.free) (by lk [])) (of_eval (eval_const _ _)) y hy]
