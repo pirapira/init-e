@@ -143,4 +143,129 @@ theorem op_dispatch_chain (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word �
     · cases hC
     · cases hC
 
+/-- What is left of the frame's assertion once `frame_exception`'s cells are taken out. -/
+def chainRest (W : ι → Assn) (i : ι) (F : Fr) (R : Assn) : Assn :=
+  RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ W i ⋆ R
+
+set_option maxHeartbeats 2000000 in
+/-- One dispatch on a chain: a trap; or the running frame continues (possibly
+after `frame_exception`); or a child frame was pushed. -/
+theorem rfDispatch_stepC (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word → Prop}
+    (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
+    (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
+    (s : St σ) (i : ι) (F : Fr) (R : Assn) (hok : F.Ok (D i))
+    (hno : F.X.gl.toNat + F.Z.sp.toNat < 2 ^ 64 - 1) (h : (F.full ⋆ W i ⋆ R).holds s) :
+    WPr E s rfDispatch (fun r => Trap r ∨
+      (∃ l g m fv' X' Y' Z', r = .normal l g m s.ffi ∧
+        FrameOk F.M F.K fv' X' ∧ MBufOk Y' fv' ∧
+        (FrameOp F.M F.K F.e fv' X' ⋆ MemExtra F.e Y' ⋆ ExcExtraM F.e Z' ⋆
+          chainRest W i F R).holds ⟨l, g, m, s.ffi⟩ ∧
+        (∀ x, x ≠ "err" → l x = s.locals x) ∧
+        X'.gl.toNat + Z'.sp.toNat ≤ F.X.gl.toNat + F.Z.sp.toNat ∧
+        ((Z'.fl = F.Z.fl ∧ (X'.gl.toNat + Z'.sp.toNat < F.X.gl.toNat + F.Z.sp.toNat ∨
+            Y'.run = 0#64)) ∨ Z'.fl = 1#64) ∧
+        (Y'.mem = F.Y.mem ∧ Z'.cc = F.Z.cc ∧ Z'.msg = F.Z.msg ∧ Z'.ee = F.Z.ee)) ∨
+      ∃ l g m, r = .normal l g m s.ffi ∧ (∀ x, x ≠ "err" → l x = s.locals x) ∧
+        PushD W D i F R ⟨l, g, m, s.ffi⟩) := by
+  unfold rfDispatch
+  refine WPr.callH (fun rb hrb => ?_)
+  obtain ⟨parameters, body, values, cl, hlk, -, -, hrun⟩ := hrb
+  have hd := op_dispatch_chain hE hrest hcall parameters body hlk ⟨cl, s.globals, s.memory, s.ffi⟩
+    i F R hok (by omega) (Assn.holds_congr rfl rfl h) rb hrun
+  cases rb with
+  | returned l g m ffi vs =>
+    rcases hd with he | hq
+    · cases he
+    rcases hq with ((ht | ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hC⟩) |
+      ⟨fv1, X1, Y1, n, hok1, hY1, hm1, hp1, hn, hh, _, _, _, hC⟩) | ⟨l0, g0, m0, hC, hpd⟩
+    · exact ht.elim
+    · cases hC
+    · injection hC with _ _ _ hf _
+      subst hf
+      intro l' g' hassign
+      obtain ⟨rfl, hl, -⟩ := assignResult_frame (M := []) (d := none) rfl hassign
+      have : l' = s.locals := funext (fun x => hl x (by simp))
+      subst this
+      have hle := hp1.1
+      refine Or.inr (Or.inl ⟨_, _, _, fv1, X1, Y1, F.Z, rfl, hok1, hY1,
+        Assn.holds_congr rfl rfl hh, fun _ _ => rfl, by omega, Or.inl ⟨rfl, ?_⟩, hm1, rfl, rfl,
+        rfl⟩)
+      rcases hn with hn | hn
+      · exact Or.inl (by omega)
+      · exact Or.inr hn
+    · injection hC with _ hg0 hm0 hf _
+      subst hg0 hm0 hf
+      intro l' g' hassign
+      obtain ⟨rfl, hl, -⟩ := assignResult_frame (M := []) (d := none) rfl hassign
+      have : l' = s.locals := funext (fun x => hl x (by simp))
+      subst this
+      exact Or.inr (Or.inr ⟨_, _, _, rfl, fun _ _ => rfl, hpd.congr rfl rfl⟩)
+  | raised l g m ffi e' v =>
+    rcases hd with he | hq
+    · cases he
+    rcases hq with ((ht | ⟨fv1, X1, Y1, n, hok1, hY1, hm1, hp1, hh, _, _, _, _, hC⟩) |
+      ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hC⟩) | ⟨_, _, _, hC, _⟩
+    · have ht' : e' = "TrapErr" := ht
+      subst ht'
+      exact ⟨fun _ => Or.inl rfl, fun h0 => absurd h0 (by decide)⟩
+    rotate_left
+    · cases hC
+    · cases hC
+    injection hC with _ _ _ hf hx hv
+    subst hf hx hv
+    refine ⟨fun h0 => absurd rfl h0, fun _ => ?_⟩
+    have hh' : (FrameOp F.M F.K F.e fv1 X1 ⋆ MemExtra F.e Y1 ⋆ ExcExtraM F.e F.Z ⋆
+        chainRest W i F R).holds (⟨updatePanValueMap s.locals "err" v, g, m, s.ffi⟩ : St σ) :=
+      Assn.holds_congr rfl rfl hh
+    have hE1 := holds_excM hh'
+    refine WPr.call_framed hE1 (Qc := fun r => Assn.ex fun err : Word =>
+        ⌜v = .word err ∧ ∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆
+        ExcW F.e (if err = 1#64 then X1.gl + F.Z.sp else 0#64) F.Z.r0 0#64 F.Z.msg F.Z.r0
+          (if err = 1#64 then X1.used else X1.used + (X1.gl + F.Z.sp)) err
+          (if err = 1#64 then Y1.rd else F.Z.ee) (if err = 1#64 then Y1.rl else 0#64) F.Z.cc
+          1#64 F.Z.ee) ?_ ?_ ?_ ?_
+    · intro parameters2 cbody values2 cl2 hlk2 hvalues2 hbind2
+      have hparams := (fun_of_index 579 hE.functions (by guest_decl_at 579) (by decide +kernel)
+        hlk2).2
+      have hvals : values2 = [v] := by
+        simp (config := { decide := true }) [evalArgs_cons, evalArgs_nil, eval_local,
+          update_lookup] at hvalues2
+        exact hvalues2.symm
+      subst hvals
+      rw [hparams] at hbind2
+      simp [bindPanValueParameters] at hbind2
+      exact frame_exception_framed hE parameters2 cbody hlk2 ⟨cl2, g, m, s.ffi⟩ F.e X1.gl F.Z.sgl
+        F.Z.sp F.Z.msg F.Z.r0 X1.used F.Z.code Y1.rd Y1.rl F.Z.cc F.Z.fl F.Z.ee v
+        (by rw [← hbind2]; simp (config := { decide := true }) [updatePanValueMap])
+    · intro l2 g2 m2 ffi2 vs2 hpost
+      obtain ⟨err, hpost⟩ := Assn.holdsV_ex.mp hpost
+      obtain ⟨⟨-, _, _, _, hC⟩, hk⟩ := Assn.holds_pure_elim hpost
+      injection hC with _ _ _ hf _
+      subst hf
+      have hle := hp1.1
+      refine Or.inr (Or.inl ⟨_, _, _, fv1, excX X1 F.Z err, excY Y1 F.Z err, excZ F.Z err,
+        rfl, ⟨hok1.ok, hok1.pb, hok1.bM, hok1.Kpv, hok1.Kst⟩,
+        ⟨hY1.mal, hY1.cal, hY1.l32, hY1.lc, hY1.top⟩, ?_, ?_, ?_, Or.inr rfl, hm1, rfl, rfl,
+        rfl⟩)
+      · exact holds_of_excM (X := excX X1 F.Z err) (Y := excY Y1 F.Z err) (Z := excZ F.Z err) hk
+      · intro x hx
+        simp [update_lookup, hx]
+      · show (if err = 1#64 then X1.gl + F.Z.sp else 0#64).toNat + (0#64 : Word).toNat ≤
+          F.X.gl.toNat + F.Z.sp.toNat
+        split
+        · have : (X1.gl + F.Z.sp).toNat = X1.gl.toNat + F.Z.sp.toNat := by bv_omega
+          simp
+          omega
+        · simp
+    · intro l2 g2 m2 ffi2 exc v2 hpost
+      obtain ⟨err, hpost⟩ := Assn.holdsV_ex.mp hpost
+      obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim hpost
+      cases hC
+    · intro l2 g2 m2 ffi2 ev hpost
+      obtain ⟨err, hpost⟩ := Assn.holdsV_ex.mp hpost
+      obtain ⟨⟨-, _, _, _, hC⟩, -⟩ := Assn.holds_pure_elim hpost
+      cases hC
+  | finalFfi l g m ffi ev => exact Or.inl trivial
+  | _ => trivial
+
 end InitECandidate.Solver.GuestBound
