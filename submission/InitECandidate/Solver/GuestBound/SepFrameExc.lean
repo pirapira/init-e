@@ -82,10 +82,11 @@ set_option maxHeartbeats 1000000 in
 /-- `frame_exception(err)`. -/
 theorem frame_exception_framed (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "frame_exception" E.functions = some (parameters, body))
-    (s : St σ) (e gl sgl sp msg r0 used code rd rl cc fl ee err : Word)
-    (herr : s.locals "err" = some (.word err)) :
+    (s : St σ) (e gl sgl sp msg r0 used code rd rl cc fl ee : Word) (v : PanValue Word)
+    (hv : s.locals "err" = some v) :
     WPFr E s body (ExcW e gl sgl sp msg r0 used code rd rl cc fl ee)
-      (fun r => ⌜∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆
+      (fun r => Assn.ex fun err : Word =>
+        ⌜v = .word err ∧ ∃ l g m, r = .returned l g m s.ffi [.word 0#64]⌝ ⋆
         ExcW e (if err = 1#64 then gl + sp else 0#64) r0 0#64 msg r0
           (if err = 1#64 then used else used + (gl + sp)) err
           (if err = 1#64 then rd else ee) (if err = 1#64 then rl else 0#64) cc 1#64 ee) := by
@@ -109,12 +110,19 @@ theorem frame_exception_framed (hE : GuestEnv E) (parameters : List VarName) (bo
   subst hf
   have h1 := Assn.holds_unfocus
     (ExcW_state e (gl + sp) r0 0#64 msg r0 used code rd rl cc fl ee) hk
-  refine WPr.seq (fun s' => ∃ g2 m2, s' = ⟨s.locals, g2, m2, s.ffi⟩ ∧
+  refine WPr.seq (fun s' => ∃ g2 m2 err, v = .word err ∧ s' = ⟨s.locals, g2, m2, s.ffi⟩ ∧
       (ExcW e (if err = 1#64 then gl + sp else 0#64) r0 0#64 msg r0
         (if err = 1#64 then used else used + (gl + sp)) err
         (if err = 1#64 then rd else ee) (if err = 1#64 then rl else 0#64) cc fl ee ⋆ R).holds s')
     (WPr.ite_both (fun w hw => ?_)) ?_
-  · have hcv := eval_cmp_inv hE (op := .notEqual) (of_eval (w := err) (by lk [herr]))
+  · obtain ⟨err, rfl⟩ : ∃ err : Word, v = .word err := by
+      rw [evalF_cmp hE.word, evalF_local] at hw
+      simp only [hv] at hw
+      cases v with
+      | word x => exact ⟨x, rfl⟩
+      | _ => simp at hw
+    have herr := hv
+    have hcv := eval_cmp_inv hE (op := .notEqual) (of_eval (w := err) (by lk [herr]))
       (of_eval (w := 1#64) (eval_const _ _)) _ hw
     simp only [PanValue.word.injEq] at hcv
     split
@@ -129,7 +137,7 @@ theorem frame_exception_framed (hE : GuestEnv E) (parameters : List VarName) (bo
       have hev : g "ev" = some (.word e) := Assn.glob_at h1u (by look)
       refine WPr.store_at hE h1u (addr := e + 160#64) (w := err)
         (of_eval (by ev [eval_global, hev])) (of_eval (by lk [herr])) (by step)
-        (fun m3 hm => ⟨_, m3, rfl, ?_⟩)
+        (fun m3 hm => ⟨_, m3, err, rfl, rfl, ?_⟩)
       simp only [e1, ↓reduceIte]
       rw [e1] at hm
       exact hm
@@ -162,15 +170,16 @@ theorem frame_exception_framed (hE : GuestEnv E) (parameters : List VarName) (bo
         (fun m4 h4 => ?_)
       refine WPr.store_at hE h4 (addr := e + 128#64) (w := 0#64)
         (of_eval (by ev [eval_global, hev])) (of_eval (eval_const _ _)) (by step)
-        (fun m5 h5 => ⟨_, m5, rfl, ?_⟩)
+        (fun m5 h5 => ⟨_, m5, err, rfl, rfl, ?_⟩)
       simp only [hne, ↓reduceIte]
       exact h5
-  rintro _ ⟨g2, m2, rfl, h3⟩
+  rintro _ ⟨g2, m2, err, rfl, rfl, h3⟩
   unfold ExcW at h3
   have hcc : g2 "cur_cont" = some (.word cc) := Assn.glob_at h3 (by look)
   refine WPr.seq_store_at hE h3 (addr := cc + 32#64) (w := 1#64)
     (of_eval (by ev [eval_global, hcc])) (of_eval (eval_const _ _)) (by step) (fun m6 h6 => ?_)
   exact WPr.ret (w := 0#64) (of_eval (eval_const _ _))
-    (Assn.holds_pure_intro ⟨_, _, _, rfl⟩ (Assn.holds_congr rfl rfl h6))
+    (Assn.holdsV_ex.mpr ⟨err, Assn.holds_pure_intro ⟨rfl, _, _, _, rfl⟩
+      (Assn.holds_congr rfl rfl h6)⟩)
 
 end InitECandidate.Solver.GuestBound
