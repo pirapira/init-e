@@ -1,4 +1,4 @@
-import InitECandidate.Solver.GuestBound.ParseG2
+import InitECandidate.Solver.GuestBound.PairingCheck
 import InitECandidate.Solver.GuestBound.HtabSet
 import InitECandidate.Solver.GuestBound.HtabDelAny
 import InitECandidate.Solver.GuestBound.HtabTruncate
@@ -49,3 +49,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms fq_to_mont_canon
 #print axioms bn254_parse_g1_bufs
 #print axioms bn254_parse_g2_bufs
+#print axioms call_cost_at
+#print axioms WPc.ite_both
+#print axioms pc_round
+#print axioms bn254_pairing_check_cost
