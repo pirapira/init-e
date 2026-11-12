@@ -180,4 +180,77 @@ theorem trunc_body (hE : GuestEnv E) {rep : KeyRep} {g : VarName → Option (Pan
   rw [cntOf_rd hcnt, cntOf_rd (hcnt' ▸ hok'.wf.hdr.2.2.2.1), hc1]
   omega
 
+theorem condCost_exp {I : St σ → Prop} (c : Exp Word) : CondCost E I c (expCost c) := by
+  intro s w k _ hcond
+  rw [cond_eq] at hcond
+  split at hcond
+  · simp only [Option.some.injEq, Prod.mk.injEq] at hcond
+    rw [← hcond.2, stepCost_eq]
+  · cases hcond
+
+theorem htab_truncate.body_cost (hE : GuestEnv E) : Costs E TBODY 5220428572859803110000 := by
+  have h : ∃ B, Costs E TBODY B ∧ B ≤ 5220428572859803110000 :=
+    ⟨_, by cost_derive [], by decide +kernel⟩
+  obtain ⟨B, hB, hle⟩ := h
+  exact hB.consequence (fun _ h => h) hle (fun _ h => h)
+
+theorem htab_truncate.ret_cost (hE : GuestEnv E) :
+    Costs E (Prog.return (Exp.const (BitVec.ofNat 64 0)) : Prog Word) 10 := by
+  have h : ∃ B, Costs E (Prog.return (Exp.const (BitVec.ofNat 64 0)) : Prog Word) B ∧ B ≤ 10 :=
+    ⟨_, by cost_derive [], by decide +kernel⟩
+  obtain ⟨B, hB, hle⟩ := h
+  exact hB.consequence (fun _ h => h) hle (fun _ h => h)
+
+set_option maxHeartbeats 2000000 in
+/-- Step bound of `htab_truncate(t, n)` on a table satisfying `HtabOK`. -/
+theorem htab_truncate_cost (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "htab_truncate" E.functions = some (parameters, body))
+    (fuel : Nat) (s : St σ) (r : Result σ) (n : Nat) (t : Word) (v : HtabV)
+    (kind : Nat → NodeKind) (rep : KeyRep) (ht : s.locals "t" = some (.word t))
+    (hok : HtabOK s.memory t v kind rep) (hrun : E.run fuel s body = some (r, n))
+    (hne : r.isError = false) : n ≤ 500000000000000000000000000000 := by
+  have hbody := (fun_of_index 140 hE.functions (by guest_decl_at 140) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at hrun
+  have hloop : Triple E (fun a => TruncI t rep s.globals s.ffi a ∧ cntOf a.memory t ≤ 92274688)
+      (.while TGUARD TBODY) ((92274688 + 1) * (expCost TGUARD + 5220428572859803110000 + 1))
+      (fun r => match r with
+        | .normal _ _ _ _ => True
+        | _ => True) := by
+    refine (Triple.while_exit (I := TruncI t rep s.globals s.ffi)
+      (μ := fun a => cntOf a.memory t) (Q := fun _ => True) 92274688 (condCost_exp _)
+      (fun _ _ _ => trivial) ?_).consequence (fun _ h => h) (Nat.le_refl _)
+      (fun r _ => by cases r <;> trivial)
+    intro k
+    refine Triple.of_costs (htab_truncate.body_cost hE) ?_
+    rintro fuel' a r' n' ⟨hI, hk, hct⟩ hrun' hne'
+    rcases trunc_body hE hI hct r' (Runs.of_run hrun') with hst | ⟨m', rfl, hI', hlt⟩
+    · cases r' with
+      | error l g m f => cases hne'
+      | raised l g m f ex val => trivial
+      | finalFfi l g m f ev => trivial
+      | _ => exact absurd hst (fun h => h)
+    · exact ⟨hI', by rw [← hk]; exact hlt⟩
+  have hall := Triple.dec (E := E) (P := fun a => a = s)
+    (P' := fun a => TruncI t rep s.globals s.ffi a ∧ cntOf a.memory t ≤ 92274688) "stride"
+    Shape.one (Exp.load Shape.one (Exp.op BinOp.add [Exp.var VarKind.local "t",
+      Exp.const (BitVec.ofNat 64 8)])) ?_
+    (Triple.seq (Mid := fun _ => True) (Q := fun _ => True) hloop (htab_truncate.ret_cost hE))
+  · have hn := (hall fuel s r n rfl hrun hne).1
+    rw [stepCost_eq] at hn
+    refine Nat.le_trans hn ?_
+    decide +kernel
+  · rintro a val rfl hval -
+    have hwf := hok.wf
+    obtain ⟨-, hst, -, hcnt, -⟩ := hwf.hdr
+    have := eval_load_rd hE (eval_addc hE 8#64 ht) hst val hval
+    subst this
+    refine ⟨⟨rfl, rfl, by lk [ht], v, kind, hok, by lk []⟩, ?_⟩
+    show cntOf a.memory t ≤ 92274688
+    rw [cntOf_rd hcnt]
+    have := hwf.cnt_le
+    obtain ⟨-, -, h3, h4⟩ := hwf.layout
+    omega
+
 end InitECandidate.Solver.GuestBound
