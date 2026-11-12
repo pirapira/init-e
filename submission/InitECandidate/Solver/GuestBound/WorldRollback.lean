@@ -49,7 +49,7 @@ theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Wor
       (∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = s.memory a) →
       Q (.normal s.locals s.globals m' s.ffi)) :
     WPs E s (.call (some (none, none)) "htab_truncate" [e1, e2]) Q := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT⟩ := hW
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT⟩ := hW
   obtain ⟨kl0, hD0⟩ := hD
   obtain ⟨v, hTt, -⟩ := hDT t kl0 hD0
   have hat := hHW.tabs.at_ t v hTt
@@ -87,7 +87,7 @@ theorem WPs.call_truncate_world (hE : GuestEnv E) {e1 e2 : Exp Word} {t nv : Wor
         unfold Rd at hr ⊢
         rw [hs.frame x h8 (fun hfoot => ?_) (by have := hf.hi_; omega)]
         · exact hr
-        · rcases hf.tab t v hs.hT x hfoot with h1 | h1 <;> omega⟩ hs.out
+        · rcases hf.tab t v hs.hT x hfoot with h1 | h1 <;> omega, hNT⟩ hs.out
 
 set_option maxHeartbeats 2000000 in
 /-- `rollback_child_access(child)` for a frame record outside the heap whose

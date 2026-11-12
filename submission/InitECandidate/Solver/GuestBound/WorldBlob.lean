@@ -25,7 +25,7 @@ theorem WorldTJ.alloc {pv pv1 : Word} (h : WorldTJ Rg g m)
     (hpH1 : InHeap pv1) (hle : pv.toNat ≤ pv1.toNat)
     (hg : ∀ x, x ≠ "heap_ptr" → g' x = g x) :
     WorldTJ { Rg with B := fun lo hi => Rg.B lo hi ∨ (lo = pv ∧ hi = pv1) } g' m := by
-  obtain ⟨pv0, T, N, J, C, n, hp0, hpH, hJg, hCg, hng, hW, hD, hB, hCn⟩ := h
+  obtain ⟨pv0, T, N, J, C, n, hp0, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
   have e : pv0 = pv := by
     rw [hp] at hp0
     simpa using hp0.symm
@@ -34,7 +34,7 @@ theorem WorldTJ.alloc {pv pv1 : Word} (h : WorldTJ Rg g m)
   have hJhi := hW.jrn.hi
   refine ⟨pv1, T, N, J, C, n, hp1, hpH1, by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
-    hW.mono hle hpH1.1, hD, fun lo hi hb => ?_, fun x w hc => ?_⟩
+    hW.mono hle hpH1.1, hD, fun lo hi hb => ?_, fun x w hc => ?_, hNd⟩
   · rcases hb with hb | ⟨rfl, rfl⟩
     · exact (hB lo hi hb).mono hle
     · exact FreeOK.fresh hW (Nat.le_refl _) (Nat.le_refl _) (by omega)
@@ -48,11 +48,11 @@ theorem WorldTJ.write_free {lo hi : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
     (hout : ∀ a : Word, (a.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ a.toNat) → m' a = m a)
     (hcn : ∀ x w, Rg.Cn x w → ¬ (lo.toNat ≤ x.toNat ∧ x.toNat < hi.toNat)) :
     WorldTJ Rg g m' := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn⟩ := h
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
   have hpE := hpH.1
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng,
     hW.change_free (hB lo hi hb) (fun a h8 hn hlt => hm a h8 hn (by omega)) hout, hD, hB,
-    fun x w hc => ?_⟩
+    fun x w hc => ?_, hNd⟩
   obtain ⟨hr, h8, hi', hhi', hf⟩ := hCn x w hc
   refine ⟨?_, h8, hi', hhi', hf⟩
   unfold Rd at hr ⊢
@@ -66,14 +66,14 @@ theorem WorldTJ.release {pv : Word} (h : WorldTJ Rg g m)
     (hg : ∀ x, x ≠ "heap_ptr" → g' x = g x)
     (hm : ∀ a : Word, a.toNat % 8 = 0 → HBASE ≤ a.toNat → a.toNat < pv.toNat → m' a = m a) :
     WorldTJ Rg g' m' := by
-  obtain ⟨pv0, T, N, J, C, n, hp0, hpH, hJg, hCg, hng, hW, hD, hB, hCn⟩ := h
+  obtain ⟨pv0, T, N, J, C, n, hp0, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd⟩ := h
   have e : pv0 = pv := by
     rw [hp] at hp0
     simpa using hp0.symm
   subst e
   refine ⟨pv0, T, N, J, C, n, hp', hpH, by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng, hW.frame hm, hD,
-    hB, fun x w hc => ?_⟩
+    hB, fun x w hc => ?_, hNd⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w hc
   refine ⟨?_, h8, hi, hhi, hf⟩
   unfold Rd at hr ⊢
@@ -82,15 +82,17 @@ theorem WorldTJ.release {pv : Word} (h : WorldTJ Rg g m)
 
 /-- A smaller registry. -/
 theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t kl → Rg.D t kl)
-    (hB : ∀ lo hi, Rg'.B lo hi → Rg.B lo hi) (hC : ∀ x w, Rg'.Cn x w → Rg.Cn x w) :
+    (hB : ∀ lo hi, Rg'.B lo hi → Rg.B lo hi) (hC : ∀ x w, Rg'.Cn x w → Rg.Cn x w)
+    (hN : ∀ a, Rg'.Nd a → Rg.Nd a) :
     WorldTJ Rg' g m := by
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hDT, hBT, hCT⟩ := h
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hDT, hBT, hCT, hNT⟩ := h
   exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, fun t kl ht => hDT t kl (hD t kl ht),
-    fun lo hi hb => hBT lo hi (hB lo hi hb), fun x w hc => hCT x w (hC x w hc)⟩
+    fun lo hi hb => hBT lo hi (hB lo hi hb), fun x w hc => hCT x w (hC x w hc),
+    fun a ha => hNT a (hN a ha)⟩
 
 /-- A protected cell can be read. -/
 theorem WorldTJ.cell {x w : Word} (h : WorldTJ Rg g m) (hc : Rg.Cn x w) : Rd m x w := by
-  obtain ⟨pv, T, N, J, C, n, -, -, -, -, -, -, -, -, hCT⟩ := h
+  obtain ⟨pv, T, N, J, C, n, -, -, -, -, -, -, -, -, hCT, -⟩ := h
   exact (hCT x w hc).1
 
 end InitECandidate.Solver.GuestBound

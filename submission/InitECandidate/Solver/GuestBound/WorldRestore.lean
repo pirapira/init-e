@@ -17,11 +17,13 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 /-- What the rest of the proof may rely on about the heap: `D t kl` tables
 known to be live, with their key length (frames name their tables through it), `B` ranges known to
 be free blocks (buffers), `Cn` cells known to hold a given word inside a free
-block (fields of container records such as `ts`). -/
+block (fields of container records such as `ts`), `Nd` addresses known to be
+trie nodes. -/
 structure Reg where
   D : Word → Word → Prop
   B : Word → Word → Prop
   Cn : Word → Word → Prop
+  Nd : Word → Prop
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
@@ -31,8 +33,9 @@ def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
     g "journal_cap" = some (.word C) ∧ g "journal_n" = some (.word n) ∧
     HeapW m pv T N J C n ∧ (∀ t kl, Rg.D t kl → ∃ v, T t = some v ∧ v.kl = kl) ∧
     (∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi) ∧
-    ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
-      ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi
+    (∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
+      ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi) ∧
+    ∀ a, Rg.Nd a → ∃ k, N a = some k
 
 /-- A comparison that evaluated to a word: both sides are words. -/
 theorem cmp_word_inv (hE : GuestEnv E) {op : Cmp} {a b : Exp Word} {w : Word}
@@ -157,12 +160,12 @@ theorem worldTJ_step {Rg : Reg}
     (hB : ∀ lo hi, Rg.B lo hi → FreeOK pv T N J C lo hi)
     (hCn : ∀ x w, Rg.Cn x w → Rd m x w ∧ x.toNat % 8 = 0 ∧
       ∃ hi : Word, hi.toNat = x.toNat + 8 ∧ FreeOK pv T N J C x hi)
-    (hn : n'.toNat ≤ n.toNat)
+    (hNd : ∀ a, Rg.Nd a → ∃ k, N a = some k) (hn : n'.toNat ≤ n.toNat)
     (hs : TabStep m pv T t v m' pv' v') : WorldTJ Rg g' m' := by
   refine ⟨pv', stepT T t v', N, J, C, n', hp', hpH', by rw [hg _ (by decide)]; exact hJg,
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
     hW.tab_step hs hn hpH'.1, stepT_dom hD hs.hT hs.kl, fun lo hi h => (hB lo hi h).tab_step hs,
-    fun x w h => ?_⟩
+    fun x w h => ?_, hNd⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn x w h
   refine ⟨?_, h8, hi, hhi, hf.tab_step hs⟩
   unfold Rd at hr ⊢
@@ -198,8 +201,8 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
   · rintro a ⟨hf, hWa, hga, hma⟩
     refine WPs.ret (of_eval (eval_const _ _)) ?_
     exact ⟨_, _, _, by rw [hf], hWa, hga, hma⟩
-  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB, hCn⟩, hga, hma⟩ hct
-  dsimp only at hf hp hJg hCg hng hHW hD hB hCn hga hma
+  rintro ⟨la, ga, ma, fa⟩ ⟨hf, ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hD, hB, hCn, hNd⟩, hga, hma⟩ hct
+  dsimp only at hf hp hJg hCg hng hHW hD hB hCn hNd hga hma
   have hT := hHW.tabs
   have hJ := hHW.jrn
   subst hf
@@ -280,10 +283,10 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
       subst g m ffi
       simp only [restorePanValueFfiLocal]
       rcases hcase with rfl | ⟨Lw, hL, hLk, hrel⟩
-      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB, hCn⟩,
+      · exact ⟨rfl, ⟨pv, T, N, J, C, n - 1#64, g1p, hpH, g1J, g1C, g1n, hHW.shrink hnle, hD, hB, hCn, hNd⟩,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2), hma⟩
       · obtain ⟨v', hs⟩ := TabStep.of_del hT hT0 hok hL hLk hrel
-        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hCn hnle hs,
+        exact ⟨rfl, worldTJ_step g1p hpH (fun _ _ => rfl) g1J g1C g1n hHW hD hB hCn hNd hnle hs,
           fun x h1 h2 => (g1o x h2).trans (hga x h1 h2),
           fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
   · have hwz : evalPanCmp .notEqual fl (0#64 : Word) = 1#64 := by simp [evalPanCmp, hfl]
@@ -331,7 +334,7 @@ theorem state_restore_world (hE : GuestEnv E) (parameters : List VarName) (body 
         (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
           SetPost ma t0 pv v0 s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
       simp only [restorePanValueFfiLocal]
-      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hCn hnle hs,
+      exact ⟨rfl, worldTJ_step hp' hpH' hgl g1J g1C g1n hHW hD hB hCn hNd hnle hs,
         fun x h1 h2 => (hgl x h1).trans ((g1o x h2).trans (hga x h1 h2)),
         fun addr ha => (hs.out addr ha).trans (hma addr ha)⟩
 

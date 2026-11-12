@@ -41,7 +41,7 @@ theorem WPr.decCall_alloc_world (hE : GuestEnv E) {x : VarName} {e : Exp Word}
         (fun r' => Q (restorePanValueFfiLocal x (s.locals x) r'))) :
     WPr E s (.decCall x .one "alloc" [e] body) Q := by
   have hW : WorldTJ Rg s.globals s.memory := Assn.region_elim h
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT⟩ := id hW
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT⟩ := id hW
   have hbase : HBASE ≤ pv.toNat := by
     have := hHW.jrn.lo
     have := hHW.jrn.hi

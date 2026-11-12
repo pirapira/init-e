@@ -142,7 +142,7 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     WorldTJ Rg g' m' ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
-  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT⟩ := hW
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT⟩ := hW
   obtain ⟨v, hTt, hvkl⟩ := hDT t kl hD
   subst kl
   have hat := hHW.tabs.at_ t v hTt
@@ -337,7 +337,7 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     obtain ⟨pv', v'', hp', hpH', hs⟩ := TabStep.of_set hW2.tabs hTt hqH
       (⟨_, _, _, v', kind', rep', rfl, rest⟩ :
         SetPost m2 t qv v s.ffi (.returned l' g' m' s.ffi [.word 0#64]))
-    refine ⟨_, g', m', rfl, worldTJ_step hp' hpH' hgl g5J g5C g5n hW2 hDT hB2 hC2
+    refine ⟨_, g', m', rfl, worldTJ_step hp' hpH' hgl g5J g5C g5n hW2 hDT hB2 hC2 hNT
       (Nat.le_refl _) hs, fun x h1 h2 => (hgl x h1).trans (g5o x h1 h2), fun addr ha => ?_⟩
     rw [hs.out addr ha, keep2 addr (by unfold HBASE at ha hJlo; omega),
       hm1 addr (by have hlo := hat.lo; unfold HBASE at ha hlo; omega)]
