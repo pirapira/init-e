@@ -25,6 +25,7 @@ structure GuestEnv {σ : Type} (E : Env σ) : Prop where
   word : WordEnv E
   mem : MemEnv E
   prim : PrimEnv E
+  bytes : E.bytesInWord = 8#64
 
 variable {σ : Type} {E : Env σ}
 

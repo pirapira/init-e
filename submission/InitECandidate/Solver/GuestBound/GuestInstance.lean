@@ -100,6 +100,8 @@ theorem guest_guestEnv (state : PanValueProgramState Word)
   word := guest_wordEnv state
   mem := guest_memEnv state
   prim := ⟨fun _ _ _ => rfl⟩
+  bytes := (layout_declarations Guest.guestInitialState state Guest.Software.guestAst
+    (some Guest.guestMemoryAccess) hdecl).1
 
 /-- A bound on `main` in every guest environment bounds every stepped run of
 the guest that does not end in `.error`. -/

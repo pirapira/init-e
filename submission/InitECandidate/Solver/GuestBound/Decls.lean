@@ -115,6 +115,62 @@ theorem functionsFrom_declarations (state state' : PanValueProgramState Word)
     intro f parameters body hmem
     simp [hempty] at hmem
 
+/-- Evaluating declarations keeps the word size and the memory. -/
+theorem layout_withStructs (structs : StructContext)
+    (memoryAccess : Option (PanValueMemoryAccess Word)) :
+    (declarations : List (Decl Word)) → (state state' : PanValueProgramState Word) →
+    evalPanValueDeclarationsWithStructs structs state declarations
+      (memoryAccess := memoryAccess) = some state' →
+    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory
+  | [], state, state', h => by
+      simp only [evalPanValueDeclarationsWithStructs, Option.some.injEq] at h
+      subst h
+      exact ⟨rfl, rfl⟩
+  | .name _ _ :: rest, state, state', h => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      exact layout_withStructs structs memoryAccess rest state state' h
+  | .decl shape name expression :: rest, state, state', h => by
+      simp only [evalPanValueDeclarationsWithStructs, Option.bind_eq_bind] at h
+      cases hv : evalPanValueExp structs (fun _ => none) state.globals state.memory
+          state.baseAddress state.topAddress state.bytesInWord expression
+          (memoryAccess := memoryAccess) with
+      | none => rw [hv] at h; simp at h
+      | some value =>
+        rw [hv] at h
+        simp only [Option.bind_some] at h
+        split at h
+        · have := layout_withStructs structs memoryAccess rest _ state' h
+          exact this
+        · simp at h
+  | .function declaration :: rest, state, state', h => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      split at h
+      · have := layout_withStructs structs memoryAccess rest _ state' h
+        exact this
+      · simp at h
+  | .exnDecl exception shape :: rest, state, state', h => by
+      simp only [evalPanValueDeclarationsWithStructs] at h
+      split at h
+      · simp at h
+      · split at h
+        · have := layout_withStructs structs memoryAccess rest _ state' h
+          exact this
+        · simp at h
+
+theorem layout_declarations (state state' : PanValueProgramState Word)
+    (declarations : List (Decl Word)) (memoryAccess : Option (PanValueMemoryAccess Word))
+    (h : evalPanValueDeclarations state declarations (memoryAccess := memoryAccess) =
+      some state') :
+    state'.bytesInWord = state.bytesInWord ∧ state'.memory = state.memory := by
+  simp only [evalPanValueDeclarations, Option.bind_eq_bind] at h
+  cases hs : collectPanValueStructs declarations state.structs with
+  | none => rw [hs] at h; simp at h
+  | some structs =>
+    rw [hs] at h
+    simp only [Option.bind_some] at h
+    have := layout_withStructs structs memoryAccess declarations _ state' h
+    exact this
+
 /-- No function declaration other than the one at position `i` is named `f`
 (`j` is the position of the head of the list). -/
 def uniqueAt (f : FunName) (i : Nat) : List (Decl Word) → Nat → Bool
