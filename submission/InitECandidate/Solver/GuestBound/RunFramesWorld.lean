@@ -18,6 +18,9 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ}
 
+/-- What frames may know about the world with registry `Rg`. -/
+def Reg.info (Rg : Reg) : WInfo := ⟨Rg.live, Rg.B⟩
+
 /-- `run_frames` from a chain of frames over the world `WorldA Rg`, for a
 registry `Rg` that may change from step to step. Assumed: the handlers not yet
 proved (`hrest` for those that stay in their frame, `hcall` for the six that
@@ -25,15 +28,15 @@ may push a frame), the step costs of the two blocks, and the `finish_child`
 branch. -/
 theorem run_frames_bound_A (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
-    (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E WorldA Reg.live f) (BD BF : Nat)
+    (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E WorldA Reg.info f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
-    (hC : ChildSpec E WorldA Reg.live)
+    (hC : ChildSpec E WorldA Reg.info)
     (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "run_frames" E.functions = some (parameters, body))
-    (s : St σ) (k : Nat) (hI : chainInv WorldA Reg.live k s.globals s.memory) (fuel : Nat)
+    (s : St σ) (k : Nat) (hI : chainInv WorldA Reg.info k s.globals s.memory) (fuel : Nat)
     (r : Result σ) (n : Nat) (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) :
     n ≤ (k + 1 + 1) * (expCost rfCond + (BD + BF + 200) + 1) + 10 :=
-  run_frames_bound_chainC WorldA Reg.live hE hrest hcall BD BF costD costF
+  run_frames_bound_chainC WorldA Reg.info hE hrest hcall BD BF costD costF
     (fun a n hI => finish_chain hE (restore_spec hE) hC a n hI) parameters body hlookup s k hI
     fuel r n hrun hne
 

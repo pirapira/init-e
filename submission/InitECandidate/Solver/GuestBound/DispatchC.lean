@@ -23,13 +23,13 @@ def callOps : List FunName :=
   ["op_create", "op_create2", "op_call", "op_callcode", "op_delegatecall", "op_staticcall"]
 
 /-- A child frame was pushed on `F`. -/
-def PushD (W : ι → Assn) (D : ι → Word → Prop) (i : ι) (F : Fr) (R : Assn) (st : St σ) : Prop :=
+def PushD (W : ι → Assn) (D : ι → WInfo) (i : ι) (F : Fr) (R : Assn) (st : St σ) : Prop :=
   ∃ (i' : ι) (F' c : Fr), F'.M = F.M ∧ F'.K = F.K ∧ F'.e = F.e ∧ F'.C = F.C ∧ F'.A = F.A ∧
     F'.Y.mem = F.Y.mem ∧ F'.Z.cc = F.Z.cc ∧ F'.Z.msg = F.Z.msg ∧ F'.Z.ee = F.Z.ee ∧
-    F'.Ok (D i') ∧ c.Ok (D i') ∧ Link c F' ∧ (∀ t, D i t → D i' t) ∧
+    F'.Ok (D i') ∧ c.Ok (D i') ∧ Link c F' ∧ (D i).le (D i') ∧
     c.gas + F'.gas + 1 ≤ F.gas ∧ (c.full ⋆ F'.susp ⋆ W i' ⋆ R).holds st
 
-theorem PushD.congr {W : ι → Assn} {D : ι → Word → Prop} {i : ι} {F : Fr} {R : Assn}
+theorem PushD.congr {W : ι → Assn} {D : ι → WInfo} {i : ι} {F : Fr} {R : Assn}
     {st st' : St σ} (h : PushD W D i F R st) (hg : st'.globals = st.globals)
     (hm : st'.memory = st.memory) : PushD W D i F R st' := by
   obtain ⟨i', F', c, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, hh⟩ := h
@@ -38,16 +38,16 @@ theorem PushD.congr {W : ι → Assn} {D : ι → Word → Prop} {i : ι} {F : F
 
 /-- What the rest of the running frame's assertion is, seen from a handler. -/
 def frameRest (W : ι → Assn) (i : ι) (F : Fr) (R : Assn) : Assn :=
-  ExcExtraM F.e F.Z ⋆ RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ W i ⋆ R
+  ExcExtraM F.e F.Z ⋆ RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ RetCells F.e F.T ⋆ W i ⋆ R
 
 /-- The outcome of a handler on a chain: it stayed in its frame, or it pushed a child. -/
-def HandlerQC (W : ι → Assn) (D : ι → Word → Prop) (i : ι) (F : Fr) (R : Assn)
+def HandlerQC (W : ι → Assn) (D : ι → WInfo) (i : ι) (F : Fr) (R : Assn)
     (ffi : FfiState σ) (r : Result σ) : Prop :=
   HandlerQM F.M F.K F.e F.Y.mem (frameRest W i F R) ffi F.X r ∨
     ∃ l g m, r = .returned l g m ffi [.word 0#64] ∧ PushD W D i F R ⟨l, g, m, ffi⟩
 
 /-- A handler that may push a child frame. -/
-def HandlerSpecPush (E : Env σ) (W : ι → Assn) (D : ι → Word → Prop) (f : FunName) : Prop :=
+def HandlerSpecPush (E : Env σ) (W : ι → Assn) (D : ι → WInfo) (f : FunName) : Prop :=
   ∀ parameters body, lookupPanFunction f E.functions = some (parameters, body) →
     ∀ (s : St σ) (i : ι) (F : Fr) (R : Assn), F.Ok (D i) → F.X.gl.toNat < 2 ^ 64 - 1 →
       (F.full ⋆ W i ⋆ R).holds s → WPr E s body (HandlerQC W D i F R s.ffi)
@@ -59,7 +59,7 @@ theorem holds_frameRest {W : ι → Assn} {i : ι} {F : Fr} {R : Assn} {s : St �
   Assn.holds_perm h (by unfold Fr.full frameRest; ac_rfl)
 
 /-- A leaf of the dispatcher for a handler that may push a frame. -/
-theorem handler_leafC {W : ι → Assn} {D : ι → Word → Prop} {f : FunName}
+theorem handler_leafC {W : ι → Assn} {D : ι → WInfo} {f : FunName}
     (hf : HandlerSpecPush E W D f) (args : List (Exp Word)) (s : St σ) (i : ι) (F : Fr)
     (R : Assn) (hok : F.Ok (D i)) (hgl : F.X.gl.toNat < 2 ^ 64 - 1)
     (h : (F.full ⋆ W i ⋆ R).holds s) :
@@ -104,7 +104,7 @@ theorem handler_leafC {W : ι → Assn} {D : ι → Word → Prop} {f : FunName}
     · exact Or.inr ⟨_, _, _, rfl, hpd.congr rfl rfl⟩
 
 /-- The dispatcher on a chain. -/
-theorem op_dispatch_chain (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word → Prop}
+theorem op_dispatch_chain (hE : GuestEnv E) {W : ι → Assn} {D : ι → WInfo}
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
     (parameters : List VarName) (body : Prog Word)
@@ -145,12 +145,12 @@ theorem op_dispatch_chain (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word �
 
 /-- What is left of the frame's assertion once `frame_exception`'s cells are taken out. -/
 def chainRest (W : ι → Assn) (i : ι) (F : Fr) (R : Assn) : Assn :=
-  RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ W i ⋆ R
+  RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ RetCells F.e F.T ⋆ W i ⋆ R
 
 set_option maxHeartbeats 2000000 in
 /-- One dispatch on a chain: a trap; or the running frame continues (possibly
 after `frame_exception`); or a child frame was pushed. -/
-theorem rfDispatch_stepC (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word → Prop}
+theorem rfDispatch_stepC (hE : GuestEnv E) {W : ι → Assn} {D : ι → WInfo}
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
     (s : St σ) (i : ι) (F : Fr) (R : Assn) (hok : F.Ok (D i))
@@ -268,11 +268,13 @@ theorem rfDispatch_stepC (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word �
   | finalFfi l g m ffi ev => exact Or.inl trivial
   | _ => trivial
 
-theorem Fr.Ok.mono {D D' : Word → Prop} {F : Fr} (h : F.Ok D) (hD : ∀ t, D t → D' t) :
-    F.Ok D' :=
-  ⟨h.ok, h.buf, hD _ h.acc.1, hD _ h.acc.2⟩
+theorem Fr.Ok.mono {D D' : WInfo} {F : Fr} (h : F.Ok D) (hD : D.le D') : F.Ok D' := by
+  refine ⟨h.ok, h.buf, ⟨hD.1 _ h.acc.1, hD.1 _ h.acc.2⟩, ?_⟩
+  rcases h.ret with h0 | ⟨lo, hi, hf, h1, h2⟩
+  · exact Or.inl h0
+  · exact Or.inr ⟨lo, hi, hD.2 lo hi hf, h1, h2⟩
 
-theorem ChainOk.mono {D D' : Word → Prop} (hD : ∀ t, D t → D' t) :
+theorem ChainOk.mono {D D' : WInfo} (hD : D.le D') :
     ∀ {F : Fr} {ps : List Fr}, ChainOk D F ps → ChainOk D' F ps
   | _, [], h => ⟨h.1.mono hD, h.2⟩
   | _, _ :: _, h => ⟨h.1.mono hD, h.2.1, ChainOk.mono hD h.2.2⟩
@@ -285,7 +287,7 @@ theorem Fr.mu_le (F : Fr) : F.mu ≤ 4 * F.gas + 3 := by
 
 /-- The loop interface on a chain, with handlers that may push frames; the
 end-of-frame block is assumed. -/
-noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : GuestEnv E)
+noncomputable def rfChainC (W : ι → Assn) (D : ι → WInfo) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
     (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)
@@ -312,7 +314,8 @@ noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : Gu
       exact hh
     have hF : ∀ s' : St σ, s'.globals = a.globals → s'.memory = a.memory →
         (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆ ExcExtraM F.e F.Z ⋆
-          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ suspA ps ⋆ W i ⋆ R)).holds s' := by
+          (RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ RetCells F.e F.T ⋆ suspA ps ⋆ W i ⋆
+            R)).holds s' := by
       intro s' hg hm
       exact Assn.holds_congr hg hm (Assn.holds_perm h0 (by unfold Fr.full; ac_rfl))
     have hfl : F.Z.fl = 0#64 := rfC1_flagM hE (hF ⟨l1, a.globals, a.memory, a.ffi⟩ rfl rfl) hpre1
@@ -330,7 +333,7 @@ noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : Gu
     rcases hr with ht | ⟨l, g, m, fv', X', Y', Z', rfl, hok', hY', hh', hl, hle, hcase,
       hmem, hcc, hmsg, hee⟩ | ⟨l, g, m, rfl, hl, hpd⟩
     · exact Or.inl ht.stopped
-    · obtain ⟨F', hF'⟩ : ∃ F' : Fr, F' = ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ := ⟨_, rfl⟩
+    · obtain ⟨F', hF'⟩ : ∃ F' : Fr, F' = ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A, F.T⟩ := ⟨_, rfl⟩
       have hmuF : F'.mu < F.mu ∧ F'.gas ≤ F.gas := by
         subst hF'
         unfold Fr.mu Fr.gas
@@ -348,9 +351,9 @@ noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : Gu
       refine Or.inr ⟨l, g, m, a.ffi, rfl, ⟨F'.mu + muSum ps, by omega, i, F', ps, R, ?_,
         by omega, Nat.le_refl _, ?_⟩, hl "go" (by decide), hl "done" (by decide)⟩
       · subst hF'
-        exact hch.replace ⟨hok', hY', hok.acc⟩ rfl rfl rfl rfl hmem hcc hmsg hee
+        exact hch.replace ⟨hok', hY', hok.acc, hok.ret⟩ rfl rfl rfl rfl hmem hcc hmsg hee
       · subst hF'
-        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A⟩ ⋆ suspA ps ⋆ W i ⋆
+        have h1 : (Fr.full ⟨F.M, F.K, F.e, fv', X', Y', Z', F.C, F.A, F.T⟩ ⋆ suspA ps ⋆ W i ⋆
             R).holds (⟨l, g, m, a.ffi⟩ : St σ) := by
           refine Assn.holds_perm hh' ?_
           unfold Fr.full chainRest
@@ -382,7 +385,7 @@ noncomputable def rfChainC (W : ι → Assn) (D : ι → Word → Prop) (hE : Gu
 
 /-- `run_frames` from a chain of frames of measure at most `k`, with handlers
 that may push frames. -/
-theorem run_frames_bound_chainC (W : ι → Assn) (D : ι → Word → Prop) (hE : GuestEnv E)
+theorem run_frames_bound_chainC (W : ι → Assn) (D : ι → WInfo) (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → f ∉ callOps → HandlerSpecM E f)
     (hcall : ∀ f, f ∈ callOps → HandlerSpecPush E W D f)
     (BD BF : Nat) (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)

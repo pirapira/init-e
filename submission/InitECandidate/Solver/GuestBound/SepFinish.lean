@@ -37,7 +37,7 @@ def RestoreSpec (E : Env σ) (W : Assn) : Prop :=
         (W ⋆ R).holds (⟨l, g, m, s.ffi⟩ : St σ))
 
 /-- The `finish_child` branch re-establishes the chain invariant at a smaller measure. -/
-def ChildSpec {ι : Type} (E : Env σ) (W : ι → Assn) (D : ι → Word → Prop) : Prop :=
+def ChildSpec {ι : Type} (E : Env σ) (W : ι → Assn) (D : ι → WInfo) : Prop :=
   ∀ (a : St σ) (n : Nat) (i : ι) (F : Fr) (ps : List Fr) (R : Assn), ChainOk (D i) F ps →
     F.gas + gasSum ps < 2 ^ 64 - 1 → F.mu + muSum ps ≤ n → F.C.kind ≠ 0#64 →
     (F.full ⋆ suspA ps ⋆ W i ⋆ R).holds a →
@@ -113,12 +113,12 @@ theorem rfKind_eval (hE : GuestEnv E) {F : Fr} {A : Assn}
     (h : (F.full ⋆ A).holds s) (w : Word) (hc : E.eval s rfKindCond = some (.word w)) :
     (w = 0#64 ↔ F.C.kind ≠ 0#64) := by
   have h1 : (ExcExtraM F.e F.Z ⋆ (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆
-      RecCells F.Z.cc F.C ⋆ AccCells F.e F.A) ⋆ A).holds s :=
+      RecCells F.Z.cc F.C ⋆ AccCells F.e F.A ⋆ RetCells F.e F.T) ⋆ A).holds s :=
     Assn.holds_perm h (by unfold Fr.full; ac_rfl)
   unfold ExcExtraM at h1
   have hcc : s.globals "cur_cont" = some (.word F.Z.cc) := Assn.glob_at h1 (by look)
   have h2 : (RecCells F.Z.cc F.C ⋆ (FrameOp F.M F.K F.e F.fv F.X ⋆ MemExtra F.e F.Y ⋆
-      ExcExtraM F.e F.Z ⋆ AccCells F.e F.A) ⋆ A).holds s :=
+      ExcExtraM F.e F.Z ⋆ AccCells F.e F.A ⋆ RetCells F.e F.T) ⋆ A).holds s :=
     Assn.holds_perm h (by unfold Fr.full; ac_rfl)
   unfold RecCells at h2
   have hcv := eval_cmp_inv hE (op := .equal)
@@ -134,7 +134,7 @@ theorem rfKind_eval (hE : GuestEnv E) {F : Fr} {A : Assn}
     simp [hcv, hk]
 
 /-- The end-of-frame block on a chain of frames. -/
-theorem finish_chain {ι : Type} (hE : GuestEnv E) {W : ι → Assn} {D : ι → Word → Prop}
+theorem finish_chain {ι : Type} (hE : GuestEnv E) {W : ι → Assn} {D : ι → WInfo}
     (hW : ∀ i, RestoreSpec E (W i)) (hC : ChildSpec E W D) (a : St σ) (n : Nat) (hI : chainInv W D n a.globals a.memory) :
     WPs E a rfEnd (fun r => ∃ l g m f, r = .normal l g m f ∧
       (l "go" = some (.word 0#64) ∨
@@ -184,7 +184,7 @@ theorem finish_chain {ι : Type} (hE : GuestEnv E) {W : ι → Assn} {D : ι →
 /-- `run_frames` from a chain of frames of measure at most `k`: the step bound,
 given the remaining handlers, the two cost bounds, `state_restore` and the
 `finish_child` branch. -/
-theorem run_frames_bound_world {ι : Type} (W : ι → Assn) (D : ι → Word → Prop)
+theorem run_frames_bound_world {ι : Type} (W : ι → Assn) (D : ι → WInfo)
     (hE : GuestEnv E)
     (hrest : ∀ f, f ∈ restOpsM → HandlerSpecM E f) (BD BF : Nat)
     (costD : Costs E rfDispatch BD) (costF : Costs E rfEnd BF)

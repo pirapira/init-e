@@ -73,7 +73,7 @@ theorem Dom.cons {a : Word} {v : PanValue Word} {B : Assn} {l : List Word}
 
 /-- The tracked cells of a frame own exactly `Fr.addrs`. -/
 theorem Fr.cells_dom (F : Fr) : Dom F.cells (Fr.addrs F.e F.Z.cc F.Z.msg) := by
-  unfold Fr.cells RecCells AccCells
+  unfold Fr.cells RecCells AccCells RetCells
   simp only [Assn.sep_assoc]
   show Dom _ (fun x => x ∈ _)
   repeat (refine Dom.cons ?_)
@@ -81,7 +81,7 @@ theorem Fr.cells_dom (F : Fr) : Dom F.cells (Fr.addrs F.e F.Z.cc F.Z.msg) := by
 
 /-- The free gap and everything a frame keeps while suspended: exactly the
 interval from its memory buffer to the end of its scratch interval. -/
-theorem Fr.region {D : Word → Prop} (c : Fr) (hok : c.Ok D) (hK : ∀ x, c.K x ↔ Fr.addrs c.e c.Z.cc c.Z.msg x)
+theorem Fr.region {D : WInfo} (c : Fr) (hok : c.Ok D) (hK : ∀ x, c.K x ↔ Fr.addrs c.e c.Z.cc c.Z.msg x)
     (hKM : ∀ x, c.K x → x.toNat < c.M.toNat) :
     Dom (Assn.Range c.fv c.X.pv ⋆ c.susp)
       (fun x => c.Y.mem.toNat ≤ x.toNat ∧ x.toNat < c.M.toNat) := by
@@ -127,7 +127,7 @@ theorem Assn.holds_forget {A R : Assn} {P : Word → Prop} {s : St σ} (hd : Dom
 
 /-- When a child frame ends, its gap and everything it kept become one range,
 which by `Link` is the parent's free gap. -/
-theorem Fr.reclaim {D : Word → Prop} {c p : Fr} {R : Assn} {s : St σ} (hok : c.Ok D) (hl : Link c p)
+theorem Fr.reclaim {D : WInfo} {c p : Fr} {R : Assn} {s : St σ} (hok : c.Ok D) (hl : Link c p)
     (h : (Assn.Range c.fv c.X.pv ⋆ c.susp ⋆ R).holds s) :
     (Assn.Range p.fv p.X.pv ⋆ R).holds s := by
   have h1 : ((Assn.Range c.fv c.X.pv ⋆ c.susp) ⋆ R).holds s := Assn.holds_assoc_l h
