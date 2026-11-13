@@ -17,6 +17,7 @@ import InitECandidate.Solver.GuestBound.TrieDecWrap
 import InitECandidate.Solver.GuestBound.TrieMptNew
 import InitECandidate.Solver.GuestBound.TrieMptCost
 import InitECandidate.Solver.GuestBound.TrieNeeds
+import InitECandidate.Solver.GuestBound.TrieNodeRlpCost
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -139,3 +140,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms decode_witness_to_mpt_cost
 #print axioms mpt_from_witness_cost
 #print axioms needs_spec
+#print axioms node_rlp_world
+#print axioms node_rlp_cost
