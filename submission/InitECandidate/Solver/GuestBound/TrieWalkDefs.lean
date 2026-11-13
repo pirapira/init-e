@@ -88,6 +88,7 @@ inductive RStk (R : Reg) (F : Word → Word → Prop) (m : Word → Option (PanV
   | cons {sp : Nat} {top prev nd cur k : Word} {ℓ : Nat} {S : List Word} :
       top ≠ 0#64 → top.toNat % 8 = 0 → sp ≤ top.toNat → top.toNat + 48 ≤ lim →
       Rd m top prev → Rd m (top + 8#64) nd → Rd m (top + 16#64) cur →
+      cur.toNat ≤ 16 →
       R.Kd nd k → k ≠ 0#64 → R.Lv nd ℓ → Rd m (nd + 8#64) 0#64 → F top nd →
       (∀ x ∈ S, ∃ ℓ' k', R.Lv x ℓ' ∧ ℓ' < ℓ ∧ R.Kd x k') →
       RStk R F m lim (top.toNat + 48) prev S → RStk R F m lim sp top (nd :: S)
@@ -97,8 +98,8 @@ theorem RStk.lower {R : Reg} {F : Word → Word → Prop} {m : Word → Option (
     (h : RStk R F m lim sp top S) : RStk R F m lim sp' top S := by
   cases h with
   | nil => exact .nil
-  | cons h1 h2 h3 h4 r0 r1 r2 hk hk0 hl hc hF hS ht =>
-    exact .cons h1 h2 (by omega) h4 r0 r1 r2 hk hk0 hl hc hF hS ht
+  | cons h1 h2 h3 h4 r0 r1 r2 hcu hk hk0 hl hc hF hS ht =>
+    exact .cons h1 h2 (by omega) h4 r0 r1 r2 hcu hk hk0 hl hc hF hS ht
 
 /-- The stack survives a change that leaves its frames' cells and its nodes'
 caches alone, and under which readiness is kept. -/
@@ -110,10 +111,10 @@ theorem RStk.step {R : Reg} {F F' : Word → Word → Prop} {m m' : Word → Opt
     (h : RStk R F m lim sp top S) : RStk R F' m' lim sp top S := by
   induction h with
   | nil => exact .nil
-  | @cons sp top prev nd cur k ℓ S h1 h2 h3 h4 r0 r1 r2 hk hk0 hl hcz hFt hS _ ih =>
+  | @cons sp top prev nd cur k ℓ S h1 h2 h3 h4 r0 r1 r2 hcu hk hk0 hl hcz hFt hS _ ih =>
     have e8 : (top + 8#64).toNat = top.toNat + 8 := by bv_omega
     have e16 : (top + 16#64).toNat = top.toNat + 16 := by bv_omega
-    refine .cons (cur := cur) h1 h2 h3 h4 ?_ ?_ ?_ hk hk0 hl ?_ (hF top nd h3 h4 hFt) hS
+    refine .cons (cur := cur) h1 h2 h3 h4 ?_ ?_ ?_ hcu hk hk0 hl ?_ (hF top nd h3 h4 hFt) hS
       (ih (fun x hx hx' => hm x (by omega) hx') (fun x hx => hc x (List.mem_cons_of_mem _ hx))
         (fun fr nd' hfr hfr' hf => hF fr nd' (by omega) hfr' hf))
     · unfold Rd at r0 ⊢
