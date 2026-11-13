@@ -20,6 +20,7 @@ import InitECandidate.Solver.GuestBound.TrieNeeds
 import InitECandidate.Solver.GuestBound.TrieNodeRlpCost
 import InitECandidate.Solver.GuestBound.WorldRollbackCost
 import InitECandidate.Solver.GuestBound.WorldStorageTrie
+import InitECandidate.Solver.GuestBound.WorldStorageTrieCost
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -148,3 +149,4 @@ open InitECandidate.Solver.GuestBound
 #print axioms rollback_cost
 #print axioms htab_set_retW
 #print axioms ws_storage_trie_world
+#print axioms ws_storage_trie_cost
