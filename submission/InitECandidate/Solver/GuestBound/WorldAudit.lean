@@ -18,6 +18,7 @@ import InitECandidate.Solver.GuestBound.TrieConcat
 import InitECandidate.Solver.GuestBound.TrieDelExt
 import InitECandidate.Solver.GuestBound.TrieCollapse
 import InitECandidate.Solver.GuestBound.TrieDelete
+import InitECandidate.Solver.GuestBound.TrieDelNode
 
 /-! Axioms of the world-state layer results. -/
 
@@ -81,3 +82,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms dl_body
 #print axioms delete_body_world
 #print axioms delete_body_cost
+#print axioms delete_node_world
+#print axioms delete_node_cost
