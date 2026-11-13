@@ -27,6 +27,11 @@ structure Reg where
   Im : Word → Word → Prop
   /-- Known nodes with their kinds. -/
   Kd : Word → Word → Prop
+  /-- Trie handles: 16 bytes, the root pointer at `+0`. -/
+  Tr : Word → Prop
+
+/-- The cells of the trie handles. -/
+def TrCell (Tr : Word → Prop) (x : Word) : Prop := ∃ t, Tr t ∧ (x = t ∨ x = t + 8#64)
 
 /-- Immutable blocks and the nibble segments of trie nodes: the blocks are
 free of every structure and of the writable blocks `B`, and every leaf or
@@ -41,6 +46,31 @@ structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
   kn : ∀ a k, Rg.Kd a k → Rg.Nd a
   /-- Every node is registered, so children of registered nodes are. -/
   full : ∀ a k, N a = some k → Rg.Kd a k
+  /-- A trie handle is an aligned free range of 16 bytes. -/
+  trf : ∀ t, Rg.Tr t → t.toNat % 8 = 0 ∧
+    ∃ hi : Word, hi.toNat = t.toNat + 16 ∧ FreeOK pv T N J C t hi
+  /-- Its root pointer is null or a node. -/
+  trv : ∀ t, Rg.Tr t → ∃ root sec : Word, Rd m t root ∧ Rd m (t + 8#64) sec ∧ IsChild N root
+  offT : ∀ lo hi t, Rg.B lo hi → Rg.Tr t → hi.toNat ≤ t.toNat ∨ t.toNat + 16 ≤ lo.toNat
+  offC : ∀ x w t, Rg.Cn x w → Rg.Tr t → x.toNat + 8 ≤ t.toNat ∨ t.toNat + 16 ≤ x.toNat
+  offI : ∀ lo hi t, Rg.Im lo hi → Rg.Tr t → hi.toNat ≤ t.toNat ∨ t.toNat + 16 ≤ lo.toNat
+  offTT : ∀ t u, Rg.Tr t → Rg.Tr u → t = u ∨ t.toNat + 16 ≤ u.toNat ∨ u.toNat + 16 ≤ t.toNat
+
+/-- A handle cell is an aligned cell inside the handle. -/
+theorem tr_cell_in {Rg : Reg} {m : Word → Option (PanValue Word)} {pv : Word}
+    {T : Word → Option HtabV} {N : Word → Option Word} {J C t x : Word}
+    (h : ImOK Rg m pv T N J C) (ht : Rg.Tr t) (hx : x = t ∨ x = t + 8#64) :
+    x.toNat % 8 = 0 ∧ t.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ t.toNat + 16 ∧
+      ∃ hi : Word, hi.toNat = t.toNat + 16 ∧ FreeOK pv T N J C t hi := by
+  obtain ⟨h8, hi, e, hf⟩ := h.trf t ht
+  have := hf.hi_
+  have := pv.isLt
+  have e8 : (t + 8#64).toNat = t.toNat + 8 := by
+    rw [BitVec.toNat_add, show (8#64 : Word).toNat = 8 by decide]
+    omega
+  rcases hx with rfl | rfl
+  · exact ⟨h8, by omega, by omega, hi, e, hf⟩
+  · exact ⟨by omega, by omega, by omega, hi, e, hf⟩
 
 /-- A segment cell of a node is an aligned cell inside the node. -/
 theorem seg_cell_in {m : Word → Option (PanValue Word)} {pv a k x : Word}
@@ -105,17 +135,37 @@ theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     · have hin := seg_cell_in (hW.nodes.at_ a k hN) hk hx
       rcases hW.tn t v a k hs.hT hN x hfoot with h3 | h3 <;> omega
     · rcases (h.free lo hi hI).2.tab t v hs.hT x hfoot with h3 | h3 <;> omega
+  have hT : ∀ x, TrCell Rg.Tr x → m' x = m x := by
+    rintro x ⟨u, hu, hx⟩
+    obtain ⟨h8, h1, h2, hi, e, hf⟩ := tr_cell_in h hu hx
+    have := hf.hi_
+    refine hs.heapStep.frame x h8 (fun hfoot => ?_) (by omega)
+    rcases hf.tab t v hs.hT x hfoot with h3 | h3 <;> omega
   exact ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
     h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF,
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib
-      (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF), h.kd, h.kn, h.full⟩
+      (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF), h.kd, h.kn, h.full,
+    fun u hu => ⟨(h.trf u hu).1, by
+      obtain ⟨hi, e, hf⟩ := (h.trf u hu).2
+      exact ⟨hi, e, hf.tab_step hs⟩⟩,
+    fun u hu => by
+      obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
+      refine ⟨root, sec, ?_, ?_, hc⟩
+      · unfold Rd at r1 ⊢
+        rw [hT u ⟨u, hu, Or.inl rfl⟩]
+        exact r1
+      · unfold Rd at r2 ⊢
+        rw [hT _ ⟨u, hu, Or.inr rfl⟩]
+        exact r2,
+    h.offT, h.offC, h.offI, h.offTT⟩
 
 /-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
 theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
     {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
-    (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n) (hx : SegCell Rg.Im N x) :
+    (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
+    (hx : SegCell Rg.Im N x ∨ TrCell Rg.Tr x) :
     x.toNat % 8 = 0 ∧ HBASE ≤ x.toNat ∧ x.toNat < pv.toNat := by
-  rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨h8, lo, hi, hI, h1, h2⟩
+  rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨h8, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩
   · have hat := hW.nodes.at_ a k hN
     have hin := seg_cell_in hat hk hx
     have h1 := hat.hi
@@ -125,14 +175,33 @@ theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x 
     have := hf.lo_
     have := hf.hi_
     exact ⟨h8, by omega, by omega⟩
+  · obtain ⟨h8, h1, h2, hi, e, hf⟩ := tr_cell_in h hu hx
+    have := hf.lo_
+    have := hf.hi_
+    exact ⟨h8, by omega, by omega⟩
 
 /-- `ImOK` after a change that leaves its cells alone (same structures). -/
 theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' : Word}
     {T : Word → Option HtabV} {N : Word → Option Word} {J C : Word}
     (h : ImOK Rg m pv T N J C) (hpv : pv.toNat ≤ pv'.toNat)
-    (hm : ∀ x, SegCell Rg.Im N x → m' x = m x) : ImOK Rg m' pv' T N J C :=
-  ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB, h.segs.frame hm,
-    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib hm, h.kd, h.kn, h.full⟩
+    (hm : ∀ x, SegCell Rg.Im N x ∨ TrCell Rg.Tr x → m' x = m x) : ImOK Rg m' pv' T N J C :=
+  ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB,
+    h.segs.frame (fun x hx => hm x (Or.inl hx)),
+    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib (fun x hx => hm x (Or.inl hx)),
+    h.kd, h.kn, h.full,
+    fun u hu => ⟨(h.trf u hu).1, by
+      obtain ⟨hi, e, hf⟩ := (h.trf u hu).2
+      exact ⟨hi, e, hf.mono hpv⟩⟩,
+    fun u hu => by
+      obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
+      refine ⟨root, sec, ?_, ?_, hc⟩
+      · unfold Rd at r1 ⊢
+        rw [hm u (Or.inr ⟨u, hu, Or.inl rfl⟩)]
+        exact r1
+      · unfold Rd at r2 ⊢
+        rw [hm _ (Or.inr ⟨u, hu, Or.inr rfl⟩)]
+        exact r2,
+    h.offT, h.offC, h.offI, h.offTT⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))

@@ -304,10 +304,12 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     refine hIT.frame hpq (fun x hx => ?_)
     obtain ⟨b1, b2, b3⟩ := hIT.cell_bounds hHW hx
     rw [keep2 x ?_, hm1 x (Or.inl (by omega))]
-    rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+    rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩
     · have hin := seg_cell_in (hHW.nodes.at_ a k hN) hk hx
       rcases hHW.jn a k hN with h3 | h3 <;> omega
     · rcases (hIT.free lo hi hI).2.jrn with h3 | h3 <;> omega
+    · obtain ⟨-, c1, c2, hi, e, hf⟩ := tr_cell_in hIT hu hx
+      rcases hf.jrn with h3 | h3 <;> omega
   refine WPs.seqG (fun a => ∃ l g' m', a = ⟨l, g', m', s.ffi⟩ ∧ WorldTJ Rg g' m' ∧
       (∀ x, x ≠ "heap_ptr" → x ≠ "journal_n" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →

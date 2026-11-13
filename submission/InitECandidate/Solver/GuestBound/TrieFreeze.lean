@@ -56,7 +56,7 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, fun a b hab => hB a b hab.1, hCn,
     hNd, ⟨fun a b hI => ?_, fun a b c d hab hI => ?_, hIm.segs.mono (fun a b hI => Or.inl hI),
-      fun a b hI => ?_, ?_, ?_, ?_⟩⟩
+      fun a b hI => ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · rcases hI with hI | ⟨rfl, rfl⟩
     · exact hIm.free a b hI
     · exact ⟨h8, (hB _ _ hb).prefix hle⟩
@@ -71,6 +71,17 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   · exact hIm.kd
   · exact hIm.kn
   · exact hIm.full
+  · exact hIm.trf
+  · exact hIm.trv
+  · exact fun a b u hab hu => hIm.offT a b u hab.1 hu
+  · exact hIm.offC
+  · intro a b u hI hu
+    rcases hI with hI | ⟨rfl, rfl⟩
+    · exact hIm.offI a b u hI hu
+    · rcases hIm.offT _ _ u hb hu with h1 | h1
+      · exact Or.inl (by omega)
+      · exact Or.inr h1
+  · exact hIm.offTT
 
 /-- A node registered with its kind: the kind cell, and the node's bounds. -/
 theorem WorldTJ.kd {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :

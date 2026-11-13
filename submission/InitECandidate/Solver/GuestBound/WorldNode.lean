@@ -35,7 +35,10 @@ theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word 
     ImOK Rg (setCell m x w) pv T N J C := by
   refine h.frame (Nat.le_refl _) (fun y hy => setCell_ne _ ?_)
   rintro rfl
-  rcases hy with ⟨b, j, hb, hj, hy⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+  rcases hy with (⟨b, j, hb, hj, hy⟩ | ⟨-, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hy⟩
+  rotate_right
+  · obtain ⟨-, c1, c2, hi, e, hf⟩ := tr_cell_in h hu hy
+    rcases hf.node a k hN with h3 | h3 <;> omega
   · by_cases e : b = a
     · subst e
       have : j = k := Option.some.inj (hb.symm.trans hN)

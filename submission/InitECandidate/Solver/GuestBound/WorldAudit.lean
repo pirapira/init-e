@@ -12,6 +12,7 @@ import InitECandidate.Solver.GuestBound.TrieIns
 import InitECandidate.Solver.GuestBound.TrieLeafIns
 import InitECandidate.Solver.GuestBound.TrieSplit
 import InitECandidate.Solver.GuestBound.TrieLoop
+import InitECandidate.Solver.GuestBound.TrieHandle
 
 /-! Axioms of the world-state layer results. -/
 
@@ -58,3 +59,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms split_ext_world
 #print axioms ins_step
 #print axioms mpt_insert_node_world
+#print axioms WorldTJ.root
+#print axioms WorldTJ.set_root
+#print axioms WorldTJ.add_handle

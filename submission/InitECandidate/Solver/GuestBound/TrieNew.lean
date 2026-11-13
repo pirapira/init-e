@@ -33,7 +33,7 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     ImOK (Rg.addNd a k) m' pv' T (addN N a k) J C := by
   classical
   have hold : SegsOK Rg.Im m' N := h.segs.frame (fun x hx => by
-    obtain ⟨b1, b2, b3⟩ := h.cell_bounds hW hx
+    obtain ⟨b1, b2, b3⟩ := h.cell_bounds hW (Or.inl hx)
     exact hfr x b1 b3)
   refine ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.node_add hlo hpv⟩,
     h.offB, fun b j hb hj => ?_, fun lo hi hI => by
@@ -41,7 +41,23 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
       have hf := (h.free lo hi hI).2.hi_
       exact (h.nib lo hi hI).frame (lo := lo) (h.free lo hi hI).1 (Nat.le_refl _) (by omega)
         (fun x hx8 _ h2 => hfr x hx8 (by omega)), fun b j hK => ?_, fun b j hK => ?_,
-      fun b j hb => ?_⟩
+      fun b j hb => ?_,
+      fun u hu => ⟨(h.trf u hu).1, by
+        obtain ⟨hi, e, hf⟩ := (h.trf u hu).2
+        exact ⟨hi, e, hf.node_add hlo hpv⟩⟩,
+      fun u hu => by
+        obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
+        obtain ⟨c8, c1, c2, hi, e, hf⟩ := tr_cell_in h hu (x := u) (Or.inl rfl)
+        obtain ⟨d8, d1, d2, -⟩ := tr_cell_in h hu (x := u + 8#64) (Or.inr rfl)
+        have := hf.hi_
+        refine ⟨root, sec, ?_, ?_, hc.addN a k⟩
+        · unfold Rd at r1 ⊢
+          rw [hfr u c8 (by omega)]
+          exact r1
+        · unfold Rd at r2 ⊢
+          rw [hfr _ d8 (by omega)]
+          exact r2,
+      h.offT, h.offC, h.offI, h.offTT⟩
   rotate_left
   · rcases hK with hK | ⟨rfl, rfl⟩
     · have hN := h.kd b j hK
