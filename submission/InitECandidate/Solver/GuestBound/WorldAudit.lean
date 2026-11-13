@@ -24,7 +24,7 @@ import InitECandidate.Solver.GuestBound.WorldStorageTrieCost
 import InitECandidate.Solver.GuestBound.RlpItemRange
 import InitECandidate.Solver.GuestBound.RlpLenSpec
 import InitECandidate.Solver.GuestBound.RlpTotSpec
-import InitECandidate.Solver.GuestBound.RlpCountSpec
+import InitECandidate.Solver.GuestBound.RlpSlicesSpec
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -161,3 +161,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms rlp_item_header_tot
 #print axioms rlp_item_total_tot
 #print axioms rlp_list_count_items
+#print axioms rlp_list_to_slices_items
+#print axioms Items.entry_le
