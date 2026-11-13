@@ -56,7 +56,7 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, fun a b hab => hB a b hab.1, hCn,
     hNd, ⟨fun a b hI => ?_, fun a b c d hab hI => ?_, hIm.segs.mono (fun a b hI => Or.inl hI),
-      fun a b hI => ?_⟩⟩
+      fun a b hI => ?_, ?_, ?_⟩⟩
   · rcases hI with hI | ⟨rfl, rfl⟩
     · exact hIm.free a b hI
     · exact ⟨h8, (hB _ _ hb).prefix hle⟩
@@ -68,6 +68,18 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   · rcases hI with hI | ⟨rfl, rfl⟩
     · exact hIm.nib a b hI
     · exact hnib
+  · exact hIm.kd
+  · exact hIm.kn
+
+/-- A node registered with its kind: the kind cell, and the node's bounds. -/
+theorem WorldTJ.kd {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :
+    Rg.Nd a ∧ Rd m a k ∧ HBASE ≤ a.toNat ∧ a.toNat + nodeSize k ≤ 2952790016 ∧
+      a.toNat % 8 = 0 := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  have hat := hW.nodes.at_ a k (hIm.kd a k hK)
+  have := hat.hi
+  have := hpH.1
+  exact ⟨hIm.kn a k hK, hat.kind, hat.lo, by omega, hat.al⟩
 
 /-- Any sub-range of an immutable block is a nibble array. -/
 theorem WorldTJ.im_nibs {lo hi p : Word} {c : Nat} (h : WorldTJ Rg g m) (hI : Rg.Im lo hi)

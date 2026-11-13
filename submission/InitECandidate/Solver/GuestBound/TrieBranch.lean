@@ -19,7 +19,7 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
     (Rg : Reg) (s : St σ) (r : Result σ) (hW : WorldTJ Rg s.globals s.memory)
     (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-      WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      WorldTJ (Rg.addNd a 3#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
   have hbody := (fun_of_index 258 hE.functions (by guest_decl_at 258) (by decide +kernel)
@@ -27,7 +27,7 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-    WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    WorldTJ (Rg.addNd a 3#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT, hIT⟩ := hW

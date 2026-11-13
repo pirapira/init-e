@@ -16,7 +16,8 @@ open Flapjack
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
 /-- The registry with one more known node. -/
-def Reg.addNd (Rg : Reg) (a : Word) : Reg := { Rg with Nd := fun x => Rg.Nd x ∨ x = a }
+def Reg.addNd (Rg : Reg) (a k : Word) : Reg :=
+  { Rg with Nd := fun x => Rg.Nd x ∨ x = a, Kd := fun x j => Rg.Kd x j ∨ (x = a ∧ j = k) }
 
 /-- `ImOK` after a node is added at the heap pointer: the new node's segment
 (if it is a leaf or an extension) must be empty or a nibble array of an
@@ -29,7 +30,7 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     (hseg : (k = 1#64 ∨ k = 2#64) → ∃ sp nl : Word, Rd m' (a + 32#64) sp ∧
       Rd m' (a + 40#64) nl ∧ (nl = 0#64 ∨ ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ sp.toNat ∧
         sp.toNat + nl.toNat ≤ hi.toNat ∧ NibSeg m sp nl)) :
-    ImOK (Rg.addNd a) m' pv' T (addN N a k) J C := by
+    ImOK (Rg.addNd a k) m' pv' T (addN N a k) J C := by
   classical
   have hold : SegsOK Rg.Im m' N := h.segs.frame (fun x hx => by
     obtain ⟨b1, b2, b3⟩ := h.cell_bounds hW hx
@@ -39,7 +40,19 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
       have := hi.isLt
       have hf := (h.free lo hi hI).2.hi_
       exact (h.nib lo hi hI).frame (lo := lo) (h.free lo hi hI).1 (Nat.le_refl _) (by omega)
-        (fun x hx8 _ h2 => hfr x hx8 (by omega))⟩
+        (fun x hx8 _ h2 => hfr x hx8 (by omega)), fun b j hK => ?_, fun b j hK => ?_⟩
+  rotate_left
+  · rcases hK with hK | ⟨rfl, rfl⟩
+    · have hN := h.kd b j hK
+      have hbi := (hW.nodes.at_ b j hN).hi
+      have hsz := nodeSize_pos j
+      unfold addN
+      rw [if_neg (fun e => by rw [e] at hbi; omega)]
+      exact hN
+    · simp [addN]
+  · rcases hK with hK | ⟨rfl, rfl⟩
+    · exact Or.inl (h.kn b j hK)
+    · exact Or.inr rfl
   unfold addN at hb
   by_cases e : b = a
   · subst e
@@ -67,7 +80,7 @@ theorem node_new_ext_world (hE : GuestEnv E) (parameters : List VarName) (body :
       NibSeg s.memory nib nlen)
     (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-      WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      WorldTJ (Rg.addNd a 2#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
   have hbody := (fun_of_index 257 hE.functions (by guest_decl_at 257) (by decide +kernel)
@@ -75,7 +88,7 @@ theorem node_new_ext_world (hE : GuestEnv E) (parameters : List VarName) (body :
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-    WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    WorldTJ (Rg.addNd a 2#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT, hIT⟩ := hW
@@ -181,7 +194,7 @@ theorem node_new_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body 
       NibSeg s.memory nib nlen)
     (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-      WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      WorldTJ (Rg.addNd a 1#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
   have hbody := (fun_of_index 256 hE.functions (by guest_decl_at 256) (by decide +kernel)
@@ -189,7 +202,7 @@ theorem node_new_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body 
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-    WorldTJ (Rg.addNd a) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    WorldTJ (Rg.addNd a 1#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT, hIT⟩ := hW
