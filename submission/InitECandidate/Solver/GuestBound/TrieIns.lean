@@ -83,7 +83,7 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       rw [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega
     refine WPs.last (WPs.seq_store_inv hE (addr := br + BitVec.ofNat 64 (32 + 8 * b0.toNat))
-      (w := a) (eval_slot_addr hE (by lk [hbr]) (by lk [hk]) hb0 h16) (of_eval (by lk [])) ?_)
+      (w := a) (eval_slot_addr hE (by lk [hbr]) (of_eval (by lk [hk])) hb0 h16) (of_eval (by lk [])) ?_)
     refine WPs.skip ?_
     simp only [restorePanValueFfiLocal]
     refine hQ _ _ _ (R.addNd a 1#64) (Reg.Le.addNd R a 1#64)
@@ -173,7 +173,7 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       rw [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega
     refine WPs.last (WPs.seq_store_inv hE (addr := br + BitVec.ofNat 64 (32 + 8 * b0.toNat))
-      (w := a) (eval_slot_addr hE (by lk [hbr]) (by lk [hk]) hb0 h16) (of_eval (by lk [])) ?_)
+      (w := a) (eval_slot_addr hE (by lk [hbr]) (of_eval (by lk [hk])) hb0 h16) (of_eval (by lk [])) ?_)
     refine WPs.skip ?_
     simp only [restorePanValueFfiLocal]
     refine hQ _ _ _ (R.addNd a 1#64) (Reg.Le.addNd R a 1#64)

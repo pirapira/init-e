@@ -123,20 +123,30 @@ theorem loadByte_byteAt (hE : GuestEnv E) {a : Exp Word} {x : PanValue Word} {ad
   unfold byteAt
   rw [show al8 addr' = RiscV.panRiscVByteAlign 8#64 addr' from rfl, h2]
 
-/-- `br + 32 + (ld8 k) * 8`, when the byte at `k` is a nibble: a child slot. -/
-theorem eval_slot_addr (hE : GuestEnv E) {x kx : VarName} {br k b0 : Word}
-    (hbr : s.locals x = some (.word br)) (hk : s.locals kx = some (.word k))
+theorem slot_off_eq (b : Word) (h16 : b.toNat < 16) :
+    32#64 + b * 8#64 = BitVec.ofNat 64 (32 + 8 * b.toNat) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_ofNat]
+  omega
+
+theorem slot_word_eq (br b : Word) (h16 : b.toNat < 16) :
+    br + (32#64 + b * 8#64) = br + BitVec.ofNat 64 (32 + 8 * b.toNat) := by
+  rw [slot_off_eq b h16]
+
+/-- `br + 32 + (ld8 ea) * 8`, when the byte at the address is a nibble: a child slot. -/
+theorem eval_slot_addr (hE : GuestEnv E) {x : VarName} {ea : Exp Word} {br k b0 : Word}
+    (hbr : s.locals x = some (.word br)) (hk : ∀ y, E.eval s ea = some y → y = .word k)
     (hb : byteAt s.memory k = some b0) (h16 : b0.toNat < 16) :
     ∀ y, E.eval s (.op .add [.var .local x, .const 32#64,
-        .panOp .mul [.loadByte (.var .local kx), .const 8#64]]) = some y →
+        .panOp .mul [.loadByte ea, .const 8#64]]) = some y →
       y = .word (br + BitVec.ofNat 64 (32 + 8 * b0.toNat)) := by
   intro y hy
-  cases hl : E.eval s (.loadByte (.var .local kx)) with
+  cases hl : E.eval s (.loadByte ea) with
   | none =>
     simp (config := { decide := true }) [evalF_op hE.word, evalF_panOp, evalArgs_cons,
       evalArgs_nil, evalF_local, hbr, hl, eval_const] at hy
   | some xb =>
-    obtain ⟨b, rfl, hb'⟩ := loadByte_byteAt hE hl (addr := k) (of_eval (by lk [hk]))
+    obtain ⟨b, rfl, hb'⟩ := loadByte_byteAt hE hl (addr := k) hk
     rw [hb] at hb'
     simp only [Option.some.injEq] at hb'
     subst hb'
@@ -144,10 +154,22 @@ theorem eval_slot_addr (hE : GuestEnv E) {x kx : VarName} {br k b0 : Word}
       evalArgs_nil, evalF_local, hbr, hl, eval_const, wordsProj_cons, wordsProj_nil,
       wordOp] at hy
     subst hy
-    congr 2
-    apply BitVec.eq_of_toNat_eq
-    simp only [BitVec.toNat_add, BitVec.toNat_mul, BitVec.toNat_ofNat]
-    omega
+    rw [slot_word_eq br b0 h16]
+
+/-- `br + 32 + idx * 8` for a nibble `idx`: a child slot. -/
+theorem eval_slot_idx (hE : GuestEnv E) {x ix : VarName} {br b : Word}
+    (hbr : s.locals x = some (.word br)) (hix : s.locals ix = some (.word b))
+    (h16 : b.toNat < 16) :
+    E.eval s (.op .add [.var .local x, .const 32#64,
+        .panOp .mul [.var .local ix, .const 8#64]]) =
+      some (.word (br + BitVec.ofNat 64 (32 + 8 * b.toNat))) := by
+  simp (config := { decide := true }) [evalF_op hE.word, evalF_panOp, evalArgs_cons,
+    evalArgs_nil, evalF_local, hbr, hix, eval_const, wordsProj_cons, wordsProj_nil, wordOp]
+  exact slot_off_eq b h16
+
+/-- Word-valued locals, as a list. -/
+def Has (l : VarName → Option (PanValue Word)) (xs : List (VarName × Word)) : Prop :=
+  ∀ x w, (x, w) ∈ xs → l x = some (.word w)
 
 /-- The value cells of a branch are inside it and not structural. -/
 theorem branch_val_cell {a : Word} {c : Nat} (hc : c = 160 ∨ c = 168)
