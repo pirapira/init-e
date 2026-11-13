@@ -44,7 +44,7 @@ def DcI (I : DecIface E) (R0 : Reg) (G : VarName → Option (PanValue Word))
     a.locals "slot" = some (.word sl) ∧ a.locals "go" = some (.word gv) ∧
     DStk R a.memory lim.toNat L0 sp.toNat topv ℓ ∧
     (md ≠ 1#64 → md ≠ 2#64 → DRes R ℓ resv) ∧
-    (gv = 0#64 → md ≠ 1#64 ∧ md ≠ 2#64 ∧ topv = 0#64) ∧
+    (gv = 0#64 → md ≠ 1#64 ∧ md ≠ 2#64 ∧ topv = 0#64) ∧ (md = 2#64 → topv ≠ 0#64) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ lim.toNat ≤ addr.toNat) → a.memory addr = M addr
 
 /-- One iteration: the invariant is kept and the measure drops. -/
@@ -79,7 +79,7 @@ theorem dc_mode1 (hE : GuestEnv E) (I : DecIface E) {R0 : Reg}
     WPs E a M1PROG (DcPost I R0 G M F fv lim dbv L0 a) := by
   obtain ⟨la, ga, ma, fa⟩ := a
   obtain ⟨R, sp, topv, resv, cp, cn, md, sl, gv, ℓ, hle, hW, hf, hg, hgs, hfs, hsl, hPre, qdb,
-    qtop, qres, qcp, qcn, qmode, qslot, qgo, hst, hres, hfin, hM⟩ := hI
+    qtop, qres, qcp, qcn, qmode, qslot, qgo, hst, hres, hfin, hm2t, hM⟩ := hI
   dsimp only at hW hf hg hgs hPre qdb qtop qres qcp qcn qmode qslot qgo hst hM hmd hgo
   subst hf
   have hmd1 : md = 1#64 := by
@@ -201,7 +201,7 @@ theorem dc_mode1 (hE : GuestEnv E) (I : DecIface E) {R0 : Reg}
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qgo'],
-      hstk, fun _ h => absurd rfl h, fun h => absurd h hgv, hMM⟩, ?_⟩
+      hstk, fun _ h => absurd rfl h, fun h => absurd h hgv, fun _ => hq0, hMM⟩, ?_⟩
     rw [hmu0, dcMu_eq (sp := sp') (t := sp') (md := 2#64) (gv := gv) hgs'
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup])
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup])
@@ -234,7 +234,7 @@ theorem dc_mode1 (hE : GuestEnv E) (I : DecIface E) {R0 : Reg}
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qslot'],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qgo'],
-      hst', fun _ _ => hleaf hd0, fun h => absurd h hgv,
+      hst', fun _ _ => hleaf hd0, fun h => absurd h hgv, fun h => absurd h (by decide),
       fun addr ha => (hmem addr (by omega)).trans (hM addr ha)⟩, ?_⟩
     rw [hmu0, dcMu_eq (sp := sp') (t := topv) (md := 0#64) (gv := gv) hgs'
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qtop'])
