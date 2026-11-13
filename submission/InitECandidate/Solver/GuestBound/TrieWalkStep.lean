@@ -92,15 +92,23 @@ local notation "WBODY" => ((Prog.dec "nd" Shape.one (Exp.load Shape.one (Exp.op 
                                   (Prog.call (some (none, none)) "_node_rlp_finish" [(Exp.var VarKind.local "top"), (Exp.var VarKind.local "nd")])
                                   (Prog.assign VarKind.local "top" (Exp.load Shape.one (Exp.op BinOp.add [(Exp.var VarKind.local "top"), (Exp.const (BitVec.ofNat 64 0))])))))))))) : Prog Word)
 
-/-- Invariant of the loop of `_node_rlp_fill`. -/
+/-- The RLP cache of `node` is filled. -/
+def Filled (m : Word → Option (PanValue Word)) (node : Word) : Prop :=
+  ∃ buf off, Rd m (node + 8#64) buf ∧ buf ≠ 0#64 ∧ Rd m (node + 16#64) off ∧
+    off.toNat < 2 ^ 32
+
+/-- Invariant of the loop of `_node_rlp_fill`; `node` is the node the walk started from. -/
 def WkI (I : WalkIface E) (R : Reg) (G : VarName → Option (PanValue Word))
-    (M : Word → Option (PanValue Word)) (F : FfiState σ) (fv lim pv0 : Word) (a : St σ) : Prop :=
+    (M : Word → Option (PanValue Word)) (F : FfiState σ) (fv lim pv0 node : Word) (a : St σ) :
+    Prop :=
   ∃ (pv sp topv : Word) (S : List Word), WorldTJ R a.globals a.memory ∧ a.ffi = F ∧
     (∀ x, x ≠ "heap_ptr" → x ≠ "scratch_ptr" → a.globals x = G x) ∧
     a.globals "heap_ptr" = some (.word pv) ∧ pv0.toNat ≤ pv.toNat ∧
     a.globals "scratch_ptr" = some (.word sp) ∧ fv.toNat ≤ sp.toNat ∧ sp.toNat ≤ lim.toNat ∧
-    I.Pre R a.globals ∧ a.locals "top" = some (.word topv) ∧
+    I.Pre R a.globals ∧ a.locals "mark" = some (.word lim) ∧
+    a.locals "top" = some (.word topv) ∧
     RStk R (I.FrOK R pv a.memory) a.memory lim.toNat sp.toNat topv S ∧
+    ((S = [] ∧ Filled a.memory node) ∨ ∃ S0, S = S0 ++ [node]) ∧
     (∀ addr : Word, lim.toNat ≤ addr.toNat → a.memory addr = M addr) ∧
     ∀ addr : Word, addr.toNat < pv0.toNat → ¬ CacheC R addr → ¬ I.K addr →
       a.memory addr = M addr
@@ -108,15 +116,15 @@ def WkI (I : WalkIface E) (R : Reg) (G : VarName → Option (PanValue Word))
 set_option maxHeartbeats 16000000 in
 theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
     {G : VarName → Option (PanValue Word)} {M : Word → Option (PanValue Word)}
-    {F : FfiState σ} {fv lim pv0 : Word} (hGfv : G "frame_mem_ptr" = some (.word fv))
-    (hFv : 2952790016 ≤ fv.toNat) {a : St σ} (hI : WkI I R G M F fv lim pv0 a)
+    {F : FfiState σ} {fv lim pv0 node : Word} (hGfv : G "frame_mem_ptr" = some (.word fv))
+    (hFv : 2952790016 ≤ fv.toNat) {a : St σ} (hI : WkI I R G M F fv lim pv0 node a)
     (hct : CondTrue E a WGUARD) :
     WPs E a WBODY (fun r => ∃ l g m f, r = .normal l g m f ∧
-      WkI I R G M F fv lim pv0 ⟨l, g, m, f⟩ ∧ wkMu R ⟨l, g, m, f⟩ < wkMu R a) := by
+      WkI I R G M F fv lim pv0 node ⟨l, g, m, f⟩ ∧ wkMu R ⟨l, g, m, f⟩ < wkMu R a) := by
   obtain ⟨la, ga, ma, fa⟩ := a
-  obtain ⟨pv, sp, topv, S, hW, hf, hg, hgp, hpv0, hgs, hfs, hsl, hPre, qtop, hst, hM, hM0⟩ := hI
+  obtain ⟨pv, sp, topv, S, hW, hf, hg, hgp, hpv0, hgs, hfs, hsl, hPre, qmark, qtop, hst, hbot, hM, hM0⟩ := hI
   obtain ⟨w, cc, hcond, hw⟩ := hct
-  dsimp only at hW hf hg hgp hgs hPre qtop hst hM hM0
+  dsimp only at hW hf hg hgp hgs hPre qmark qtop hst hbot hM hM0
   subst hf
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   have hlim := lim.isLt
@@ -144,19 +152,20 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
     (by rw [BitVec.add_zero]; exact hRdk)) ?_
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
-  refine WPs.seq (fun a' => ScanQ R ga ma fa topv nd ℓ
+  refine WPs.seq (fun a' => ScanQ R ga ma fa topv nd lim ℓ
       (.normal a'.locals a'.globals a'.memory a'.ffi))
-    ((wk_scan hE I (topv := topv) (nd := nd) (k := k) (cur := cur) (ℓ := ℓ) hW hK hLv
+    ((wk_scan hE I (topv := topv) (nd := nd) (k := k) (cur := cur) (ℓ := ℓ) (mk := lim)
+      (by lk [qmark]) hW hK hLv
       (by lk [qtop]) (by lk []) (by lk []) (by lk []) (by lk []) r2 hcu (by omega)
       (by omega)).conseq (fun r hr => by
         obtain ⟨L, m1, c, f, cur', hr, rest⟩ := hr
         exact ⟨L, ga, m1, fa, hr, L, m1, c, f, cur', rfl, rest⟩)) ?_
-  rintro ⟨L, g', m1, f'⟩ ⟨L', m1', c, f, cur', heq, qt, qn, qc, qfd, hm1, rc', hcu', hgood⟩
+  rintro ⟨L, g', m1, f'⟩ ⟨L', m1', c, f, cur', heq, qmk, qt, qn, qc, qfd, hm1, rc', hcu', hgood⟩
   injection heq with e1 e2 e3 e4
   have e2' := e2.symm
   have e4' := e4.symm
   subst e1 e2' e3 e4'
-  dsimp only at qt qn qc qfd hm1 rc' hgood
+  dsimp only at qmk qt qn qc qfd hm1 rc' hgood
   have hmh : ∀ x : Word, x.toNat < 2952790016 → m1 x = ma x :=
     fun x hx => hm1 x (NE (by omega))
   have hW1 : WorldTJ R ga m1 := hW.scratch (fun x _ => rfl) hmh
@@ -189,7 +198,7 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
   split
   · -- nothing to descend into: finish the top node and pop
     refine WPs.seq_call_ret (fun vs g3 m3 ffi3 hret => ?_)
-    obtain ⟨rfl, pv', hgp', hpv', hg3, hW3, ⟨buf, off, rb, hb0, -, -⟩, hheap, hcache, hscr⟩ :=
+    obtain ⟨rfl, pv', hgp', hpv', hg3, hW3, ⟨buf, off, rb, hb0, ro, hoff⟩, hheap, hcache, hscr⟩ :=
       I.finish R _ _ _ topv nd k pv _ _ _ _ hret (by lk [qt]) (by lk [qn]) hW1 hPre hgp hK hk0
         frTop1
     dsimp only at hgp' hg3 hheap hcache hscr
@@ -205,6 +214,7 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
     refine ⟨_, _, _, _, rfl, ⟨pv', sp, prev, S', hW3, rfl,
       fun x h1 h2 => (hg3 x h1).trans (hg x h1 h2), hgp', by omega, hsp3, hfs, hsl,
       I.pre_glob hPre (fun x h1 _ => hg3 x h1),
+      by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qmk, qmark],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       (tail1.step hlim (fun x hx _ => hscr x (by omega))
         (fun x hx => by
@@ -215,6 +225,18 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
             omega))
         (fun fr nd' hfr hfr' hF => I.stable hF hpv'
           ⟨hheap, fun a h1 h2 => hscr a (by omega)⟩)).lower (by omega),
+      (by
+        rcases hbot with ⟨hnil, -⟩ | ⟨S0, hS0⟩
+        · cases hnil
+        · cases S0 with
+          | nil =>
+            simp only [List.nil_append, List.cons.injEq] at hS0
+            obtain ⟨rfl, rfl⟩ := hS0
+            exact Or.inl ⟨rfl, buf, off, rb, hb0, ro, hoff⟩
+          | cons x S0' =>
+            simp only [List.cons_append, List.cons.injEq] at hS0
+            obtain ⟨rfl, rfl⟩ := hS0
+            exact Or.inr ⟨S0', rfl⟩),
       fun addr ha => (hscr addr (by omega)).trans ((hm1 addr (NE (by omega))).trans (hM addr ha)),
       fun addr ha h1 h2 => (hheap addr (by omega) h1 h2).trans
         ((hmh addr (by omega)).trans (hM0 addr ha h1 h2))⟩, ?_⟩
@@ -275,6 +297,7 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
       fun x h1 h2 => (hg3 x h1).trans (by simp [update_lookup, h2]; exact hg x h1 h2),
       hgp', by omega, hsp3, hq1, by omega,
       I.pre_glob hPre (fun x h1 h2 => (hg3 x h1).trans (by simp [update_lookup, h2])),
+      by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qmk, qmark],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       .cons (cur := 0#64) (prev := topv) hq0 hq8 (Nat.le_refl _) (by omega)
         (by unfold Rd; dsimp only; rw [hscr q (by omega) (by omega)]; exact c0)
@@ -310,6 +333,10 @@ theorem wk_body (hE : GuestEnv E) (I : WalkIface E) {R : Reg}
           (fun fr nd' hfr1 hfr' hF => I.stable hF hpv'
             ⟨fun a ha _ _ => (hheap a ha).trans (hfr a (by omega)),
               fun a h1 h2 => hhigh a (by omega)⟩)).lower (by omega)),
+      (by
+        rcases hbot with ⟨hnil, -⟩ | ⟨S0, hS0⟩
+        · cases hnil
+        · exact Or.inr ⟨c :: S0, by rw [hS0]; rfl⟩),
       fun addr ha => (hhigh addr (by omega)).trans
         ((hm1 addr (NE (by omega))).trans (hM addr ha)),
       fun addr ha h1 h2 => (hlow addr (by omega)).trans (hM0 addr ha h1 h2)⟩, ?_⟩

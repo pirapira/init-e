@@ -72,37 +72,40 @@ local notation "SCAN" => ((Prog.ite (Exp.cmp Cmp.equal (Exp.var VarKind.local "k
 
 /-- The state after the scan. -/
 def ScanQ (R : Reg) (g : VarName → Option (PanValue Word)) (m : Word → Option (PanValue Word))
-    (ffi : FfiState σ) (topv nd : Word) (ℓ : Nat) (r : Result σ) : Prop :=
-  ∃ L m1 c f cur', r = .normal L g m1 ffi ∧ L "top" = some (.word topv) ∧
+    (ffi : FfiState σ) (topv nd mk : Word) (ℓ : Nat) (r : Result σ) : Prop :=
+  ∃ L m1 c f cur', r = .normal L g m1 ffi ∧ L "mark" = some (.word mk) ∧
+    L "top" = some (.word topv) ∧
     L "nd" = some (.word nd) ∧ L "child" = some (.word c) ∧ L "found" = some (.word f) ∧
     (∀ x, x ≠ topv + 16#64 → m1 x = m x) ∧ Rd m1 (topv + 16#64) cur' ∧ cur'.toNat ≤ 16 ∧
     (f ≠ 0#64 → GoodCh R m ℓ c)
 
 /-- Invariant of the slot loop. -/
 def BrI (R : Reg) (g : VarName → Option (PanValue Word)) (m : Word → Option (PanValue Word))
-    (ffi : FfiState σ) (topv nd : Word) (ℓ : Nat) (a : St σ) : Prop :=
-  a.globals = g ∧ a.memory = m ∧ a.ffi = ffi ∧ a.locals "top" = some (.word topv) ∧
+    (ffi : FfiState σ) (topv nd mk : Word) (ℓ : Nat) (a : St σ) : Prop :=
+  a.globals = g ∧ a.memory = m ∧ a.ffi = ffi ∧ a.locals "mark" = some (.word mk) ∧
+    a.locals "top" = some (.word topv) ∧
     a.locals "nd" = some (.word nd) ∧ ∃ (jj : Nat) (c f : Word),
       a.locals "i" = some (.word (BitVec.ofNat 64 jj)) ∧ jj ≤ 16 ∧
       a.locals "child" = some (.word c) ∧ a.locals "found" = some (.word f) ∧
       (f ≠ 0#64 → GoodCh R m ℓ c)
 
 set_option maxHeartbeats 8000000 in
-theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur : Word} {ℓ : Nat}
+theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur mk : Word} {ℓ : Nat}
+    (qmk : s.locals "mark" = some (.word mk))
     (hW : WorldTJ R s.globals s.memory) (hK : R.Kd nd k) (hLv : R.Lv nd ℓ)
     (qtop : s.locals "top" = some (.word topv)) (qnd : s.locals "nd" = some (.word nd))
     (qk : s.locals "k" = some (.word k)) (qch : s.locals "child" = some (.word 0#64))
     (qf : s.locals "found" = some (.word 0#64))
     (rc : Rd s.memory (topv + 16#64) cur) (hcur : cur.toNat ≤ 16)
     (htop : 2952790016 ≤ topv.toNat) (htl : topv.toNat + 48 < 2 ^ 64) :
-    WPs E s SCAN (ScanQ R s.globals s.memory s.ffi topv nd ℓ) := by
+    WPs E s SCAN (ScanQ R s.globals s.memory s.ffi topv nd mk ℓ) := by
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   have e16 : (topv + 16#64).toNat = topv.toNat + 16 := by bv_omega
   obtain ⟨-, hRdk, hlo, hhi, -⟩ := hW.kd hK
   have hsz := nodeSize_ge k
-  have stay : ScanQ R s.globals s.memory s.ffi topv nd ℓ
+  have stay : ScanQ R s.globals s.memory s.ffi topv nd mk ℓ
       (.normal s.locals s.globals s.memory s.ffi) :=
-    ⟨s.locals, s.memory, 0#64, 0#64, cur, rfl, qtop, qnd, qch, qf, fun _ _ => rfl, rc,
+    ⟨s.locals, s.memory, 0#64, 0#64, cur, rfl, qmk, qtop, qnd, qch, qf, fun _ _ => rfl, rc,
       hcur, fun h => absurd rfl h⟩
   refine WPs.ite_both (fun w hw => ?_)
   obtain ⟨x, y, hx, hy, hwv⟩ := cmp_word_inv hE hw
@@ -124,14 +127,14 @@ theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur : W
       subst hk3
       -- a branch: scan the slots from the cursor on
       refine WPs.dec (w := cur) (eval_load_rd hE (eval_addc hE 16#64 qtop) rc) ?_
-      refine WPs.seqG (BrI R s.globals s.memory s.ffi topv nd ℓ)
-        (WPs.loopG (I := BrI R s.globals s.memory s.ffi topv nd ℓ)
-          ⟨rfl, rfl, rfl, by lk [qtop], by lk [qnd], cur.toNat, 0#64, 0#64,
+      refine WPs.seqG (BrI R s.globals s.memory s.ffi topv nd mk ℓ)
+        (WPs.loopG (I := BrI R s.globals s.memory s.ffi topv nd mk ℓ)
+          ⟨rfl, rfl, rfl, by lk [qmk], by lk [qtop], by lk [qnd], cur.toNat, 0#64, 0#64,
             by rw [ofNat_toNat']; lk [], hcur, by lk [qch], by lk [qf],
             fun h => absurd rfl h⟩ ?_ (fun a k hI _ => hI)) ?_
-      · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hm, hf, qt, qn, jj, c, f, qi, hj, qc, qf', -⟩
+      · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hm, hf, qm, qt, qn, jj, c, f, qi, hj, qc, qf', -⟩
           ⟨w, cc, hcond, hw⟩
-        dsimp only at hg hm hf qt qn qi qc qf'
+        dsimp only at hg hm hf qm qt qn qi qc qf'
         subst hg hm hf
         obtain ⟨va, vb, w', ha, hb, hop, hxw⟩ := eval_op2_inv hE.word (cond_of_eval hcond)
         have h1 := eval_cmp_inv hE (op := .notEqual) (of_eval (eval_const _ 0#64))
@@ -160,12 +163,12 @@ theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur : W
           (by lk [qi]) (of_eval (by ev [qi, ofNat_add1])) ?_
         refine WPs.callA_ret (fun v g m ffi hret => ?_)
         obtain ⟨rfl, rfl, rfl, f', rfl, hf'⟩ := I.needs _ _ c' _ _ _ _ hret (by lk [])
-        exact ⟨rfl, rfl, rfl, by lk [qt], by lk [qn], jj + 1, c', f', by lk [], by omega,
+        exact ⟨rfl, rfl, rfl, by lk [qm], by lk [qt], by lk [qn], jj + 1, c', f', by lk [], by omega,
           by lk [], by lk [], fun h0 => good_of_needs hW hch
             (fun hc0 => hW.slot_lv hK (hW.cv_br hK hLv) hjlt rs hc0) (by omega)
             (fun _ _ => rfl) (hf' h0)⟩
-      · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hm, hf, qt, qn, jj, c, f, qi, hj, qc, qf', hgood⟩
-        dsimp only at hg hm hf qt qn qi qc qf'
+      · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hm, hf, qm, qt, qn, jj, c, f, qi, hj, qc, qf', hgood⟩
+        dsimp only at hg hm hf qm qt qn qi qc qf'
         subst hg hm hf
         have ej : (BitVec.ofNat 64 jj : Word).toNat = jj := by
           rw [BitVec.toNat_ofNat]
@@ -174,6 +177,7 @@ theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur : W
           (eval_addc hE 16#64 qt) (of_eval (by lk [qi])) ?_
         simp only [restorePanValueFfiLocal]
         exact ⟨_, _, c, f, BitVec.ofNat 64 jj, rfl,
+          by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qm],
           by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qt],
           by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qn],
           by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qc],
@@ -203,7 +207,7 @@ theorem wk_scan (hE : GuestEnv E) (I : WalkIface E) {R : Reg} {topv nd k cur : W
         (eval_load_rd hE (eval_addc hE 48#64 qnd) (r48.frame _ (NE (by omega)))) ?_
       refine WPs.callA_ret (fun v g m ffi hret => ?_)
       obtain ⟨rfl, rfl, rfl, f, rfl, hf⟩ := I.needs _ _ cx _ _ _ _ hret (by lk [])
-      exact ⟨_, _, cx, f, 1#64, rfl, by lk [qtop], by lk [qnd], by lk [], by lk [],
+      exact ⟨_, _, cx, f, 1#64, rfl, by lk [qmk], by lk [qtop], by lk [qnd], by lk [], by lk [],
         fun x hx => setCell_ne _ hx, Rd.here _ _ _, by decide,
         fun h0 => good_of_needs hW hch (fun hc0 => hW.ext_lv hK hcv r48 hc0) (by omega)
           (fun x hx => setCell_ne _ (NE (by omega))) (hf h0)⟩
