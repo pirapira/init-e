@@ -7,6 +7,7 @@ import InitECandidate.Solver.GuestBound.TrieNew
 import InitECandidate.Solver.GuestBound.WorldNode
 import InitECandidate.Solver.GuestBound.TrieFreeze
 import InitECandidate.Solver.GuestBound.TrieKey
+import InitECandidate.Solver.GuestBound.TrieBranch
 
 /-! Axioms of the world-state layer results. -/
 
@@ -41,3 +42,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.freeze
 #print axioms WorldTJ.seg
 #print axioms key_to_nibbles_world
+#print axioms node_new_leaf_world
+#print axioms node_new_branch_world
