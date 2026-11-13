@@ -7,6 +7,7 @@ import InitECandidate.Solver.GuestBound.TrieNew
 import InitECandidate.Solver.GuestBound.WorldNode
 import InitECandidate.Solver.GuestBound.TrieFreeze
 import InitECandidate.Solver.GuestBound.TrieKey
+import InitECandidate.Solver.GuestBound.TrieWalkFillCost
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -94,3 +95,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms mpt_nibble_key_world
 #print axioms nibKeySpec
 #print axioms localOnly_sound
+#print axioms wk_scan
+#print axioms wk_body
+#print axioms node_rlp_fill_world
+#print axioms wk_body_cost
+#print axioms node_rlp_fill_cost
