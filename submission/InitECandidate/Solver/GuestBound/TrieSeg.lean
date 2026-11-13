@@ -19,6 +19,34 @@ open Flapjack
 variable {m m' : Word → Option (PanValue Word)} {N : Word → Option Word}
   {Im : Word → Word → Prop}
 
+/-- Bytes `0 .. c` from `o` are nibbles. -/
+def Nibs (m : Word → Option (PanValue Word)) (o : Word) (c : Nat) : Prop :=
+  ∀ j : Nat, j < c → ∃ b : Word, byteAt m (off o j) = some b ∧ b.toNat < 16
+
+/-- Nibbles whose cells did not change. -/
+theorem Nibs.frame {p lo : Word} {c : Nat} (h : Nibs m p c) (hlo8 : lo.toNat % 8 = 0)
+    (hlo : lo.toNat ≤ p.toNat) (hc : p.toNat + c ≤ 2 ^ 64)
+    (hm : ∀ x : Word, x.toNat % 8 = 0 → lo.toNat ≤ x.toNat → x.toNat < p.toNat + c →
+      m' x = m x) : Nibs m' p c := by
+  intro i hi'
+  obtain ⟨b, hb, hb16⟩ := h i hi'
+  have ho : (off p i).toNat = p.toNat + i := off_toNat (by omega)
+  refine ⟨b, ?_, hb16⟩
+  rw [byteAt_congr (hm _ (by rw [align8_toNat]; omega) (by rw [align8_toNat, ho]; omega)
+    (by rw [align8_toNat, ho]; omega))]
+  exact hb
+
+/-- A sub-range of a nibble array. -/
+theorem Nibs.sub {p q : Word} {c d : Nat} (h : Nibs m p c) (hpq : p.toNat ≤ q.toNat)
+    (hd : q.toNat + d ≤ p.toNat + c) (hc : p.toNat + c ≤ 2 ^ 64) : Nibs m q d := by
+  intro j hj
+  have e : off q j = off p (q.toNat - p.toNat + j) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [off_toNat (by omega), off_toNat (by omega)]
+    omega
+  rw [e]
+  exact h _ (by omega)
+
 /-- The bytes of `[p, p + n)` are defined and below 16. -/
 def NibSeg (m : Word → Option (PanValue Word)) (p n : Word) : Prop :=
   ∀ i : Nat, i < n.toNat → ∃ b : Word, byteAt m (off p i) = some b ∧ b.toNat < 16

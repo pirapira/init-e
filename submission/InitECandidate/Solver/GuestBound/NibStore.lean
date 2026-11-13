@@ -16,10 +16,6 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- Bytes `0 .. c` from `o` are nibbles. -/
-def Nibs (m : Word → Option (PanValue Word)) (o : Word) (c : Nat) : Prop :=
-  ∀ j : Nat, j < c → ∃ b : Word, byteAt m (off o j) = some b ∧ b.toNat < 16
-
 theorem Nibs.snoc {m m' : Word → Option (PanValue Word)} {o ad : Word} {c : Nat} {v : Word}
     (h : Nibs m o c) (hc : o.toNat + c < 2 ^ 64) (had : ad.toNat = o.toNat + c)
     (hv : v.toNat < 16)

@@ -35,7 +35,11 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     obtain ⟨b1, b2, b3⟩ := h.cell_bounds hW hx
     exact hfr x b1 b3)
   refine ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.node_add hlo hpv⟩,
-    h.offB, fun b j hb hj => ?_⟩
+    h.offB, fun b j hb hj => ?_, fun lo hi hI => by
+      have := hi.isLt
+      have hf := (h.free lo hi hI).2.hi_
+      exact (h.nib lo hi hI).frame (lo := lo) (h.free lo hi hI).1 (Nat.le_refl _) (by omega)
+        (fun x hx8 _ h2 => hfr x hx8 (by omega))⟩
   unfold addN at hb
   by_cases e : b = a
   · subst e

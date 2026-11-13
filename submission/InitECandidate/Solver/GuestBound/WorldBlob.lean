@@ -36,7 +36,7 @@ theorem WorldTJ.alloc {pv pv1 : Word} (h : WorldTJ Rg g m)
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
     hW.mono hle hpH1.1, hD, fun lo hi hb => ?_, fun x w hc => ?_, hNd,
     ⟨fun lo hi hI => ⟨(hIm.free lo hi hI).1, (hIm.free lo hi hI).2.mono hle⟩,
-      fun lo hi a b hb hI => ?_, hIm.segs⟩⟩
+      fun lo hi a b hb hI => ?_, hIm.segs, hIm.nib⟩⟩
   · rcases hb with hb | ⟨rfl, rfl⟩
     · exact (hB lo hi hb).mono hle
     · exact FreeOK.fresh hW (Nat.le_refl _) (Nat.le_refl _) (by omega)
@@ -105,7 +105,7 @@ theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t 
     fun lo hi hb => hBT lo hi (hB lo hi hb), fun x w hc => hCT x w (hC x w hc),
     fun a ha => hNT a (hN a ha),
     ⟨fun lo hi h => hIT.free lo hi (hI ▸ h), fun lo hi a b hb h => hIT.offB lo hi a b (hB lo hi hb)
-      (hI ▸ h), by rw [hI]; exact hIT.segs⟩⟩
+      (hI ▸ h), by rw [hI]; exact hIT.segs, fun lo hi h => hIT.nib lo hi (hI ▸ h)⟩⟩
 
 /-- A protected cell can be read. -/
 theorem WorldTJ.cell {x w : Word} (h : WorldTJ Rg g m) (hc : Rg.Cn x w) : Rd m x w := by

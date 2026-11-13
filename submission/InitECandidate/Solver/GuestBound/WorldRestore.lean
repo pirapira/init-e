@@ -34,6 +34,7 @@ structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
   free : ∀ lo hi, Rg.Im lo hi → lo.toNat % 8 = 0 ∧ FreeOK pv T N J C lo hi
   offB : ∀ lo hi a b, Rg.B lo hi → Rg.Im a b → hi.toNat ≤ a.toNat ∨ b.toNat ≤ lo.toNat
   segs : SegsOK Rg.Im m N
+  nib : ∀ lo hi, Rg.Im lo hi → Nibs m lo (hi.toNat - lo.toNat)
 
 /-- A segment cell of a node is an aligned cell inside the node. -/
 theorem seg_cell_in {m : Word → Option (PanValue Word)} {pv a k x : Word}
@@ -48,13 +49,13 @@ theorem seg_cell_in {m : Word → Option (PanValue Word)} {pv a k x : Word}
   have e40 : (a + 40#64).toNat = a.toNat + 40 := by bv_omega
   rcases hx with rfl | rfl <;> omega
 
-/-- The segments survive a heap step that misses the segment cells. -/
-theorem SegsOK.step {Im : Word → Word → Prop} {m m' : Word → Option (PanValue Word)}
+/-- A heap step that misses the segment cells leaves them alone. -/
+theorem seg_cell_step {Im : Word → Word → Prop} {m m' : Word → Option (PanValue Word)}
     {pv pv' : Word} {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
-    {F : Word → Prop} (h : SegsOK Im m N) (hW : HeapW m pv T N J C n)
+    {F : Word → Prop} (hW : HeapW m pv T N J C n)
     (hfree : ∀ lo hi, Im lo hi → FreeOK pv T N J C lo hi) (hs : HeapStep m pv m' pv' F)
-    (hF : ∀ x, SegCell Im N x → ¬ F x) : SegsOK Im m' N := by
-  refine h.frame (fun x hx => ?_)
+    (hF : ∀ x, SegCell Im N x → ¬ F x) : ∀ x, SegCell Im N x → m' x = m x := by
+  intro x hx
   refine hs.frame x ?_ (hF x hx) ?_
   · rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨h8, -⟩
     · exact (seg_cell_in (hW.nodes.at_ a k hN) hk hx).1
@@ -67,17 +68,41 @@ theorem SegsOK.step {Im : Word → Word → Prop} {m m' : Word → Option (PanVa
     · have := (hfree lo hi hI).hi_
       omega
 
+/-- The nibbles of the immutable blocks, when their cells did not change. -/
+theorem nib_frame {Im : Word → Word → Prop} {m m' : Word → Option (PanValue Word)}
+    {N : Word → Option Word}
+    (h8 : ∀ lo hi, Im lo hi → lo.toNat % 8 = 0)
+    (h : ∀ lo hi, Im lo hi → Nibs m lo (hi.toNat - lo.toNat))
+    (hm : ∀ x, SegCell Im N x → m' x = m x) :
+    ∀ lo hi, Im lo hi → Nibs m' lo (hi.toNat - lo.toNat) := by
+  intro lo hi hI
+  have := hi.isLt
+  exact (h lo hi hI).frame (lo := lo) (h8 lo hi hI) (Nat.le_refl _) (by omega)
+    (fun x hx8 h1 h2 => hm x (Or.inr ⟨hx8, lo, hi, hI, h1, by omega⟩))
+
+/-- The segments survive a heap step that misses the segment cells. -/
+theorem SegsOK.step {Im : Word → Word → Prop} {m m' : Word → Option (PanValue Word)}
+    {pv pv' : Word} {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
+    {F : Word → Prop} (h : SegsOK Im m N) (hW : HeapW m pv T N J C n)
+    (hfree : ∀ lo hi, Im lo hi → FreeOK pv T N J C lo hi) (hs : HeapStep m pv m' pv' F)
+    (hF : ∀ x, SegCell Im N x → ¬ F x) : SegsOK Im m' N :=
+  h.frame (seg_cell_step hW hfree hs hF)
+
 /-- After a table step. -/
 theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' t : Word}
     {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word} {v v' : HtabV}
     (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
     (hs : TabStep m pv T t v m' pv' v') : ImOK Rg m' pv' (stepT T t v') N J C := by
-  refine ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
-    h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep (fun x hx hfoot => ?_)⟩
-  rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
-  · have hin := seg_cell_in (hW.nodes.at_ a k hN) hk hx
-    rcases hW.tn t v a k hs.hT hN x hfoot with h3 | h3 <;> omega
-  · rcases (h.free lo hi hI).2.tab t v hs.hT x hfoot with h3 | h3 <;> omega
+  have hF : ∀ x, SegCell Rg.Im N x → ¬ TabFoot t v x := by
+    intro x hx hfoot
+    rcases hx with ⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩
+    · have hin := seg_cell_in (hW.nodes.at_ a k hN) hk hx
+      rcases hW.tn t v a k hs.hT hN x hfoot with h3 | h3 <;> omega
+    · rcases (h.free lo hi hI).2.tab t v hs.hT x hfoot with h3 | h3 <;> omega
+  exact ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
+    h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF,
+    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib
+      (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF)⟩
 
 /-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
 theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
@@ -100,7 +125,8 @@ theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' :
     {T : Word → Option HtabV} {N : Word → Option Word} {J C : Word}
     (h : ImOK Rg m pv T N J C) (hpv : pv.toNat ≤ pv'.toNat)
     (hm : ∀ x, SegCell Rg.Im N x → m' x = m x) : ImOK Rg m' pv' T N J C :=
-  ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB, h.segs.frame hm⟩
+  ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB, h.segs.frame hm,
+    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib hm⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))
