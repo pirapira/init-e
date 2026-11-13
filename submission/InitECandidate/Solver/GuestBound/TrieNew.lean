@@ -40,7 +40,8 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
       have := hi.isLt
       have hf := (h.free lo hi hI).2.hi_
       exact (h.nib lo hi hI).frame (lo := lo) (h.free lo hi hI).1 (Nat.le_refl _) (by omega)
-        (fun x hx8 _ h2 => hfr x hx8 (by omega)), fun b j hK => ?_, fun b j hK => ?_⟩
+        (fun x hx8 _ h2 => hfr x hx8 (by omega)), fun b j hK => ?_, fun b j hK => ?_,
+      fun b j hb => ?_⟩
   rotate_left
   · rcases hK with hK | ⟨rfl, rfl⟩
     · have hN := h.kd b j hK
@@ -53,6 +54,13 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
   · rcases hK with hK | ⟨rfl, rfl⟩
     · exact Or.inl (h.kn b j hK)
     · exact Or.inr rfl
+  · unfold addN at hb
+    by_cases e : b = a
+    · subst e
+      simp only [if_true, Option.some.injEq] at hb
+      exact Or.inr ⟨rfl, hb.symm⟩
+    · simp only [if_neg e] at hb
+      exact Or.inl (h.full b j hb)
   unfold addN at hb
   by_cases e : b = a
   · subst e

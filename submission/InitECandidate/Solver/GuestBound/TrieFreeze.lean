@@ -56,7 +56,7 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, fun a b hab => hB a b hab.1, hCn,
     hNd, ⟨fun a b hI => ?_, fun a b c d hab hI => ?_, hIm.segs.mono (fun a b hI => Or.inl hI),
-      fun a b hI => ?_, ?_, ?_⟩⟩
+      fun a b hI => ?_, ?_, ?_, ?_⟩⟩
   · rcases hI with hI | ⟨rfl, rfl⟩
     · exact hIm.free a b hI
     · exact ⟨h8, (hB _ _ hb).prefix hle⟩
@@ -70,6 +70,7 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
     · exact hnib
   · exact hIm.kd
   · exact hIm.kn
+  · exact hIm.full
 
 /-- A node registered with its kind: the kind cell, and the node's bounds. -/
 theorem WorldTJ.kd {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :
@@ -80,6 +81,29 @@ theorem WorldTJ.kd {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :
   have := hat.hi
   have := hpH.1
   exact ⟨hIm.kn a k hK, hat.kind, hat.lo, by omega, hat.al⟩
+
+/-- The child of a registered extension: its segment is not empty and its
+child is null or a registered node. -/
+theorem WorldTJ.ext {a : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a 2#64) :
+    ∃ nl c : Word, Rd m (a + 40#64) nl ∧ 1 ≤ nl.toNat ∧ Rd m (a + 48#64) c ∧
+      (c = 0#64 ∨ ∃ k, Rg.Kd c k) := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  obtain ⟨nl, c, r1, h1, r2, hc⟩ := (hW.nodes.at_ a 2#64 (hIm.kd a _ hK)).ext rfl
+  refine ⟨nl, c, r1, h1, r2, ?_⟩
+  rcases hc with rfl | ⟨j, hj⟩
+  · exact Or.inl rfl
+  · exact Or.inr ⟨j, hIm.full c j hj⟩
+
+/-- A child slot of a registered branch holds null or a registered node. -/
+theorem WorldTJ.slot {a : Word} {i : Nat} (h : WorldTJ Rg g m) (hK : Rg.Kd a 3#64)
+    (hi : i < 16) :
+    ∃ c : Word, Rd m (a + BitVec.ofNat 64 (32 + 8 * i)) c ∧ (c = 0#64 ∨ ∃ k, Rg.Kd c k) := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  obtain ⟨c, r1, hc⟩ := (hW.nodes.at_ a 3#64 (hIm.kd a _ hK)).br rfl i hi
+  refine ⟨c, r1, ?_⟩
+  rcases hc with rfl | ⟨j, hj⟩
+  · exact Or.inl rfl
+  · exact Or.inr ⟨j, hIm.full c j hj⟩
 
 /-- Any sub-range of an immutable block is a nibble array. -/
 theorem WorldTJ.im_nibs {lo hi p : Word} {c : Nat} (h : WorldTJ Rg g m) (hI : Rg.Im lo hi)

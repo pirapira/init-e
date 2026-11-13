@@ -51,3 +51,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms create_branch_world
 #print axioms common_prefix_spec
 #print axioms insert_leaf_world
+#print axioms WorldTJ.ext
+#print axioms WorldTJ.slot

@@ -39,6 +39,8 @@ structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
   nib : ∀ lo hi, Rg.Im lo hi → Nibs m lo (hi.toNat - lo.toNat)
   kd : ∀ a k, Rg.Kd a k → N a = some k
   kn : ∀ a k, Rg.Kd a k → Rg.Nd a
+  /-- Every node is registered, so children of registered nodes are. -/
+  full : ∀ a k, N a = some k → Rg.Kd a k
 
 /-- A segment cell of a node is an aligned cell inside the node. -/
 theorem seg_cell_in {m : Word → Option (PanValue Word)} {pv a k x : Word}
@@ -106,7 +108,7 @@ theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
   exact ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
     h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF,
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib
-      (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF), h.kd, h.kn⟩
+      (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF), h.kd, h.kn, h.full⟩
 
 /-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
 theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
@@ -130,7 +132,7 @@ theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' :
     (h : ImOK Rg m pv T N J C) (hpv : pv.toNat ≤ pv'.toNat)
     (hm : ∀ x, SegCell Rg.Im N x → m' x = m x) : ImOK Rg m' pv' T N J C :=
   ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB, h.segs.frame hm,
-    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib hm, h.kd, h.kn⟩
+    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib hm, h.kd, h.kn, h.full⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))

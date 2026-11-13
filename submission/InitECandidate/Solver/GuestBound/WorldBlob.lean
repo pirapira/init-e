@@ -36,7 +36,7 @@ theorem WorldTJ.alloc {pv pv1 : Word} (h : WorldTJ Rg g m)
     by rw [hg _ (by decide)]; exact hCg, by rw [hg _ (by decide)]; exact hng,
     hW.mono hle hpH1.1, hD, fun lo hi hb => ?_, fun x w hc => ?_, hNd,
     ⟨fun lo hi hI => ⟨(hIm.free lo hi hI).1, (hIm.free lo hi hI).2.mono hle⟩,
-      fun lo hi a b hb hI => ?_, hIm.segs, hIm.nib, hIm.kd, hIm.kn⟩⟩
+      fun lo hi a b hb hI => ?_, hIm.segs, hIm.nib, hIm.kd, hIm.kn, hIm.full⟩⟩
   · rcases hb with hb | ⟨rfl, rfl⟩
     · exact (hB lo hi hb).mono hle
     · exact FreeOK.fresh hW (Nat.le_refl _) (Nat.le_refl _) (by omega)
@@ -99,7 +99,7 @@ theorem WorldTJ.release {pv : Word} (h : WorldTJ Rg g m)
 theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t kl → Rg.D t kl)
     (hB : ∀ lo hi, Rg'.B lo hi → Rg.B lo hi) (hC : ∀ x w, Rg'.Cn x w → Rg.Cn x w)
     (hN : ∀ a, Rg'.Nd a → Rg.Nd a) (hI : Rg'.Im = Rg.Im)
-    (hK : ∀ a k, Rg'.Kd a k → Rg.Kd a k ∧ Rg'.Nd a) :
+    (hK : ∀ a k, Rg'.Kd a k → Rg.Kd a k ∧ Rg'.Nd a) (hK2 : ∀ a k, Rg.Kd a k → Rg'.Kd a k) :
     WorldTJ Rg' g m := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hDT, hBT, hCT, hNT, hIT⟩ := h
   exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, fun t kl ht => hDT t kl (hD t kl ht),
@@ -107,7 +107,8 @@ theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t 
     fun a ha => hNT a (hN a ha),
     ⟨fun lo hi h => hIT.free lo hi (hI ▸ h), fun lo hi a b hb h => hIT.offB lo hi a b (hB lo hi hb)
       (hI ▸ h), by rw [hI]; exact hIT.segs, fun lo hi h => hIT.nib lo hi (hI ▸ h),
-      fun a k h => hIT.kd a k (hK a k h).1, fun a k h => (hK a k h).2⟩⟩
+      fun a k h => hIT.kd a k (hK a k h).1, fun a k h => (hK a k h).2,
+      fun a k h => hK2 a k (hIT.full a k h)⟩⟩
 
 /-- A protected cell can be read. -/
 theorem WorldTJ.cell {x w : Word} (h : WorldTJ Rg g m) (hc : Rg.Cn x w) : Rd m x w := by
