@@ -14,6 +14,7 @@ import InitECandidate.Solver.GuestBound.TrieSplit
 import InitECandidate.Solver.GuestBound.TrieLoop
 import InitECandidate.Solver.GuestBound.TrieHandle
 import InitECandidate.Solver.GuestBound.TrieLoopCost
+import InitECandidate.Solver.GuestBound.TrieConcat
 
 /-! Axioms of the world-state layer results. -/
 
@@ -69,3 +70,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.slot_lv
 #print axioms WorldTJ.cv_ext
 #print axioms ImOK.store_child
+#print axioms WorldTJ.fresh_nibs
+#print axioms nibbles_concat_world
