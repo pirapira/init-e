@@ -21,7 +21,7 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 structure Reg.Le (Rg Rg' : Reg) : Prop where
   D : Rg'.D = Rg.D
   B : Rg'.B = Rg.B
-  Cn : Rg'.Cn = Rg.Cn
+  Cn : ∀ x w, Rg.Cn x w → Rg'.Cn x w
   Im : ∀ lo hi, Rg.Im lo hi → Rg'.Im lo hi
   Nd : ∀ a, Rg.Nd a → Rg'.Nd a
   Kd : ∀ a k, Rg.Kd a k → Rg'.Kd a k
@@ -31,17 +31,17 @@ structure Reg.Le (Rg Rg' : Reg) : Prop where
   Tr : ∀ t, Rg.Tr t → Rg'.Tr t
 
 theorem Reg.Le.refl (Rg : Reg) : Rg.Le Rg :=
-  ⟨rfl, rfl, rfl, fun _ _ h => h, fun _ h => h, fun _ _ h => h, fun _ _ h => h, fun _ _ h => h,
-    fun _ _ _ h => h, fun _ h => h⟩
+  ⟨rfl, rfl, fun _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ _ h => h, fun _ _ h => h,
+    fun _ _ h => h, fun _ _ _ h => h, fun _ h => h⟩
 
 theorem Reg.Le.trans {R1 R2 R3 : Reg} (h1 : R1.Le R2) (h2 : R2.Le R3) : R1.Le R3 :=
-  ⟨h2.D.trans h1.D, h2.B.trans h1.B, h2.Cn.trans h1.Cn, fun lo hi h => h2.Im lo hi (h1.Im lo hi h),
+  ⟨h2.D.trans h1.D, h2.B.trans h1.B, fun x w h => h2.Cn x w (h1.Cn x w h), fun lo hi h => h2.Im lo hi (h1.Im lo hi h),
     fun a h => h2.Nd a (h1.Nd a h), fun a k h => h2.Kd a k (h1.Kd a k h),
     fun a ℓ h => h2.Lv a ℓ (h1.Lv a ℓ h), fun a ℓ h => h2.Cv a ℓ (h1.Cv a ℓ h),
     fun a sp nl h => h2.Sg a sp nl (h1.Sg a sp nl h), fun t h => h2.Tr t (h1.Tr t h)⟩
 
 theorem Reg.Le.addNd (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : Rg.Le (Rg.addNd a k ℓ ℓc) :=
-  ⟨rfl, rfl, rfl, fun _ _ h => h, fun _ h => Or.inl h, fun _ _ h => Or.inl h,
+  ⟨rfl, rfl, fun _ _ h => h, fun _ _ h => h, fun _ h => Or.inl h, fun _ _ h => Or.inl h,
     fun _ _ h => Or.inl h, fun _ _ h => Or.inl h, fun _ _ _ h => h, fun _ h => h⟩
 
 theorem Reg.addNd_kd (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : (Rg.addNd a k ℓ ℓc).Kd a k :=

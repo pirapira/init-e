@@ -16,8 +16,8 @@ open Flapjack
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
 theorem Reg.Le.addSg (Rg : Reg) (a sp nl : Word) : Rg.Le (Rg.addSg a sp nl) :=
-  ⟨rfl, rfl, rfl, fun _ _ h => h, fun _ h => h, fun _ _ h => h, fun _ _ h => h, fun _ _ h => h,
-    fun _ _ _ h => Or.inl h, fun _ h => h⟩
+  ⟨rfl, rfl, fun _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ _ h => h, fun _ _ h => h,
+    fun _ _ h => h, fun _ _ _ h => Or.inl h, fun _ h => h⟩
 
 /-- The locals of the descent at the start of the conditional. -/
 structure DlLoc (l : VarName → Option (PanValue Word)) (key klen lv nd topv resv : Word) :
