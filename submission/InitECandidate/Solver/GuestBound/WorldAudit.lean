@@ -8,6 +8,7 @@ import InitECandidate.Solver.GuestBound.WorldNode
 import InitECandidate.Solver.GuestBound.TrieFreeze
 import InitECandidate.Solver.GuestBound.TrieKey
 import InitECandidate.Solver.GuestBound.TrieWalkFillCost
+import InitECandidate.Solver.GuestBound.TrieDecLoop
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -100,3 +101,10 @@ open InitECandidate.Solver.GuestBound
 #print axioms node_rlp_fill_world
 #print axioms wk_body_cost
 #print axioms node_rlp_fill_cost
+#print axioms dc_mode1
+#print axioms dc_mode2
+#print axioms dc_ext
+#print axioms dc_br
+#print axioms dc_body
+#print axioms decode_body_world
+#print axioms decode_body_cost
