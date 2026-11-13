@@ -23,7 +23,8 @@ theorem WPs.seq_asg {x : VarName} {e : Exp Word} {q : Prog Word} {w old : Word}
 set_option maxHeartbeats 8000000 in
 theorem ins_branch (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : Word}
     (hL : InsLoc s.locals key klen vptr vlen lv nd sl res)
-    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 3#64) (hlv : lv.toNat ≤ klen.toNat)
+    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 3#64) (hLn : R0.Lv nd lv.toNat)
+    (hlv : lv.toNat ≤ klen.toNat)
     (hkey : klen ≠ 0#64 → ∃ lo hi, R0.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m', InsMid R0 s.globals s.memory key klen vptr vlen lv sl res l' g' m' →
@@ -107,7 +108,11 @@ theorem ins_branch (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
-      hK, by decide, Or.inr ⟨rfl, hcc, Or.inr ⟨nd, b'.toNat, hK, h16, rfl⟩, by omega, by omega⟩⟩
+      hK, by decide, hLn, Or.inr ⟨rfl, hcc, fun hc0 => by
+        rw [el1]
+        exact hW.slot_lv hK (hW.cv_br hK hLn) h16 hrc hc0,
+        ⟨nd, by rw [el1]; exact hW.cv_br hK hLn, Or.inr ⟨hK, b'.toNat, h16, rfl⟩⟩, by omega,
+        by omega⟩⟩
   · rename_i h0
     -- the key ends at this branch
     obtain ⟨hin0, hs0⟩ := branch_val_cell (a := nd) (c := 160) (Or.inl rfl) (by omega)
@@ -126,7 +131,7 @@ theorem ins_branch (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res
       fun _ _ => rfl, fun addr ha => ?_, by lk [hL.key], by lk [hL.klen], by lk [hL.vptr],
       by lk [hL.vlen], by lk [hL.level], by lk [hL.node], by lk [hL.slot], by lk [hL.result],
       by lk [], by lk [hL.go], by lk [hL.nn], by lk [hL.ns], by lk [hL.nl], hK, by decide,
-      Or.inl rfl⟩
+      hLn, Or.inl rfl⟩
     show setCell (setCell s.memory (nd + 160#64) vptr) (nd + 168#64) vlen addr = _
     rw [setCell_ne _ (NE (by unfold HBASE at ha hlo; omega)),
       setCell_ne _ (NE (by unfold HBASE at ha hlo; omega))]

@@ -21,15 +21,15 @@ theorem WPs.name_locals {p : Prog Word}
   h s.locals rfl
 
 /-- Result of `_split_extension`: a registered branch. -/
-def BrQ (Rg : Reg) (s : St σ) (r : Result σ) : Prop :=
+def BrQ (Rg : Reg) (s : St σ) (Lb : Nat) (r : Result σ) : Prop :=
   ∃ l g' m' a R', r = .returned l g' m' s.ffi [.word a] ∧ Rg.Le R' ∧ R'.Kd a 3#64 ∧
-    WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    R'.Lv a Lb ∧ WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr
 
-theorem BrQ.restore {Rg : Reg} {s : St σ} {r : Result σ} (x : VarName)
-    (old : Option (PanValue Word)) (h : BrQ Rg s r) :
-    BrQ Rg s (restorePanValueFfiLocal x old r) := by
+theorem BrQ.restore {Rg : Reg} {s : St σ} {Lb : Nat} {r : Result σ} (x : VarName)
+    (old : Option (PanValue Word)) (h : BrQ Rg s Lb r) :
+    BrQ Rg s Lb (restorePanValueFfiLocal x old r) := by
   obtain ⟨l, g', m', a, R', rfl, hq⟩ := h
   exact ⟨_, g', m', a, R', rfl, hq⟩
 
@@ -45,12 +45,13 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     (hprl : pl.toNat ≤ rl.toNat)
     (hseg : rl ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ rk.toNat ∧
       rk.toNat + rl.toNat ≤ hi.toNat)
-    (h : Runs E s body r) : Stopped r ∨ BrQ Rg s r := by
+    (ℓ0 : Nat) (hL0 : Rg.Lv node ℓ0)
+    (h : Runs E s body r) : Stopped r ∨ BrQ Rg s (ℓ0 + pl.toNat) r := by
   have hbody := (fun_of_index 274 hE.functions (by guest_decl_at 274) (by decide +kernel)
     hlookup).1
   subst hbody
   dsimp only at h
-  refine (?_ : WPs E s _ (BrQ Rg s)) r h
+  refine (?_ : WPs E s _ (BrQ Rg s (ℓ0 + pl.toNat))) r h
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   have off0 : ∀ a : Word, off a 0 = a := fun a => by simp [off]
   obtain ⟨hNd, hRd, hlo, htop, h8⟩ := hW.kd hK
@@ -70,19 +71,21 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     · exact Or.inl h0
     · exact Or.inr (hW.kd hk).1
   refine WPs.dec (w := sp) (eval_load_rd hE (eval_addc hE 32#64 hnode) r1) ?_
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   refine WPs.dec (w := sl) (eval_load_rd hE (eval_addc hE 40#64 (by lk [hnode])) hsl) ?_
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   refine WPs.dec (w := c) (eval_load_rd hE (eval_addc hE 48#64 (by lk [hnode])) r3) ?_
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   refine WPs.decCall_ret (fun vb g1 m1 f1 hret => ?_)
-  obtain ⟨br, rfl, rfl, hW1, hg1, hm1⟩ := node_new_branch_ret hE hret hW
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  have hcvn : Rg.Cv node (ℓ0 + sl.toNat) := hW.cv_ext hK hL0 hsl
+  have hcl : c ≠ 0#64 → Rg.Lv c (ℓ0 + sl.toNat) := fun hc0 => hW.ext_lv hK hcvn r3 hc0
+  obtain ⟨br, rfl, rfl, hW1, hg1, hm1⟩ := node_new_branch_ret hE hret hW (ℓ0 + pl.toNat)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   have esal : (sl - pl).toNat = sl.toNat - pl.toNat := by
     rw [BitVec.toNat_sub]
     omega
   refine WPs.dec (w := sl - pl) (of_eval (by ev [hpl])) ?_
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   refine WPs.name_locals (fun L hL => ?_)
   dsimp only at hL
   have qnode : L "node" = some (.word node) := by rw [hL]; lk [hnode]
@@ -96,20 +99,31 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   have qbr : L "br" = some (.word br) := by rw [hL]; lk []
   have qsal : L "sal" = some (.word (sl - pl)) := by rw [hL]; lk []
   clear hL
-  have hK1 : (Rg.addNd br 3#64).Kd br 3#64 := Reg.addNd_kd Rg br 3#64
-  have hI1 : (Rg.addNd br 3#64).Im lo hi := hI
-  have hcN1 : c = 0#64 ∨ (Rg.addNd br 3#64).Nd c := hcN.imp id Or.inl
+  have hK1 : (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).Kd br 3#64 :=
+    Reg.addNd_kd Rg br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)
+  have hcvb : (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).Cv br (ℓ0 + pl.toNat + 1) :=
+    Reg.addNd_cv Rg br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)
+  have hI1 : (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).Im lo hi := hI
+  have hcN1 : c = 0#64 ∨ (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).Nd c := hcN.imp id Or.inl
   have esp : (sp + pl).toNat = sp.toNat + pl.toNat := by
     rw [BitVec.toNat_add]
     omega
   have hszb : nodeSize 3#64 = 176 := by decide
   -- the old child under `seg[pl]`, when one nibble remains
-  refine WPs.seqG (fun a => ∃ m', a = ⟨L, g1, m', s.ffi⟩ ∧ WorldTJ (Rg.addNd br 3#64) g1 m' ∧
+  refine WPs.seqG (fun a => ∃ m', a = ⟨L, g1, m', s.ffi⟩ ∧ WorldTJ (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)) g1 m' ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr) (WPs.ite_both (fun w hw => ?_)) ?_
   · split
     · exact WPs.skip ⟨m1, rfl, hW1, hm1⟩
-    · obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
+    · rename_i h0
+      obtain ⟨x, y, hx, hy, hwv⟩ := cmp_word_inv hE hw
+      simp only [evalF_local, eval_const, qsal, Option.some.injEq, PanValue.word.injEq] at hx hy
+      subst hx hy
+      have hsal1 : sl.toNat - pl.toNat = 1 := by
+        by_contra hne
+        have hne' : sl - pl ≠ 1#64 := fun e => hne (by rw [← esal, e]; rfl)
+        exact h0 (by rw [hwv]; simp [evalPanCmp, hne'])
+      obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
       obtain ⟨b0, hb0, h16⟩ := hW1.im_nibs hI1 (p := sp + pl) (c := 1) (by omega) (by omega) 0
         (by omega)
       rw [off0] at hb0
@@ -120,14 +134,20 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
       refine WPs.last (WPs.seq_store_inv hE (addr := br + BitVec.ofNat 64 (32 + 8 * b0.toNat))
         (w := c) (eval_slot_addr hE qbr (of_eval (by ev [qseg, qpl])) hb0 h16)
         (of_eval (by lk [qchild])) ?_)
-      refine WPs.skip ⟨_, rfl, hW1.node_child hNdb hRdb (Or.inr ⟨rfl, b0.toNat, h16, rfl⟩) hcN1,
+      refine WPs.skip ⟨_, rfl, hW1.node_child hNdb hRdb (Or.inr ⟨rfl, b0.toNat, h16, rfl⟩) hcN1
+          (fun ℓc' hcv' hc0 => by
+            have := hW1.cv_unique hcv' hcvb
+            subst this
+            have hlc := hcl hc0
+            rw [show ℓ0 + sl.toNat = ℓ0 + pl.toNat + 1 by omega] at hlc
+            exact Or.inl hlc),
         fun addr ha => ?_⟩
       show setCell m1 _ _ addr = _
       rw [setCell_ne _ (NE (by unfold HBASE at ha hlob; omega))]
       exact hm1 addr ha
   rintro _ ⟨m2, rfl, hW2, hm2⟩
   -- a shorter extension under `seg[pl]`, when more remain
-  refine WPs.seqG (fun a => ∃ R', (Rg.addNd br 3#64).Le R' ∧ WorldTJ R' a.globals a.memory ∧
+  refine WPs.seqG (fun a => ∃ R', (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).Le R' ∧ WorldTJ R' a.globals a.memory ∧
       a.ffi = s.ffi ∧ (∀ x, x ≠ "ex" → a.locals x = L x) ∧
       (∀ x, x ≠ "heap_ptr" → a.globals x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
@@ -159,11 +179,15 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
         ⟨lo, hi, hI1, by omega, by omega,
           hW2.im_nibs hI1 (p := sp + (pl + 1#64)) (c := (sl - pl - 1#64).toNat) (by omega)
             (by omega)⟩
+        (ℓ0 + pl.toNat + 1) (fun hc0 => by
+          have hlc := hcl hc0
+          rw [show ℓ0 + sl.toNat = ℓ0 + pl.toNat + 1 + (sl - pl - 1#64).toNat by omega] at hlc
+          exact Or.inl hlc)
       simp only [List.cons.injEq, and_true] at hvs
       subst hvs
-      have hK3 : ((Rg.addNd br 3#64).addNd ex 2#64).Kd br 3#64 := Or.inl hK1
+      have hK3 : ((Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).addNd ex 2#64 (ℓ0 + pl.toNat + 1) (ℓ0 + pl.toNat + 1 + (sl - pl - 1#64).toNat)).Kd br 3#64 := Or.inl hK1
       obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW3.kd hK3
-      obtain ⟨b0, hb0, h16⟩ := hW3.im_nibs (Rg := (Rg.addNd br 3#64).addNd ex 2#64) hI1
+      obtain ⟨b0, hb0, h16⟩ := hW3.im_nibs (Rg := (Rg.addNd br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).addNd ex 2#64 (ℓ0 + pl.toNat + 1) (ℓ0 + pl.toNat + 1 + (sl - pl - 1#64).toNat)) hI1
         (p := sp + pl) (c := 1) (by omega) (by omega) 0 (by omega)
       rw [off0] at hb0
       have eS : (br + BitVec.ofNat 64 (32 + 8 * b0.toNat)).toNat =
@@ -175,9 +199,13 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
         (of_eval (by lk [])) ?_)
       refine WPs.skip ?_
       simp only [restorePanValueFfiLocal]
-      refine ⟨_, Reg.Le.addNd _ ex 2#64,
+      refine ⟨_, Reg.Le.addNd _ ex 2#64 _ _,
         hW3.node_child hNdb hRdb (Or.inr ⟨rfl, b0.toNat, h16, rfl⟩)
-          (Or.inr (hW3.kd (Reg.addNd_kd _ ex 2#64)).1), by first | rfl | trivial,
+          (Or.inr (hW3.kd (Reg.addNd_kd _ ex 2#64 _ _)).1)
+          (fun ℓc' hcv' _ => by
+            have := hW3.cv_unique hcv' (Or.inl hcvb)
+            subst this
+            exact Reg.addNd_lv _ ex 2#64 _ _), by first | rfl | trivial,
         fun x hx => by simp [restorePanValueLocal, update_lookup, hx],
         fun x hx => (hg3 x hx).trans (hg1 x hx), fun addr ha => ?_⟩
       show setCell m3 _ _ addr = _
@@ -197,7 +225,7 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
     omega
   have hK2 : R2.Kd br 3#64 := hle2.Kd _ _ hK1
   refine WPs.dec (w := rl - pl) (of_eval (by ev [prl, ppl])) ?_
-  refine WPs.conseq (Q' := BrQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := BrQ Rg s (ℓ0 + pl.toNat)) ?_ (fun r h => h.restore _ _)
   refine WPs.seqG (fun a => ∃ R', R2.Le R' ∧ WorldTJ R' a.globals a.memory ∧ a.ffi = s.ffi ∧
       a.locals "br" = some (.word br) ∧ (∀ x, x ≠ "heap_ptr" → a.globals x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
@@ -258,17 +286,22 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
         (of_eval (by lk [pvl])) hW4
         (Or.inr ⟨lo2, hi2, hI2', by omega, by omega,
           hW4.im_nibs hI2' (p := rk + (pl + 1#64)) (c := (rl - pl - 1#64).toNat) (by omega)
-            (by omega)⟩)
-      have hK5 : (R2.addNd lf 1#64).Kd br 3#64 := Or.inl hK2
+            (by omega)⟩) (ℓ0 + pl.toNat + 1)
+      have hK5 : (R2.addNd lf 1#64 (ℓ0 + pl.toNat + 1) (ℓ0 + pl.toNat + 1)).Kd br 3#64 :=
+        Or.inl hK2
       obtain ⟨hNdb5, hRdb5, -, -, -⟩ := hW5.kd hK5
       refine WPs.last (WPs.seq_store_inv hE (addr := br + BitVec.ofNat 64 (32 + 8 * b1'.toNat))
         (w := lf) (of_eval (eval_slot_idx hE (by lk [pbr]) (by lk []) h16))
         (of_eval (by lk [])) ?_)
       refine WPs.skip ?_
       simp only [restorePanValueFfiLocal]
-      refine ⟨_, Reg.Le.addNd R2 lf 1#64,
+      refine ⟨_, Reg.Le.addNd R2 lf 1#64 _ _,
         hW5.node_child hNdb5 hRdb5 (Or.inr ⟨rfl, b1'.toNat, h16, rfl⟩)
-          (Or.inr (hW5.kd (Reg.addNd_kd R2 lf 1#64)).1), by first | rfl | trivial,
+          (Or.inr (hW5.kd (Reg.addNd_kd R2 lf 1#64 _ _)).1)
+          (fun ℓc' hcv' _ => by
+            have := hW5.cv_unique hcv' (Or.inl (hle2.Cv _ _ hcvb))
+            subst this
+            exact Reg.addNd_lv R2 lf 1#64 _ _), by first | rfl | trivial,
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, pbr],
         fun x hx => (hg5 x hx).trans (hga x hx), fun addr ha => ?_⟩
       show setCell m5 _ _ addr = _
@@ -295,7 +328,8 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
   dsimp only at hW6 hfb hlbr hgb hmb
   subst hfb
   refine WPs.ret (w := br) (of_eval (by rw [evalF_local]; exact hlbr)) ?_
-  exact ⟨_, gb, mb, br, R3, rfl, (Reg.Le.addNd Rg br 3#64).trans (hle2.trans hle3),
-    hle3.Kd _ _ hK2, hW6, hgb, hmb⟩
+  exact ⟨_, gb, mb, br, R3, rfl, (Reg.Le.addNd Rg br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1)).trans (hle2.trans hle3),
+    hle3.Kd _ _ hK2, hle3.Lv _ _ (hle2.Lv _ _ (Reg.addNd_lv Rg br 3#64 (ℓ0 + pl.toNat) (ℓ0 + pl.toNat + 1))), hW6, hgb,
+    hmb⟩
 
 end InitECandidate.Solver.GuestBound

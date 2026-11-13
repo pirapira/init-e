@@ -25,17 +25,29 @@ structure Reg.Le (Rg Rg' : Reg) : Prop where
   Im : Rg'.Im = Rg.Im
   Nd : ∀ a, Rg.Nd a → Rg'.Nd a
   Kd : ∀ a k, Rg.Kd a k → Rg'.Kd a k
+  Lv : ∀ a ℓ, Rg.Lv a ℓ → Rg'.Lv a ℓ
+  Cv : ∀ a ℓ, Rg.Cv a ℓ → Rg'.Cv a ℓ
 
-theorem Reg.Le.refl (Rg : Reg) : Rg.Le Rg := ⟨rfl, rfl, rfl, rfl, fun _ h => h, fun _ _ h => h⟩
+theorem Reg.Le.refl (Rg : Reg) : Rg.Le Rg :=
+  ⟨rfl, rfl, rfl, rfl, fun _ h => h, fun _ _ h => h, fun _ _ h => h, fun _ _ h => h⟩
 
 theorem Reg.Le.trans {R1 R2 R3 : Reg} (h1 : R1.Le R2) (h2 : R2.Le R3) : R1.Le R3 :=
   ⟨h2.D.trans h1.D, h2.B.trans h1.B, h2.Cn.trans h1.Cn, h2.Im.trans h1.Im,
-    fun a h => h2.Nd a (h1.Nd a h), fun a k h => h2.Kd a k (h1.Kd a k h)⟩
+    fun a h => h2.Nd a (h1.Nd a h), fun a k h => h2.Kd a k (h1.Kd a k h),
+    fun a ℓ h => h2.Lv a ℓ (h1.Lv a ℓ h), fun a ℓ h => h2.Cv a ℓ (h1.Cv a ℓ h)⟩
 
-theorem Reg.Le.addNd (Rg : Reg) (a k : Word) : Rg.Le (Rg.addNd a k) :=
-  ⟨rfl, rfl, rfl, rfl, fun _ h => Or.inl h, fun _ _ h => Or.inl h⟩
+theorem Reg.Le.addNd (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : Rg.Le (Rg.addNd a k ℓ ℓc) :=
+  ⟨rfl, rfl, rfl, rfl, fun _ h => Or.inl h, fun _ _ h => Or.inl h, fun _ _ h => Or.inl h,
+    fun _ _ h => Or.inl h⟩
 
-theorem Reg.addNd_kd (Rg : Reg) (a k : Word) : (Rg.addNd a k).Kd a k := Or.inr ⟨rfl, rfl⟩
+theorem Reg.addNd_kd (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : (Rg.addNd a k ℓ ℓc).Kd a k :=
+  Or.inr ⟨rfl, rfl⟩
+
+theorem Reg.addNd_lv (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : (Rg.addNd a k ℓ ℓc).Lv a ℓ :=
+  Or.inr ⟨rfl, rfl⟩
+
+theorem Reg.addNd_cv (Rg : Reg) (a k : Word) (ℓ ℓc : Nat) : (Rg.addNd a k ℓ ℓc).Cv a ℓc :=
+  Or.inr ⟨rfl, rfl⟩
 
 section rets
 
@@ -43,14 +55,15 @@ variable {v : PanValue Word} {g : VarName → Option (PanValue Word)}
   {m : Word → Option (PanValue Word)} {ffi : FfiState σ} {Rg : Reg}
 
 theorem node_new_branch_ret (hE : GuestEnv E)
-    (h : CalleeRet E s "node_new_branch" [] [v] g m ffi) (hW : WorldTJ Rg s.globals s.memory) :
-    ∃ a, v = .word a ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 3#64) g m ∧
+    (h : CalleeRet E s "node_new_branch" [] [v] g m ffi) (hW : WorldTJ Rg s.globals s.memory)
+    (ℓ : Nat) :
+    ∃ a, v = .word a ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 3#64 ℓ (ℓ + 1)) g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
   obtain ⟨parameters, body, values, cl, l, hlookup, hvalues, hbind, hrun⟩ := h
   rcases node_new_branch_world hE parameters body hlookup Rg ⟨cl, s.globals, s.memory, s.ffi⟩ _
-    hW hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
+    hW ℓ hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
     exact ⟨a, rfl, rfl, hw, hg, hm⟩
@@ -63,8 +76,8 @@ theorem node_new_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {nib nlen v
     (h4 : ∀ y, E.eval s e4 = some y → y = .word vlen)
     (hW : WorldTJ Rg s.globals s.memory)
     (hseg : nlen = 0#64 ∨ ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ nib.toNat ∧
-      nib.toNat + nlen.toNat ≤ hi.toNat ∧ NibSeg s.memory nib nlen) :
-    ∃ a, v = .word a ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 1#64) g m ∧
+      nib.toNat + nlen.toNat ≤ hi.toNat ∧ NibSeg s.memory nib nlen) (ℓ : Nat) :
+    ∃ a, v = .word a ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 1#64 ℓ ℓ) g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
@@ -103,7 +116,7 @@ theorem node_new_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {nib nlen v
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hW hseg hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
+    hW hseg ℓ hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
     exact ⟨a, rfl, rfl, hw, hg, hm⟩

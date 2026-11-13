@@ -45,7 +45,8 @@ theorem WorldTJ.alloc {pv pv1 : Word} (h : WorldTJ Rg g m)
         · exact hIm.offT lo hi u hb hu
         · obtain ⟨hi', e, hf⟩ := (hIm.trf u hu).2
           have := hf.hi_
-          exact Or.inr (by omega), hIm.offC, hIm.offI, hIm.offTT⟩⟩
+          exact Or.inr (by omega), hIm.offC, hIm.offI, hIm.offTT, hIm.lvk, hIm.lvu, hIm.lvx,
+      hIm.lvb, hIm.cvk, hIm.cvu, hIm.cvx, hIm.cvb, hIm.lvc⟩⟩
   · rcases hb with hb | ⟨rfl, rfl⟩
     · exact (hB lo hi hb).mono hle
     · exact FreeOK.fresh hW (Nat.le_refl _) (Nat.le_refl _) (by omega)
@@ -71,7 +72,10 @@ theorem WorldTJ.write_free {lo hi : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   rotate_left
   · obtain ⟨b1, b2, b3⟩ := hIm.cell_bounds hW hx
     refine hm x b1 (fun hin => ?_) (by omega)
-    rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨-, a, b, hI, h1, h2⟩) | ⟨u, hu, hx⟩
+    rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨-, a, b, hI, h1, h2⟩) | ⟨u, hu, hx⟩ | ⟨a, k, hN, hsx⟩
+    rotate_right
+    · have hin' := hsx.inside (hW.nodes.at_ a k hN)
+      rcases (hB lo hi hb).node a k hN with h3 | h3 <;> omega
     · have hin' := seg_cell_in (hW.nodes.at_ a k hN) hk hx
       rcases (hB lo hi hb).node a k hN with h3 | h3 <;> omega
     · rcases hIm.offB lo hi a b hb hI with h3 | h3 <;> omega
@@ -111,7 +115,7 @@ theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t 
     (hB : ∀ lo hi, Rg'.B lo hi → Rg.B lo hi) (hC : ∀ x w, Rg'.Cn x w → Rg.Cn x w)
     (hN : ∀ a, Rg'.Nd a → Rg.Nd a) (hI : Rg'.Im = Rg.Im)
     (hK : ∀ a k, Rg'.Kd a k → Rg.Kd a k ∧ Rg'.Nd a) (hK2 : ∀ a k, Rg.Kd a k → Rg'.Kd a k)
-    (hT : ∀ t, Rg'.Tr t → Rg.Tr t) :
+    (hT : ∀ t, Rg'.Tr t → Rg.Tr t) (hL : Rg'.Lv = Rg.Lv) (hV : Rg'.Cv = Rg.Cv) :
     WorldTJ Rg' g m := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hDT, hBT, hCT, hNT, hIT⟩ := h
   exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, fun t kl ht => hDT t kl (hD t kl ht),
@@ -121,11 +125,19 @@ theorem WorldTJ.weaken {Rg' : Reg} (h : WorldTJ Rg g m) (hD : ∀ t kl, Rg'.D t 
       (hI ▸ h), by rw [hI]; exact hIT.segs, fun lo hi h => hIT.nib lo hi (hI ▸ h),
       fun a k h => hIT.kd a k (hK a k h).1, fun a k h => (hK a k h).2,
       fun a k h => hK2 a k (hIT.full a k h), fun u hu => hIT.trf u (hT u hu),
-      fun u hu => hIT.trv u (hT u hu),
+      fun u hu => by
+        obtain ⟨root, sec, r1, r2, hc, hl0⟩ := hIT.trv u (hT u hu)
+        exact ⟨root, sec, r1, r2, hc, by rw [hL]; exact hl0⟩,
       fun lo hi u hb hu => hIT.offT lo hi u (hB lo hi hb) (hT u hu),
       fun x w u hc hu => hIT.offC x w u (hC x w hc) (hT u hu),
       fun lo hi u h hu => hIT.offI lo hi u (hI ▸ h) (hT u hu),
-      fun t u ht hu => hIT.offTT t u (hT t ht) (hT u hu)⟩⟩
+      fun t u ht hu => hIT.offTT t u (hT t ht) (hT u hu),
+      fun a ℓ h => hIT.lvk a ℓ (hL ▸ h), fun a ℓ ℓ' h h' => hIT.lvu a ℓ ℓ' (hL ▸ h) (hL ▸ h'),
+      by unfold LvX; rw [hL, hV]; exact hIT.lvx, by unfold LvB; rw [hL, hV]; exact hIT.lvb,
+      fun a ℓc h => hIT.cvk a ℓc (hV ▸ h), fun a x y h h' => hIT.cvu a x y (hV ▸ h) (hV ▸ h'),
+      by unfold CvX; rw [hL, hV]; exact hIT.cvx,
+      fun a ℓ ℓc h h' => hIT.cvb a ℓ ℓc (hL ▸ h) (hV ▸ h'),
+      fun a ℓ k h hN hk => by rw [hV]; exact hIT.lvc a ℓ k (hL ▸ h) hN hk⟩⟩
 
 /-- A protected cell can be read. -/
 theorem WorldTJ.cell {x w : Word} (h : WorldTJ Rg g m) (hc : Rg.Cn x w) : Rd m x w := by

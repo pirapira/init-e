@@ -23,11 +23,11 @@ theorem WPs.last {p : Prog Word} (h : WPs E s (.seq p .skip) Q) : WPs E s p Q :=
 
 set_option maxHeartbeats 2000000 in
 /-- Entry 1 of `_create_branch_from_two_leaves`. -/
-theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
+theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     (hbr : s.locals "br" = some (.word br)) (hk : s.locals "k1" = some (.word k))
     (hl : s.locals "l1" = some (.word l)) (hv : s.locals "v1" = some (.word v))
     (hvl : s.locals "vl1" = some (.word vl)) (hW : WorldTJ R s.globals s.memory)
-    (hK : R.Kd br 3#64)
+    (hK : R.Kd br 3#64) (hcv : R.Cv br ℓc)
     (hseg : l ≠ 0#64 → ∃ lo hi, R.Im lo hi ∧ lo.toNat ≤ k.toNat ∧
       k.toNat + l.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m' R', R.Le R' → WorldTJ R' g' m' → (∀ x, x ≠ "lf1" → l' x = s.locals x) →
@@ -71,11 +71,11 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       (nlen := l - 1#64) (vptr := v) (vlen := vl) (of_eval (eval_addc hE 1#64 hk))
       (of_eval (by ev [hl])) (of_eval (by lk [hv])) (of_eval (by lk [hvl])) hW
       (Or.inr ⟨lo, hi, hI, by omega, by omega,
-        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩)
-    have hK1 : (R.addNd a 1#64).Kd br 3#64 := Or.inl hK
+        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) ℓc
+    have hK1 : (R.addNd a 1#64 ℓc ℓc).Kd br 3#64 := Or.inl hK
     obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
     have hsz : nodeSize 3#64 = 176 := by decide
-    obtain ⟨b0, hb0, h16⟩ := hW1.im_nibs (Rg := R.addNd a 1#64) hI (p := k) (c := 1) h1
+    obtain ⟨b0, hb0, h16⟩ := hW1.im_nibs (Rg := R.addNd a 1#64 ℓc ℓc) hI (p := k) (c := 1) h1
       (by omega) 0 (by omega)
     have hoff : off k 0 = k := by simp [off]
     rw [hoff] at hb0
@@ -86,9 +86,13 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       (w := a) (eval_slot_addr hE (by lk [hbr]) (of_eval (by lk [hk])) hb0 h16) (of_eval (by lk [])) ?_)
     refine WPs.skip ?_
     simp only [restorePanValueFfiLocal]
-    refine hQ _ _ _ (R.addNd a 1#64) (Reg.Le.addNd R a 1#64)
+    refine hQ _ _ _ (R.addNd a 1#64 ℓc ℓc) (Reg.Le.addNd R a 1#64 ℓc ℓc)
       (hW1.node_child hNdb hRdb (Or.inr ⟨rfl, b0.toNat, h16, rfl⟩)
-        (Or.inr ((hW1.kd (Reg.addNd_kd R a 1#64)).1)))
+        (Or.inr ((hW1.kd (Reg.addNd_kd R a 1#64 ℓc ℓc)).1))
+        (fun ℓc' hcv' _ => by
+          have := hW1.cv_unique hcv' (Or.inl hcv)
+          subst this
+          exact Reg.addNd_lv R a 1#64 _ _))
       (fun x hx => by simp [restorePanValueLocal, update_lookup, hx]) hg1 (fun addr ha => ?_)
     rw [setCell_ne _ (NE (by unfold HBASE at ha hlob; omega))]
     exact hm1 addr ha
@@ -113,11 +117,11 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
 
 set_option maxHeartbeats 2000000 in
 /-- Entry 2 of `_create_branch_from_two_leaves`. -/
-theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
+theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     (hbr : s.locals "br" = some (.word br)) (hk : s.locals "k2" = some (.word k))
     (hl : s.locals "l2" = some (.word l)) (hv : s.locals "v2" = some (.word v))
     (hvl : s.locals "vl2" = some (.word vl)) (hW : WorldTJ R s.globals s.memory)
-    (hK : R.Kd br 3#64)
+    (hK : R.Kd br 3#64) (hcv : R.Cv br ℓc)
     (hseg : l ≠ 0#64 → ∃ lo hi, R.Im lo hi ∧ lo.toNat ≤ k.toNat ∧
       k.toNat + l.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m' R', R.Le R' → WorldTJ R' g' m' → (∀ x, x ≠ "lf2" → l' x = s.locals x) →
@@ -161,11 +165,11 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       (nlen := l - 1#64) (vptr := v) (vlen := vl) (of_eval (eval_addc hE 1#64 hk))
       (of_eval (by ev [hl])) (of_eval (by lk [hv])) (of_eval (by lk [hvl])) hW
       (Or.inr ⟨lo, hi, hI, by omega, by omega,
-        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩)
-    have hK1 : (R.addNd a 1#64).Kd br 3#64 := Or.inl hK
+        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) ℓc
+    have hK1 : (R.addNd a 1#64 ℓc ℓc).Kd br 3#64 := Or.inl hK
     obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
     have hsz : nodeSize 3#64 = 176 := by decide
-    obtain ⟨b0, hb0, h16⟩ := hW1.im_nibs (Rg := R.addNd a 1#64) hI (p := k) (c := 1) h1
+    obtain ⟨b0, hb0, h16⟩ := hW1.im_nibs (Rg := R.addNd a 1#64 ℓc ℓc) hI (p := k) (c := 1) h1
       (by omega) 0 (by omega)
     have hoff : off k 0 = k := by simp [off]
     rw [hoff] at hb0
@@ -176,9 +180,13 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg}
       (w := a) (eval_slot_addr hE (by lk [hbr]) (of_eval (by lk [hk])) hb0 h16) (of_eval (by lk [])) ?_)
     refine WPs.skip ?_
     simp only [restorePanValueFfiLocal]
-    refine hQ _ _ _ (R.addNd a 1#64) (Reg.Le.addNd R a 1#64)
+    refine hQ _ _ _ (R.addNd a 1#64 ℓc ℓc) (Reg.Le.addNd R a 1#64 ℓc ℓc)
       (hW1.node_child hNdb hRdb (Or.inr ⟨rfl, b0.toNat, h16, rfl⟩)
-        (Or.inr ((hW1.kd (Reg.addNd_kd R a 1#64)).1)))
+        (Or.inr ((hW1.kd (Reg.addNd_kd R a 1#64 ℓc ℓc)).1))
+        (fun ℓc' hcv' _ => by
+          have := hW1.cv_unique hcv' (Or.inl hcv)
+          subst this
+          exact Reg.addNd_lv R a 1#64 _ _))
       (fun x hx => by simp [restorePanValueLocal, update_lookup, hx]) hg1 (fun addr ha => ?_)
     rw [setCell_ne _ (NE (by unfold HBASE at ha hlob; omega))]
     exact hm1 addr ha
@@ -217,9 +225,10 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
       k1.toNat + l1.toNat ≤ hi.toNat)
     (hseg2 : l2 ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ k2.toNat ∧
       k2.toNat + l2.toNat ≤ hi.toNat)
-    (h : Runs E s body r) :
+    (ℓ : Nat) (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a R', r = .returned l g' m' s.ffi [.word a] ∧ Rg.Le R' ∧
-      R'.Kd a 3#64 ∧ WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      R'.Kd a 3#64 ∧ R'.Lv a ℓ ∧ WorldTJ R' g' m' ∧
+      (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
   have hbody := (fun_of_index 272 hE.functions (by guest_decl_at 272) (by decide +kernel)
@@ -227,20 +236,22 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' a R', r = .returned l g' m' s.ffi [.word a] ∧
-    Rg.Le R' ∧ R'.Kd a 3#64 ∧ WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    Rg.Le R' ∧ R'.Kd a 3#64 ∧ R'.Lv a ℓ ∧ WorldTJ R' g' m' ∧
+    (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
   refine WPs.decCall_ret (fun v g1 m1 f1 hret => ?_)
-  obtain ⟨br, rfl, rfl, hW1, hg1, hm1⟩ := node_new_branch_ret hE hret hW
-  have hle1 := Reg.Le.addNd Rg br 3#64
-  refine WPs.seqG (fun a => ∃ R', (Rg.addNd br 3#64).Le R' ∧ WorldTJ R' a.globals a.memory ∧
+  obtain ⟨br, rfl, rfl, hW1, hg1, hm1⟩ := node_new_branch_ret hE hret hW ℓ
+  have hle1 := Reg.Le.addNd Rg br 3#64 ℓ (ℓ + 1)
+  refine WPs.seqG (fun a => ∃ R', (Rg.addNd br 3#64 ℓ (ℓ + 1)).Le R' ∧ WorldTJ R' a.globals a.memory ∧
       a.ffi = s.ffi ∧
       (∀ x, x ≠ "lf1" → a.locals x = updatePanValueMap s.locals "br" (.word br) x) ∧
       (∀ x, x ≠ "heap_ptr" → a.globals x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         a.memory addr = s.memory addr)
     (attach1 hE (br := br) (k := k1) (l := l1) (v := v1) (vl := vl1) (by lk []) (by lk [hk1]) (by lk [hl1]) (by lk [hv1]) (by lk [hvl1]) hW1
-      (Reg.addNd_kd Rg br 3#64) (fun h0 => hseg1 h0)
+      (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1)) (Reg.addNd_cv Rg br 3#64 ℓ (ℓ + 1))
+      (fun h0 => hseg1 h0)
       (fun l' g' m' R' hle hw hl hg hm => ⟨R', hle, hw, rfl, hl,
         fun x hx => (hg x hx).trans (hg1 x hx),
         fun addr ha => (hm addr ha).trans (hm1 addr ha)⟩)) ?_
@@ -255,7 +266,8 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
     (attach2 hE (br := br) (k := k2) (l := l2) (v := v2) (vl := vl2) (by dsimp only; rw [hla _ (by decide)]; lk []) (by dsimp only; rw [hla _ (by decide)]; lk [hk2])
       (by dsimp only; rw [hla _ (by decide)]; lk [hl2]) (by dsimp only; rw [hla _ (by decide)]; lk [hv2])
       (by dsimp only; rw [hla _ (by decide)]; lk [hvl2]) hW2
-      (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64)) (fun h0 => by
+      (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1)))
+      (hle2.Cv _ _ (Reg.addNd_cv Rg br 3#64 ℓ (ℓ + 1))) (fun h0 => by
         obtain ⟨lo, hi, hI, hr⟩ := hseg2 h0
         exact ⟨lo, hi, by rw [hle2.Im]; exact hI, hr⟩)
       (fun l' g' m' R' hle hw hl hg hm => ⟨R', hle, hw, rfl, hl,
@@ -271,6 +283,7 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
     lk [])) ?_
   simp only [restorePanValueFfiLocal]
   exact ⟨_, _, _, br, R2, rfl, hle1.trans (hle2.trans hle3),
-    hle3.Kd _ _ (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64)), hW3, hgb, hmb⟩
+    hle3.Kd _ _ (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1))),
+    hle3.Lv _ _ (hle2.Lv _ _ (Reg.addNd_lv Rg br 3#64 ℓ (ℓ + 1))), hW3, hgb, hmb⟩
 
 end InitECandidate.Solver.GuestBound

@@ -304,7 +304,10 @@ theorem jset_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Wo
     refine hIT.frame hpq (fun x hx => ?_)
     obtain ⟨b1, b2, b3⟩ := hIT.cell_bounds hHW hx
     rw [keep2 x ?_, hm1 x (Or.inl (by omega))]
-    rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩
+    rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨-, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩ | ⟨a, k, hN, hsx⟩
+    rotate_right
+    · have hin := hsx.inside (hHW.nodes.at_ a k hN)
+      rcases hHW.jn a k hN with h3 | h3 <;> omega
     · have hin := seg_cell_in (hHW.nodes.at_ a k hN) hk hx
       rcases hHW.jn a k hN with h3 | h3 <;> omega
     · rcases (hIT.free lo hi hI).2.jrn with h3 | h3 <;> omega

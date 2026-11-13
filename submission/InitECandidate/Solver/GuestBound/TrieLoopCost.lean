@@ -50,12 +50,12 @@ theorem insMu_le (a : St σ) : insMu a ≤ 2 ^ 64 := by
 
 set_option maxHeartbeats 32000000 in
 /-- One iteration: the invariant is kept and the measure decreases. -/
-theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen : Word}
+theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen level : Word}
     (hblk : klen ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
-    {a : St σ} (hI : InsI Rg s key klen vptr vlen a) (hct : CondTrue E a IGUARD) :
+    {a : St σ} (hI : InsI Rg s key klen vptr vlen level a) (hct : CondTrue E a IGUARD) :
     WPs E a IBODY (fun r => ∃ l g m f, r = .normal l g m f ∧
-      InsI Rg s key klen vptr vlen ⟨l, g, m, f⟩ ∧ insMu ⟨l, g, m, f⟩ < insMu a) := by
+      InsI Rg s key klen vptr vlen level ⟨l, g, m, f⟩ ∧ insMu ⟨l, g, m, f⟩ < insMu a) := by
   obtain ⟨la, ga, ma, fa⟩ := a
   obtain ⟨R, lv, nd, sl, res, gw, hle, hW', hf, hg, hm, k1, k2, k3, k4, k5,
     k6, k7, k8, k9, hres, hI⟩ := hI
@@ -70,7 +70,7 @@ theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen : 
     rintro rfl
     rw [hcv] at hw
     simp [evalPanCmp] at hw
-  obtain ⟨hlv', hnd', hsl'⟩ := hI hgw
+  obtain ⟨hlv', hnd', hLn', hsl'⟩ := hI hgw
   have hkeyR : klen ≠ 0#64 → ∃ lo hi, R.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat := by
     intro h0
@@ -91,17 +91,18 @@ theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen : 
   clear hLL
   refine WPs.seqG (fun a' => a'.ffi = s.ffi ∧
       InsMid R ga ma key klen vptr vlen lv sl res a'.locals a'.globals a'.memory)
-    (ins_step hE (s := ⟨L, ga, ma, s.ffi⟩) hLoc hW' hnd' hlv' hkeyR
+    (ins_step hE (s := ⟨L, ga, ma, s.ffi⟩) hLoc hW' hnd' hLn' hlv' hkeyR
       (fun l' g' m' hmid => ⟨rfl, hmid⟩)) ?_
   rintro ⟨l2, g2, m2, f2⟩ ⟨hf2, R', rv, kk, gw', nn, ns, nlv, nd', hle', hW2, hg2, hm2, j1,
-    j2, j3, j4, j5, j6, j7, j8, j9, j10, j11, j12, j13, hKr, hkk, hgo'⟩
+    j2, j3, j4, j5, j6, j7, j8, j9, j10, j11, j12, j13, hKr, hkk, hLr, hgo'⟩
   dsimp only at hf2 hW2 hg2 hm2 j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 j11 j12 j13
   subst hf2
   -- the result goes to the pending slot, or becomes the result
   refine WPs.seqG (fun a2 => a2.ffi = s.ffi ∧ a2.globals = g2 ∧ WorldTJ R' g2 a2.memory ∧
       (∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         a2.memory addr = m2 addr) ∧
-      (∃ res', a2.locals "result" = some (.word res') ∧ ∃ k, R'.Kd res' k ∧ k ≠ 0#64) ∧
+      (∃ res', a2.locals "result" = some (.word res') ∧
+        ∃ k, R'.Kd res' k ∧ k ≠ 0#64 ∧ R'.Lv res' level.toNat) ∧
       ∀ x, x ≠ "result" → a2.locals x = l2 x) (WPs.ite_both (fun w2 hw2 => ?_)) ?_
   · obtain ⟨x, y, hx, hy, hwv⟩ := cmp_word_inv hE hw2
     rw [eval_const] at hy
@@ -116,21 +117,31 @@ theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen : 
         rintro rfl
         rw [h0] at hwv
         simp [evalPanCmp] at hwv
-      have hSlot : SlotOf R' sl := (hsl'.resolve_left hsl0).mono hle'
-      have hres' : ∃ k, R'.Kd res k ∧ k ≠ 0#64 := by
-        rcases hres with ⟨k, hk, hk0⟩ | ⟨h1, -⟩
-        · exact ⟨k, hle'.Kd _ _ hk, hk0⟩
+      have hSlot : SlotOf R' sl lv.toNat := (hsl'.resolve_left hsl0).mono hle'
+      have hres' : ∃ k, R'.Kd res k ∧ k ≠ 0#64 ∧ R'.Lv res level.toNat := by
+        rcases hres with ⟨⟨k, hk, hk0, hkl⟩, -⟩ | ⟨h1, -⟩
+        · exact ⟨k, hle'.Kd _ _ hk, hk0, hle'.Lv _ _ hkl⟩
         · exact absurd h1 hsl0
       obtain ⟨W3, hb1, hb2⟩ := hW2.slot_store hSlot (c := rv) (Or.inr (hW2.kd hKr).1)
+        (fun _ => hLr)
       refine WPs.store hE (addr := sl) (w := rv) (by rw [evalF_local]; exact j7)
         (of_eval (by rw [evalF_local]; exact j9)) ?_
       refine ⟨rfl, rfl, W3, fun addr ha => ?_, ⟨res, j8, hres'⟩, fun _ _ => rfl⟩
       show setCell m2 sl rv addr = _
       rw [setCell_ne _ (NE (by unfold HBASE at ha hb1; omega))]
-    · refine WPs.assign (old := res) (w := rv) j8 (of_eval (by rw [evalF_local]; exact j9)) ?_
-      exact ⟨rfl, rfl, hW2, fun _ _ => rfl, ⟨rv, by lk [], kk, hKr, hkk⟩,
+    · rename_i h0
+      have hsl0 : sl = 0#64 := by
+        by_contra hne
+        exact h0 (by rw [hwv]; simp [evalPanCmp, hne])
+      have hlv0 : lv = level := by
+        rcases hres with ⟨-, hns⟩ | ⟨-, -, h3⟩
+        · exact absurd hsl0 (hns hgw)
+        · exact h3
+      refine WPs.assign (old := res) (w := rv) j8 (of_eval (by rw [evalF_local]; exact j9)) ?_
+      exact ⟨rfl, rfl, hW2, fun _ _ => rfl,
+        ⟨rv, by lk [], kk, hKr, hkk, by rw [← hlv0]; exact hLr⟩,
         fun x hx => by simp [update_lookup, hx]⟩
-  rintro ⟨l3, g3, m3, f3⟩ ⟨hf3, hg3, hW3, hm3, ⟨res', hr3, k', hk', hk0'⟩, hfr⟩
+  rintro ⟨l3, g3, m3, f3⟩ ⟨hf3, hg3, hW3, hm3, ⟨res', hr3, k', hk', hk0', hkl'⟩, hfr⟩
   dsimp only at hf3 hg3 hW3 hm3 hr3 hfr
   subst hf3 hg3
   have p1 : l3 "key" = some (.word key) := by rw [hfr _ (by decide)]; exact j1
@@ -160,16 +171,19 @@ theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen : 
     by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
     by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hr3],
     by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, p10],
-    Or.inl ⟨k', hk', hk0'⟩, fun hgw' => ?_⟩, ?_⟩
-  · rcases hgo' with h0 | ⟨-, hnn, hns, hl1, hl2⟩
+    Or.inl ⟨⟨k', hk', hk0', hkl'⟩, fun hgw' => ?_⟩, fun hgw' => ?_⟩, ?_⟩
+  · rcases hgo' with h0 | ⟨-, hnn, hnl, hns, hl1, hl2⟩
     · exact absurd h0 hgw'
-    · exact ⟨hl2, hnn, Or.inr hns⟩
+    · exact hW3.slot_ne hns
+  · rcases hgo' with h0 | ⟨-, hnn, hnl, hns, hl1, hl2⟩
+    · exact absurd h0 hgw'
+    · exact ⟨hl2, hnn, hnl, Or.inr hns⟩
   · refine insMu_lt (gw := gw) (lv := lv) (kl := klen) (gw' := gw') (lv' := nlv) k9 k5 k2
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, p10])
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup])
       (by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, p2])
       hgw hlv' ?_
-    rcases hgo' with h0 | ⟨-, hnn, hns, hl1, hl2⟩
+    rcases hgo' with h0 | ⟨-, hnn, hnl, hns, hl1, hl2⟩
     · exact Or.inl h0
     · exact Or.inr ⟨hl1, hl2⟩
 
@@ -198,7 +212,7 @@ theorem mpt_insert_node_cost (hE : GuestEnv E) (parameters : List VarName) (body
     (hlevel : s.locals "level" = some (.word level))
     (hvp : s.locals "vptr" = some (.word vptr)) (hvl : s.locals "vlen" = some (.word vlen))
     (hW : WorldTJ Rg s.globals s.memory) (hnd : node = 0#64 ∨ ∃ k, Rg.Kd node k)
-    (hlv : level.toNat ≤ klen.toNat)
+    (hLn : node ≠ 0#64 → Rg.Lv node level.toNat) (hlv : level.toNat ≤ klen.toNat)
     (hblk : klen ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
     (hrun : E.run fuel s body = some (r, n)) (hne : r.isError = false) : n ≤ 10 ^ 141 := by
@@ -206,12 +220,12 @@ theorem mpt_insert_node_cost (hE : GuestEnv E) (parameters : List VarName) (body
     hlookup).1
   subst hbody
   dsimp only at hrun
-  have hloop : Triple E (fun a => InsI Rg s key klen vptr vlen a ∧ insMu a ≤ 2 ^ 64)
+  have hloop : Triple E (fun a => InsI Rg s key klen vptr vlen level a ∧ insMu a ≤ 2 ^ 64)
       (.while IGUARD IBODY) ((2 ^ 64 + 1) * (expCost IGUARD + 10 ^ 120 + 1))
       (fun r => match r with
         | .normal _ _ _ _ => True
         | _ => True) := by
-    refine (Triple.while_exit (I := InsI Rg s key klen vptr vlen) (μ := insMu)
+    refine (Triple.while_exit (I := InsI Rg s key klen vptr vlen level) (μ := insMu)
       (Q := fun _ => True) (2 ^ 64) (condCost_exp _) (fun _ _ _ => trivial) ?_).consequence
       (fun _ h => h) (Nat.le_refl _) (fun r _ => by cases r <;> trivial)
     intro k
@@ -230,7 +244,7 @@ theorem mpt_insert_node_cost (hE : GuestEnv E) (parameters : List VarName) (body
     (Triple.dec (P' := fun a => a = ⟨updatePanValueMap (updatePanValueMap s.locals "result"
         (.word 0#64)) "slot" (.word 0#64), s.globals, s.memory, s.ffi⟩) "slot" Shape.one
       (Exp.const (BitVec.ofNat 64 0)) ?_
-      (Triple.dec (P' := fun a => InsI Rg s key klen vptr vlen a ∧ insMu a ≤ 2 ^ 64) "go"
+      (Triple.dec (P' := fun a => InsI Rg s key klen vptr vlen level a ∧ insMu a ≤ 2 ^ 64) "go"
         Shape.one (Exp.const (BitVec.ofNat 64 1)) ?_
         (Triple.seq (Mid := fun _ => True) (Q := fun _ => True) hloop (ins_ret_cost hE))))
   · have hn := (hall fuel s r n rfl hrun hne).1
@@ -250,7 +264,7 @@ theorem mpt_insert_node_cost (hE : GuestEnv E) (parameters : List VarName) (body
     subst this
     exact ⟨⟨Rg, level, node, 0#64, 0#64, 1#64, Reg.Le.refl Rg, hW, rfl, fun _ _ => rfl,
       fun _ _ => rfl, by lk [hkey], by lk [hklen], by lk [hvp], by lk [hvl], by lk [hlevel],
-      by lk [hnode], by lk [], by lk [], by lk [], Or.inr ⟨rfl, by decide⟩,
-      fun _ => ⟨hlv, hnd, Or.inl rfl⟩⟩, insMu_le _⟩
+      by lk [hnode], by lk [], by lk [], by lk [], Or.inr ⟨rfl, by decide, rfl⟩,
+      fun _ => ⟨hlv, hnd, hLn, Or.inl rfl⟩⟩, insMu_le _⟩
 
 end InitECandidate.Solver.GuestBound

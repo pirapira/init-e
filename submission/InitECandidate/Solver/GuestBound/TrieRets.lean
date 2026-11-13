@@ -70,8 +70,9 @@ theorem node_new_ext_ret (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {nib nlen child
     (hlen : 1 ≤ nlen.toNat) (hch : child = 0#64 ∨ Rg.Nd child)
     (hW : WorldTJ Rg s.globals s.memory)
     (hseg : ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ nib.toNat ∧ nib.toNat + nlen.toNat ≤ hi.toNat ∧
-      NibSeg s.memory nib nlen) :
-    ∃ a, vs = [.word a] ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 2#64) g m ∧
+      NibSeg s.memory nib nlen)
+    (ℓ : Nat) (hchl : child ≠ 0#64 → Rg.Lv child (ℓ + nlen.toNat)) :
+    ∃ a, vs = [.word a] ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 2#64 ℓ (ℓ + nlen.toNat)) g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
@@ -97,7 +98,7 @@ theorem node_new_ext_ret (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {nib nlen child
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hlen hch hW hseg hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
+    hlen hch hW hseg ℓ hchl hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
     exact ⟨a, rfl, rfl, hw, hg, hm⟩
@@ -154,8 +155,8 @@ theorem create_branch_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 e7 e8 : Exp Word}
     (hseg1 : l1 ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ k1.toNat ∧
       k1.toNat + l1.toNat ≤ hi.toNat)
     (hseg2 : l2 ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ k2.toNat ∧
-      k2.toNat + l2.toNat ≤ hi.toNat) :
-    ∃ a R', v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a 3#64 ∧ WorldTJ R' g m ∧
+      k2.toNat + l2.toNat ≤ hi.toNat) (ℓ : Nat) :
+    ∃ a R', v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a 3#64 ∧ R'.Lv a ℓ ∧ WorldTJ R' g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
@@ -201,10 +202,10 @@ theorem create_branch_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 e7 e8 : Exp Word}
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hW hseg1 hseg2 hrun with hst | ⟨l', g', m', a, R', heq, hle, hk, hw, hg, hm⟩
+    hW hseg1 hseg2 ℓ hrun with hst | ⟨l', g', m', a, R', heq, hle, hk, hlv, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
-    exact ⟨a, R', rfl, rfl, hle, hk, hw, hg, hm⟩
+    exact ⟨a, R', rfl, rfl, hle, hk, hlv, hw, hg, hm⟩
 
 end rets
 

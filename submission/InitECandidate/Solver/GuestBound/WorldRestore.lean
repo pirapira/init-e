@@ -29,9 +29,70 @@ structure Reg where
   Kd : Word → Word → Prop
   /-- Trie handles: 16 bytes, the root pointer at `+0`. -/
   Tr : Word → Prop
+  /-- Levels of trie nodes: depth in nibbles below the root. -/
+  Lv : Word → Nat → Prop
+  /-- The level at which the children of an extension or branch sit. -/
+  Cv : Word → Nat → Prop
 
 /-- The cells of the trie handles. -/
 def TrCell (Tr : Word → Prop) (x : Word) : Prop := ∃ t, Tr t ∧ (x = t ∨ x = t + 8#64)
+
+/-- The structural cells of the nodes: kind cells and child cells. -/
+def LvCell (N : Word → Option Word) (x : Word) : Prop :=
+  ∃ a k, N a = some k ∧ StructCell a k x
+
+/-- The child of an extension sits at the extension's child level. -/
+def LvX (Rg : Reg) (m : Word → Option (PanValue Word)) (N : Word → Option Word) : Prop :=
+  ∀ a ℓc c, N a = some 2#64 → Rg.Cv a ℓc → Rd m (a + 48#64) c → c ≠ 0#64 → Rg.Lv c ℓc
+
+/-- The children of a branch sit at the branch's child level. -/
+def LvB (Rg : Reg) (m : Word → Option (PanValue Word)) (N : Word → Option Word) : Prop :=
+  ∀ a ℓc i c, N a = some 3#64 → Rg.Cv a ℓc → i < 16 →
+    Rd m (a + BitVec.ofNat 64 (32 + 8 * i)) c → c ≠ 0#64 → Rg.Lv c ℓc
+
+/-- The child level of an extension is its level plus the segment length. -/
+def CvX (Rg : Reg) (m : Word → Option (PanValue Word)) (N : Word → Option Word) : Prop :=
+  ∀ a ℓ ℓc nl, Rg.Lv a ℓ → Rg.Cv a ℓc → N a = some 2#64 → Rd m (a + 40#64) nl →
+    ℓc = ℓ + nl.toNat
+
+theorem LvX.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {N : Word → Option Word}
+    (h : LvX Rg m N) (hm : ∀ x, LvCell N x → m' x = m x) : LvX Rg m' N := by
+  intro a ℓc c hN hcv r2 hc
+  refine h a ℓc c hN hcv ?_ hc
+  unfold Rd at r2 ⊢
+  rw [← hm _ ⟨a, _, hN, Or.inr (Or.inl ⟨rfl, Or.inr rfl⟩)⟩]
+  exact r2
+
+theorem LvB.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {N : Word → Option Word}
+    (h : LvB Rg m N) (hm : ∀ x, LvCell N x → m' x = m x) : LvB Rg m' N := by
+  intro a ℓc i c hN hcv hi r1 hc
+  refine h a ℓc i c hN hcv hi ?_ hc
+  unfold Rd at r1 ⊢
+  rw [← hm _ ⟨a, _, hN, Or.inr (Or.inr ⟨rfl, i, hi, rfl⟩)⟩]
+  exact r1
+
+theorem CvX.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {N : Word → Option Word}
+    (h : CvX Rg m N) (hm : ∀ x, LvCell N x → m' x = m x) : CvX Rg m' N := by
+  intro a ℓ ℓc nl hl hcv hN r1
+  refine h a ℓ ℓc nl hl hcv hN ?_
+  unfold Rd at r1 ⊢
+  rw [← hm _ ⟨a, _, hN, Or.inr (Or.inl ⟨rfl, Or.inl rfl⟩)⟩]
+  exact r1
+
+/-- A structural cell is aligned. -/
+theorem StructCell.al {m : Word → Option (PanValue Word)} {pv : Word} {N : Word → Option Word}
+    {a k x : Word} (h : NodeAt m pv N a k) (hx : StructCell a k x) : x.toNat % 8 = 0 := by
+  have hal := h.al
+  rcases hx with rfl | ⟨hk, rfl | rfl⟩ | ⟨hk, i, hi, rfl⟩
+  · exact hal
+  · have e := node_off h 40 (by omega)
+    change (a + 40#64).toNat = _ at e
+    omega
+  · have e := node_off h 48 (by omega)
+    change (a + 48#64).toNat = _ at e
+    omega
+  · have e := node_off h (32 + 8 * i) (by omega)
+    omega
 
 /-- Immutable blocks and the nibble segments of trie nodes: the blocks are
 free of every structure and of the writable blocks `B`, and every leaf or
@@ -50,11 +111,23 @@ structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
   trf : ∀ t, Rg.Tr t → t.toNat % 8 = 0 ∧
     ∃ hi : Word, hi.toNat = t.toNat + 16 ∧ FreeOK pv T N J C t hi
   /-- Its root pointer is null or a node. -/
-  trv : ∀ t, Rg.Tr t → ∃ root sec : Word, Rd m t root ∧ Rd m (t + 8#64) sec ∧ IsChild N root
+  trv : ∀ t, Rg.Tr t → ∃ root sec : Word, Rd m t root ∧ Rd m (t + 8#64) sec ∧ IsChild N root ∧
+    (root ≠ 0#64 → Rg.Lv root 0)
   offT : ∀ lo hi t, Rg.B lo hi → Rg.Tr t → hi.toNat ≤ t.toNat ∨ t.toNat + 16 ≤ lo.toNat
   offC : ∀ x w t, Rg.Cn x w → Rg.Tr t → x.toNat + 8 ≤ t.toNat ∨ t.toNat + 16 ≤ x.toNat
   offI : ∀ lo hi t, Rg.Im lo hi → Rg.Tr t → hi.toNat ≤ t.toNat ∨ t.toNat + 16 ≤ lo.toNat
   offTT : ∀ t u, Rg.Tr t → Rg.Tr u → t = u ∨ t.toNat + 16 ≤ u.toNat ∨ u.toNat + 16 ≤ t.toNat
+  /-- Levelled addresses are nodes, with one level each. -/
+  lvk : ∀ a ℓ, Rg.Lv a ℓ → ∃ k, N a = some k
+  lvu : ∀ a ℓ ℓ', Rg.Lv a ℓ → Rg.Lv a ℓ' → ℓ = ℓ'
+  lvx : LvX Rg m N
+  lvb : LvB Rg m N
+  cvk : ∀ a ℓc, Rg.Cv a ℓc → ∃ k, N a = some k
+  cvu : ∀ a x y, Rg.Cv a x → Rg.Cv a y → x = y
+  cvx : CvX Rg m N
+  cvb : ∀ a ℓ ℓc, Rg.Lv a ℓ → Rg.Cv a ℓc → N a = some 3#64 → ℓc = ℓ + 1
+  /-- A levelled extension or branch has a child level. -/
+  lvc : ∀ a ℓ k, Rg.Lv a ℓ → N a = some k → (k = 2#64 ∨ k = 3#64) → ∃ ℓc, Rg.Cv a ℓc
 
 /-- A handle cell is an aligned cell inside the handle. -/
 theorem tr_cell_in {Rg : Reg} {m : Word → Option (PanValue Word)} {pv : Word}
@@ -141,6 +214,13 @@ theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     have := hf.hi_
     refine hs.heapStep.frame x h8 (fun hfoot => ?_) (by omega)
     rcases hf.tab t v hs.hT x hfoot with h3 | h3 <;> omega
+  have hLv : ∀ x, LvCell N x → m' x = m x := by
+    rintro x ⟨a, k, hN, hsx⟩
+    have hat := hW.nodes.at_ a k hN
+    have hin := hsx.inside hat
+    have := hat.hi
+    refine hs.heapStep.frame x (hsx.al hat) (fun hfoot => ?_) (by omega)
+    rcases hW.tn t v a k hs.hT hN x hfoot with h3 | h3 <;> omega
   exact ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.tab_step hs⟩, h.offB,
     h.segs.step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF,
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib
@@ -157,15 +237,16 @@ theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
       · unfold Rd at r2 ⊢
         rw [hT _ ⟨u, hu, Or.inr rfl⟩]
         exact r2,
-    h.offT, h.offC, h.offI, h.offTT⟩
+    h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu, h.lvx.frame hLv, h.lvb.frame hLv, h.cvk, h.cvu,
+    h.cvx.frame hLv, h.cvb, h.lvc⟩
 
 /-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
 theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
     {T : Word → Option HtabV} {N : Word → Option Word} {J C n : Word}
     (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
-    (hx : SegCell Rg.Im N x ∨ TrCell Rg.Tr x) :
+    (hx : SegCell Rg.Im N x ∨ TrCell Rg.Tr x ∨ LvCell N x) :
     x.toNat % 8 = 0 ∧ HBASE ≤ x.toNat ∧ x.toNat < pv.toNat := by
-  rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨h8, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩
+  rcases hx with (⟨a, k, hN, hk, hx⟩ | ⟨h8, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hx⟩ | ⟨a, k, hN, hsx⟩
   · have hat := hW.nodes.at_ a k hN
     have hin := seg_cell_in hat hk hx
     have h1 := hat.hi
@@ -179,12 +260,18 @@ theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x 
     have := hf.lo_
     have := hf.hi_
     exact ⟨h8, by omega, by omega⟩
+  · have hat := hW.nodes.at_ a k hN
+    have hin := hsx.inside hat
+    have h1 := hat.hi
+    have h2 := hat.lo
+    exact ⟨hsx.al hat, by omega, by omega⟩
 
 /-- `ImOK` after a change that leaves its cells alone (same structures). -/
 theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' : Word}
     {T : Word → Option HtabV} {N : Word → Option Word} {J C : Word}
     (h : ImOK Rg m pv T N J C) (hpv : pv.toNat ≤ pv'.toNat)
-    (hm : ∀ x, SegCell Rg.Im N x ∨ TrCell Rg.Tr x → m' x = m x) : ImOK Rg m' pv' T N J C :=
+    (hm : ∀ x, SegCell Rg.Im N x ∨ TrCell Rg.Tr x ∨ LvCell N x → m' x = m x) :
+    ImOK Rg m' pv' T N J C :=
   ⟨fun lo hi hI => ⟨(h.free lo hi hI).1, (h.free lo hi hI).2.mono hpv⟩, h.offB,
     h.segs.frame (fun x hx => hm x (Or.inl hx)),
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib (fun x hx => hm x (Or.inl hx)),
@@ -196,12 +283,15 @@ theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' :
       obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
       refine ⟨root, sec, ?_, ?_, hc⟩
       · unfold Rd at r1 ⊢
-        rw [hm u (Or.inr ⟨u, hu, Or.inl rfl⟩)]
+        rw [hm u (Or.inr (Or.inl ⟨u, hu, Or.inl rfl⟩))]
         exact r1
       · unfold Rd at r2 ⊢
-        rw [hm _ (Or.inr ⟨u, hu, Or.inr rfl⟩)]
+        rw [hm _ (Or.inr (Or.inl ⟨u, hu, Or.inr rfl⟩))]
         exact r2,
-    h.offT, h.offC, h.offI, h.offTT⟩
+    h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu,
+    h.lvx.frame (fun x hx => hm x (Or.inr (Or.inr hx))),
+    h.lvb.frame (fun x hx => hm x (Or.inr (Or.inr hx))), h.cvk, h.cvu,
+    h.cvx.frame (fun x hx => hm x (Or.inr (Or.inr hx))), h.cvb, h.lvc⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))

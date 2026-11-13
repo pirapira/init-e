@@ -16,10 +16,10 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 set_option maxHeartbeats 4000000 in
 theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "node_new_branch" E.functions = some (parameters, body))
-    (Rg : Reg) (s : St σ) (r : Result σ) (hW : WorldTJ Rg s.globals s.memory)
+    (Rg : Reg) (s : St σ) (r : Result σ) (hW : WorldTJ Rg s.globals s.memory) (ℓ : Nat)
     (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-      WorldTJ (Rg.addNd a 3#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      WorldTJ (Rg.addNd a 3#64 ℓ (ℓ + 1)) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
   have hbody := (fun_of_index 258 hE.functions (by guest_decl_at 258) (by decide +kernel)
@@ -27,7 +27,7 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
   subst hbody
   dsimp only at h
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
-    WorldTJ (Rg.addNd a 3#64) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    WorldTJ (Rg.addNd a 3#64 ℓ (ℓ + 1)) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hHW, hDT, hBT, hCT, hNT, hIT⟩ := hW
@@ -83,18 +83,19 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
     exact Rd.here m1 pv 3#64
   have hpq : pv.toNat ≤ qv.toNat := by omega
   have hbase : HBASE ≤ pv.toNat := by omega
-  have hbr : ∀ i : Nat, i < 16 → ∃ c : Word,
-      Rd m' (pv + BitVec.ofNat 64 (32 + 8 * i)) c ∧ IsChild N c := by
+  have hz0 : ∀ i : Nat, i < 16 → Rd m' (pv + BitVec.ofNat 64 (32 + 8 * i)) 0#64 := by
     intro i hi
     have e : (pv + BitVec.ofNat 64 (32 + 8 * i)).toNat = pv.toNat + (32 + 8 * i) := by
       rw [BitVec.toNat_add, BitVec.toNat_ofNat]
       omega
-    refine ⟨0#64, ?_, Or.inl rfl⟩
     rw [← hm']
     have hr1 : Rd m1 (pv + BitVec.ofNat 64 (32 + 8 * i)) 0#64 := by
       unfold Rd
       rw [hz, if_pos ⟨by omega, by omega, by omega⟩]
     exact hr1.frame _ (NE (by omega))
+  have hbr : ∀ i : Nat, i < 16 → ∃ c : Word,
+      Rd m' (pv + BitVec.ofNat 64 (32 + 8 * i)) c ∧ IsChild N c :=
+    fun i hi => ⟨0#64, hz0 i hi, Or.inl rfl⟩
   have hW' : HeapW m' qv T (addN N pv 3#64) J C n :=
     hHW.node_add (fun x _ hlt => keep x (by omega))
       (fun x hx => keep x (by unfold HBASE at hx hbase; omega)) hp8 (Nat.le_refl _)
@@ -106,7 +107,8 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
     by simp (config := { decide := true }) [update_lookup, hng], hW', hDT,
     fun lo hi hb => (hBT lo hi hb).node_add (Nat.le_refl _) hpq, fun x w hc => ?_,
     fun a ha => ?_, hIT.node_add hHW (fun x _ hlt => keep x (by omega)) (Nat.le_refl _) hpq
-      (fun hk => absurd hk (by decide))⟩, fun x hx => by simp [update_lookup, hx],
+      (fun hk => absurd hk (by decide)) (fun hk => absurd hk (by decide))
+      (fun _ => ⟨rfl, fun i c hi r1 hc0 => absurd (Rd.inj r1 (hz0 i hi)) hc0⟩)⟩, fun x hx => by simp [update_lookup, hx],
     fun addr ha => keep addr (by unfold HBASE at ha hbase; omega)⟩
   · obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hc
     refine ⟨?_, h8, hi, hhi, hf.node_add (Nat.le_refl _) hpq⟩

@@ -15,7 +15,8 @@ variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 set_option maxHeartbeats 16000000 in
 theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : Word}
     (hL : InsLoc s.locals key klen vptr vlen lv nd sl res)
-    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 2#64) (hlv : lv.toNat ≤ klen.toNat)
+    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 2#64) (hLn : R0.Lv nd lv.toNat)
+    (hlv : lv.toNat ≤ klen.toNat)
     (hkey : klen ≠ 0#64 → ∃ lo hi, R0.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m', InsMid R0 s.globals s.memory key klen vptr vlen lv sl res l' g' m' →
@@ -95,13 +96,13 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
       by_contra hcn
       exact hne (BitVec.eq_of_toNat_eq (by omega))
     refine WPs.decCall_ret (fun vb g1 m1 f1 hret1 => ?_)
-    obtain ⟨br, R1, rfl, rfl, hle1, hK1, hW1, hg1, hm1⟩ := split_ext_ret hE hret1 (node := nd)
+    obtain ⟨br, R1, rfl, rfl, hle1, hK1, hLb, hW1, hg1, hm1⟩ := split_ext_ret hE hret1 (node := nd)
       (rk := key + lv) (rl := klen - lv) (vptr := vptr) (vlen := vlen) (pl := p) (sl := sgl)
       (of_eval (by lk [qnode])) (of_eval (by ev [qkey, qlv])) (of_eval (by ev [qklen, qlv]))
       (of_eval (by lk [qvp])) (of_eval (by lk [qvl])) (of_eval (by lk [qpl])) hW hK r2 hlt hp2
       (fun h0 => by
         obtain ⟨lo', hi', hI', h1, h2, h3⟩ := hrest h0
-        exact ⟨lo', hi', hI', h1, h2⟩)
+        exact ⟨lo', hi', hI', h1, h2⟩) lv.toNat hLn
     refine WPs.ite_both (fun w2 hw2 => ?_)
     obtain ⟨x, y, hx, hy, hwv2⟩ := cmp_word_inv hE hw2
     rw [eval_const] at hx
@@ -111,6 +112,12 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
     split
     · rename_i h2
       -- no common prefix: the branch replaces the extension
+      have hp0 : p.toNat = 0 := by
+        by_contra hne
+        have hl : (0#64 : Word) < p := by rw [BitVec.lt_def]; simp; omega
+        rw [h2] at hwv2
+        simp [evalPanCmp, hl] at hwv2
+      rw [hp0, Nat.add_zero] at hLb
       refine WPs.assign (old := 0#64) (w := br) (by lk [qr]) (of_eval (by lk [])) ?_
       simp only [restorePanValueFfiLocal]
       exact hQ _ _ _ ⟨R1, br, 3#64, 0#64, 0#64, 0#64, 0#64, nd, hle1, hW1, hg1, hm1,
@@ -128,7 +135,7 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qnn],
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qns],
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qnl],
-        hK1, by decide, Or.inl rfl⟩
+        hK1, by decide, hLb, Or.inl rfl⟩
     · rename_i h2
       -- a shorter extension on top of the branch
       have hppos : 1 ≤ p.toNat := by
@@ -141,11 +148,12 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
         (child := br) (of_eval (by lk [qseg])) (of_eval (by lk [qpl])) (of_eval (by lk []))
         hppos (Or.inr (hW1.kd hK1).1) hW1
         ⟨lo, hi, hI1, hb1, by omega, hW1.im_nibs hI1 (p := sp) (c := p.toNat) hb1 (by omega)⟩
+        lv.toNat (fun _ => hLb)
       simp only [List.cons.injEq, and_true] at hvs
       subst hvs
       simp only [restorePanValueFfiLocal]
-      exact hQ _ _ _ ⟨R1.addNd ex 2#64, ex, 2#64, 0#64, 0#64, 0#64, 0#64, nd,
-        hle1.trans (Reg.Le.addNd R1 ex 2#64), hW2, fun x hx => (hg2 x hx).trans (hg1 x hx),
+      exact hQ _ _ _ ⟨R1.addNd ex 2#64 lv.toNat (lv.toNat + p.toNat), ex, 2#64, 0#64, 0#64, 0#64,
+        0#64, nd, hle1.trans (Reg.Le.addNd R1 ex 2#64 _ _), hW2, fun x hx => (hg2 x hx).trans (hg1 x hx),
         fun addr ha => (hm2 addr ha).trans (hm1 addr ha),
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qkey],
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qklen],
@@ -161,7 +169,7 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qnn],
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qns],
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, qnl],
-        Reg.addNd_kd R1 ex 2#64, by decide, Or.inl rfl⟩
+        Reg.addNd_kd R1 ex 2#64 _ _, by decide, Reg.addNd_lv R1 ex 2#64 _ _, Or.inl rfl⟩
   · rename_i h0
     -- the whole segment matches: descend to the child
     have hpe : p = sgl := by
@@ -196,6 +204,9 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
-      hK, by decide, Or.inr ⟨rfl, hch, Or.inl ⟨nd, hK, rfl⟩, by omega, by omega⟩⟩
+      hK, by decide, hLn, Or.inr ⟨rfl, hch, fun hc0 => by
+        rw [elp]
+        exact hW.ext_lv hK (hW.cv_ext hK hLn r2) r3 hc0,
+        ⟨nd, by rw [elp]; exact hW.cv_ext hK hLn r2, Or.inl ⟨hK, rfl⟩⟩, by omega, by omega⟩⟩
 
 end InitECandidate.Solver.GuestBound

@@ -27,18 +27,17 @@ theorem WorldTJ.node_kind {a k : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a) (hk :
   have := hpH.1
   exact ⟨hat.k3, hat.lo, by omega, hat.al⟩
 
-/-- `ImOK` after a store into a node, away from the segment cells. -/
-theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word → Option Word}
+/-- A store into a node leaves the segment cells, the immutable blocks and the
+handles alone, when it is not one of the node's own segment cells. -/
+theorem node_store_keep {pv a k x : Word} {T : Word → Option HtabV} {N : Word → Option Word}
     {J C n : Word} (w : Word) (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
     (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
     (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
-    ImOK Rg (setCell m x w) pv T N J C := by
-  refine h.frame (Nat.le_refl _) (fun y hy => setCell_ne _ ?_)
+    ∀ y, SegCell Rg.Im N y ∨ TrCell Rg.Tr y → setCell m x w y = m y := by
+  intro y hy
+  refine setCell_ne _ ?_
   rintro rfl
   rcases hy with (⟨b, j, hb, hj, hy⟩ | ⟨-, lo, hi, hI, h1, h2⟩) | ⟨u, hu, hy⟩
-  rotate_right
-  · obtain ⟨-, c1, c2, hi, e, hf⟩ := tr_cell_in h hu hy
-    rcases hf.node a k hN with h3 | h3 <;> omega
   · by_cases e : b = a
     · subst e
       have : j = k := Option.some.inj (hb.symm.trans hN)
@@ -49,6 +48,122 @@ theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word 
     · have hi' := seg_cell_in (hW.nodes.at_ b j hb) hj hy
       rcases hW.nodes.disj b j a k hb hN e with h3 | h3 <;> omega
   · rcases (h.free lo hi hI).2.node a k hN with h3 | h3 <;> omega
+  · obtain ⟨-, c1, c2, hi, e, hf⟩ := tr_cell_in h hu hy
+    rcases hf.node a k hN with h3 | h3 <;> omega
+
+/-- Structural cells of different nodes, or a structural and a non-structural
+cell of one node, are different. -/
+theorem struct_cell_ne {pv a k b j x y : Word} {T : Word → Option HtabV}
+    {N : Word → Option Word} {J C n : Word} (hW : HeapW m pv T N J C n)
+    (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
+    (hb : N b = some j) (hy : StructCell b j y) (hba : b ≠ a) : y ≠ x := by
+  have hi' := hy.inside (hW.nodes.at_ b j hb)
+  rintro rfl
+  rcases hW.nodes.disj b j a k hb hN hba with h3 | h3 <;> omega
+
+/-- `ImOK` after a store into a non-structural cell of a node, away from its segment cells. -/
+theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word → Option Word}
+    {J C n : Word} (w : Word) (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
+    (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
+    (hx : ¬ StructCell a k x)
+    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
+    ImOK Rg (setCell m x w) pv T N J C := by
+  have keep := node_store_keep w h hW hN hin hns
+  refine h.frame (Nat.le_refl _) (fun y hy => ?_)
+  rcases hy with hy | hy | ⟨b, j, hb, hsy⟩
+  · exact keep y (Or.inl hy)
+  · exact keep y (Or.inr hy)
+  · refine setCell_ne _ ?_
+    by_cases e : b = a
+    · subst e
+      have : j = k := Option.some.inj (hb.symm.trans hN)
+      subst this
+      rintro rfl
+      exact hx hsy
+    · exact struct_cell_ne hW hN hin hb hsy e
+
+/-- `ImOK` after a store into a child slot: the stored node must sit at the
+child level of the parent, when the parent has one. -/
+theorem ImOK.store_child {pv a k x c : Word} {T : Word → Option HtabV} {N : Word → Option Word}
+    {J C n : Word} (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n) (hN : N a = some k)
+    (hslot : (k = 2#64 ∧ x = a + 48#64) ∨
+      (k = 3#64 ∧ ∃ i : Nat, i < 16 ∧ x = a + BitVec.ofNat 64 (32 + 8 * i)))
+    (hl : ∀ ℓc, Rg.Cv a ℓc → c ≠ 0#64 → Rg.Lv c ℓc) :
+    ImOK Rg (setCell m x c) pv T N J C := by
+  have NE : ∀ {u v : Word}, u.toNat ≠ v.toNat → u ≠ v := fun h e => h (congrArg _ e)
+  have hat := hW.nodes.at_ a k hN
+  have hsx : StructCell a k x := by
+    rcases hslot with ⟨hk2, rfl⟩ | ⟨hk3, i, hi, rfl⟩
+    · exact Or.inr (Or.inl ⟨hk2, Or.inr rfl⟩)
+    · exact Or.inr (Or.inr ⟨hk3, i, hi, rfl⟩)
+  have hin := hsx.inside hat
+  have e32 : (a + 32#64).toNat = a.toNat + 32 := by have := hat.top; bv_omega
+  have e40 : (a + 40#64).toNat = a.toNat + 40 := by have := hat.top; bv_omega
+  have e48 : (a + 48#64).toNat = a.toNat + 48 := by have := hat.top; bv_omega
+  have hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64 := by
+    intro hj
+    rcases hslot with ⟨hk2, rfl⟩ | ⟨hk3, -⟩
+    · exact ⟨NE (by omega), NE (by omega)⟩
+    · subst hk3
+      rcases hj with hj | hj <;> exact absurd hj (by decide)
+  have keep := node_store_keep c h hW hN hin hns
+  have rdk : ∀ {y w : Word}, y ≠ x → Rd (setCell m x c) y w → Rd m y w := by
+    intro y w hne hr
+    unfold Rd at hr ⊢
+    rw [setCell_ne _ hne] at hr
+    exact hr
+  refine ⟨h.free, h.offB, h.segs.frame (fun y hy => keep y (Or.inl hy)),
+    nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib (fun y hy => keep y (Or.inl hy)),
+    h.kd, h.kn, h.full, h.trf, fun u hu => ?_, h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu,
+    ?_, ?_, h.cvk, h.cvu, ?_, h.cvb, h.lvc⟩
+  · obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
+    refine ⟨root, sec, ?_, ?_, hc⟩
+    · unfold Rd at r1 ⊢
+      rw [keep u (Or.inr ⟨u, hu, Or.inl rfl⟩)]
+      exact r1
+    · unfold Rd at r2 ⊢
+      rw [keep _ (Or.inr ⟨u, hu, Or.inr rfl⟩)]
+      exact r2
+  · intro b ℓc c' hNb hcv r2 hc'
+    have s48 : StructCell b 2#64 (b + 48#64) := Or.inr (Or.inl ⟨rfl, Or.inr rfl⟩)
+    by_cases e : b = a
+    · subst e
+      have hk2 : k = 2#64 := (Option.some.inj (hNb.symm.trans hN)).symm
+      subst hk2
+      have hx48 : x = b + 48#64 := by
+        rcases hslot with ⟨-, hx⟩ | ⟨hk3, -⟩
+        · exact hx
+        · exact absurd hk3 (by decide)
+      subst hx48
+      have hcc : c' = c := Rd.inj r2 (Rd.here m _ c)
+      subst hcc
+      exact hl ℓc hcv hc'
+    · exact h.lvx b ℓc c' hNb hcv (rdk (struct_cell_ne hW hN hin hNb s48 e) r2) hc'
+  · intro b ℓc i c' hNb hcv hi r1 hc'
+    have si : StructCell b 3#64 (b + BitVec.ofNat 64 (32 + 8 * i)) :=
+      Or.inr (Or.inr ⟨rfl, i, hi, rfl⟩)
+    by_cases e : b = a
+    · subst e
+      by_cases hxi : b + BitVec.ofNat 64 (32 + 8 * i) = x
+      · subst hxi
+        have hcc : c' = c := Rd.inj r1 (Rd.here m _ c)
+        subst hcc
+        exact hl ℓc hcv hc'
+      · exact h.lvb b ℓc i c' hNb hcv hi (rdk hxi r1) hc'
+    · exact h.lvb b ℓc i c' hNb hcv hi (rdk (struct_cell_ne hW hN hin hNb si e) r1) hc'
+  · intro b ℓ ℓc nl hlb hcv hNb r1
+    have s40 : StructCell b 2#64 (b + 40#64) := Or.inr (Or.inl ⟨rfl, Or.inl rfl⟩)
+    by_cases e : b = a
+    · subst e
+      have hk2 : k = 2#64 := (Option.some.inj (hNb.symm.trans hN)).symm
+      subst hk2
+      have hx48 : x = b + 48#64 := by
+        rcases hslot with ⟨-, hx⟩ | ⟨hk3, -⟩
+        · exact hx
+        · exact absurd hk3 (by decide)
+      subst hx48
+      exact h.cvx b ℓ ℓc nl hlb hcv hNb (rdk (NE (by omega)) r1)
+    · exact h.cvx b ℓ ℓc nl hlb hcv hNb (rdk (struct_cell_ne hW hN hin hNb s40 e) r1)
 
 /-- A store into a non-structural cell of a known node. -/
 theorem WorldTJ.node_other {a k x : Word} (w : Word) (h : WorldTJ Rg g m) (ha : Rg.Nd a)
@@ -62,7 +177,7 @@ theorem WorldTJ.node_other {a k x : Word} (w : Word) (h : WorldTJ Rg g m) (ha : 
   have : k' = k := Rd.inj hat.kind hk
   subst this
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW.node_other w hk' hin hx, hD, hB,
-    fun y v hc => ?_, hNd, hIm.store_node w hW hk' hin hns⟩
+    fun y v hc => ?_, hNd, hIm.store_node w hW hk' hin hx hns⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hc
   refine ⟨hr.frame _ ?_, h8, hi, hhi, hf⟩
   rintro rfl
@@ -73,7 +188,9 @@ theorem WorldTJ.node_child {a k x c : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     (hk : Rd m a k)
     (hslot : (k = 2#64 ∧ x = a + 48#64) ∨
       (k = 3#64 ∧ ∃ i : Nat, i < 16 ∧ x = a + BitVec.ofNat 64 (32 + 8 * i)))
-    (hc : c = 0#64 ∨ Rg.Nd c) : WorldTJ Rg g (setCell m x c) := by
+    (hc : c = 0#64 ∨ Rg.Nd c)
+    (hl : ∀ ℓc, Rg.Cv a ℓc → c ≠ 0#64 → Rg.Lv c ℓc) :
+    WorldTJ Rg g (setCell m x c) := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   obtain ⟨k', hk'⟩ := hNd a ha
   have hat := hW.nodes.at_ a k' hk'
@@ -89,16 +206,7 @@ theorem WorldTJ.node_child {a k x c : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     · exact Or.inr (Or.inr ⟨hk3, i, hi, rfl⟩)
   have hin := hsx.inside hat
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW.node_child hk' hslot hcN, hD, hB,
-    fun y v hcn => ?_, hNd, hIm.store_node c hW hk' hin (fun hj => ?_)⟩
-  rotate_left
-  · have e32 : (a + 32#64).toNat = a.toNat + 32 := by have := hat.top; bv_omega
-    have e40 : (a + 40#64).toNat = a.toNat + 40 := by have := hat.top; bv_omega
-    have e48 : (a + 48#64).toNat = a.toNat + 48 := by have := hat.top; bv_omega
-    rcases hslot with ⟨hk2, rfl⟩ | ⟨hk3, -⟩
-    · exact ⟨fun e => by have := congrArg BitVec.toNat e; omega,
-        fun e => by have := congrArg BitVec.toNat e; omega⟩
-    · subst hk3
-      rcases hj with hj | hj <;> exact absurd hj (by decide)
+    fun y v hcn => ?_, hNd, hIm.store_child hW hk' hslot hl⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hcn
   refine ⟨hr.frame _ ?_, h8, hi, hhi, hf⟩
   rintro rfl

@@ -51,7 +51,7 @@ set_option maxHeartbeats 16000000 in
 theorem ins_step (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : Word}
     (hL : InsLoc s.locals key klen vptr vlen lv nd sl res)
     (hW : WorldTJ R0 s.globals s.memory) (hnd : nd = 0#64 ∨ ∃ k, R0.Kd nd k)
-    (hlv : lv.toNat ≤ klen.toNat)
+    (hLn : nd ≠ 0#64 → R0.Lv nd lv.toNat) (hlv : lv.toNat ≤ klen.toNat)
     (hkey : klen ≠ 0#64 → ∃ lo hi, R0.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m', InsMid R0 s.globals s.memory key klen vptr vlen lv sl res l' g' m' →
@@ -193,19 +193,19 @@ theorem ins_step (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res :
           simp at a0 a1 a2
           exact BitVec.eq_of_toNat_eq (by simp; omega)
         subst hk3'
-        exact ins_branch hE hLk hW1 hKd hlv hkey hQk
+        exact ins_branch hE hLk hW1 hKd (hLn hne) hlv hkey hQk
       · rename_i h4
         have hk2 : k = 2#64 := by
           by_contra hne2
           exact h4 (by rw [hwv4]; simp [evalPanCmp, hne2])
         subst hk2
-        exact ins_ext hE hLk hW1 hKd hlv hkey hQk
+        exact ins_ext hE hLk hW1 hKd (hLn hne) hlv hkey hQk
     · rename_i h3
       have hk1 : k = 1#64 := by
         by_contra hne1
         exact h3 (by rw [hwv3]; simp [evalPanCmp, hne1])
       subst hk1
-      exact ins_leaf hE hLk hW1 hKd hlv hkey hQk
+      exact ins_leaf hE hLk hW1 hKd (hLn hne) hlv hkey hQk
   · rename_i h0
     exact ins_null hE hL hW hlv hkey hQ
 

@@ -14,15 +14,18 @@ open Flapjack
 
 variable {σ : Type} {E : Env σ} {s : St σ} {Q : Result σ → Prop}
 
-/-- A child slot of a registered extension or branch. -/
-def SlotOf (R : Reg) (x : Word) : Prop :=
-  (∃ a, R.Kd a 2#64 ∧ x = a + 48#64) ∨
-    (∃ a i, R.Kd a 3#64 ∧ i < 16 ∧ x = a + BitVec.ofNat 64 (32 + 8 * i))
+/-- A child slot of a registered extension or branch whose children sit at level `ℓ`. -/
+def SlotOf (R : Reg) (x : Word) (ℓ : Nat) : Prop :=
+  ∃ a, R.Cv a ℓ ∧ ((R.Kd a 2#64 ∧ x = a + 48#64) ∨
+    (R.Kd a 3#64 ∧ ∃ i, i < 16 ∧ x = a + BitVec.ofNat 64 (32 + 8 * i)))
 
-theorem SlotOf.mono {R R' : Reg} {x : Word} (h : R.Le R') (hs : SlotOf R x) : SlotOf R' x := by
-  rcases hs with ⟨a, hk, rfl⟩ | ⟨a, i, hk, hi, rfl⟩
-  · exact Or.inl ⟨a, h.Kd _ _ hk, rfl⟩
-  · exact Or.inr ⟨a, i, h.Kd _ _ hk, hi, rfl⟩
+theorem SlotOf.mono {R R' : Reg} {x : Word} {ℓ : Nat} (h : R.Le R') (hs : SlotOf R x ℓ) :
+    SlotOf R' x ℓ := by
+  obtain ⟨a, hcv, hk⟩ := hs
+  refine ⟨a, h.Cv _ _ hcv, ?_⟩
+  rcases hk with ⟨hk, rfl⟩ | ⟨hk, i, hi, rfl⟩
+  · exact Or.inl ⟨h.Kd _ _ hk, rfl⟩
+  · exact Or.inr ⟨h.Kd _ _ hk, i, hi, rfl⟩
 
 /-- The locals of the loop body at the start of the big conditional. -/
 structure InsLoc (l : VarName → Option (PanValue Word))
@@ -55,8 +58,9 @@ def InsMid (R0 : Reg) (g0 : VarName → Option (PanValue Word))
     l' "slot" = some (.word sl) ∧ l' "result" = some (.word res) ∧
     l' "r" = some (.word rv) ∧ l' "go" = some (.word gw) ∧
     l' "next_node" = some (.word nn) ∧ l' "next_slot" = some (.word ns) ∧
-    l' "next_level" = some (.word nlv) ∧ R.Kd rv kk ∧ kk ≠ 0#64 ∧
-    (gw = 0#64 ∨ (gw = 1#64 ∧ (nn = 0#64 ∨ ∃ k, R.Kd nn k) ∧ SlotOf R ns ∧
+    l' "next_level" = some (.word nlv) ∧ R.Kd rv kk ∧ kk ≠ 0#64 ∧ R.Lv rv lv.toNat ∧
+    (gw = 0#64 ∨ (gw = 1#64 ∧ (nn = 0#64 ∨ ∃ k, R.Kd nn k) ∧
+      (nn ≠ 0#64 → R.Lv nn nlv.toNat) ∧ SlotOf R ns nlv.toNat ∧
       lv.toNat < nlv.toNat ∧ nlv.toNat ≤ klen.toNat))
 
 /-- The remaining key `[key + lv, key + klen)`, when it is not empty. -/
@@ -104,18 +108,20 @@ theorem ins_null (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res :
       · exact Or.inl h0
       · obtain ⟨lo, hi, hI, h1, h2, h3⟩ := hrest h0
         exact Or.inr ⟨lo, hi, hI, h1, h2,
-          hW.im_nibs hI (p := key + lv) (c := (klen - lv).toNat) h1 h2⟩)
-  exact hQ _ _ _ ⟨R0.addNd a 1#64, a, 1#64, 0#64, 0#64, 0#64, 0#64, nd, Reg.Le.addNd R0 a 1#64,
+          hW.im_nibs hI (p := key + lv) (c := (klen - lv).toNat) h1 h2⟩) lv.toNat
+  exact hQ _ _ _ ⟨R0.addNd a 1#64 lv.toNat lv.toNat, a, 1#64, 0#64, 0#64, 0#64, 0#64, nd,
+    Reg.Le.addNd R0 a 1#64 _ _,
     hW1, hg1, hm1, by lk [hL.key], by lk [hL.klen], by lk [hL.vptr], by lk [hL.vlen],
     by lk [hL.level], by lk [hL.node], by lk [hL.slot], by lk [hL.result], by lk [],
-    by lk [hL.go], by lk [hL.nn], by lk [hL.ns], by lk [hL.nl], Reg.addNd_kd R0 a 1#64,
-    by decide, Or.inl rfl⟩
+    by lk [hL.go], by lk [hL.nn], by lk [hL.ns], by lk [hL.nl], Reg.addNd_kd R0 a 1#64 _ _,
+    by decide, Reg.addNd_lv R0 a 1#64 _ _, Or.inl rfl⟩
 
 set_option maxHeartbeats 2000000 in
 /-- A leaf: `r` is what `_insert_into_leaf` returns. -/
 theorem ins_leaf (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : Word}
     (hL : InsLoc s.locals key klen vptr vlen lv nd sl res)
-    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 1#64) (hlv : lv.toNat ≤ klen.toNat)
+    (hW : WorldTJ R0 s.globals s.memory) (hK : R0.Kd nd 1#64) (hLn : R0.Lv nd lv.toNat)
+    (hlv : lv.toNat ≤ klen.toNat)
     (hkey : klen ≠ 0#64 → ∃ lo hi, R0.Im lo hi ∧ lo.toNat ≤ key.toNat ∧
       key.toNat + klen.toNat ≤ hi.toNat)
     (hQ : ∀ l' g' m', InsMid R0 s.globals s.memory key klen vptr vlen lv sl res l' g' m' →
@@ -126,16 +132,16 @@ theorem ins_leaf (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res :
         .var .local "vlen"]) Q := by
   obtain ⟨e, hrest⟩ := key_rest hlv hkey
   refine WPs.callA_ret (fun v g m ffi hret => ?_)
-  obtain ⟨a, R', k, rfl, rfl, hle, hk, hk0, hW1, hg1, hm1⟩ := insert_leaf_ret hE hret
+  obtain ⟨a, R', k, rfl, rfl, hle, hk, hk0, hlr, hW1, hg1, hm1⟩ := insert_leaf_ret hE hret
     (node := nd) (rk := key + lv) (rl := klen - lv) (vptr := vptr) (vlen := vlen)
     (of_eval (by lk [hL.node])) (of_eval (by ev [hL.key, hL.level]))
     (of_eval (by ev [hL.klen, hL.level])) (of_eval (by lk [hL.vptr]))
     (of_eval (by lk [hL.vlen])) hW hK (fun h0 => by
       obtain ⟨lo, hi, hI, h1, h2, h3⟩ := hrest h0
-      exact ⟨lo, hi, hI, h1, h2⟩)
+      exact ⟨lo, hi, hI, h1, h2⟩) lv.toNat hLn
   exact hQ _ _ _ ⟨R', a, k, 0#64, 0#64, 0#64, 0#64, nd, hle,
     hW1, hg1, hm1, by lk [hL.key], by lk [hL.klen], by lk [hL.vptr], by lk [hL.vlen],
     by lk [hL.level], by lk [hL.node], by lk [hL.slot], by lk [hL.result], by lk [],
-    by lk [hL.go], by lk [hL.nn], by lk [hL.ns], by lk [hL.nl], hk, hk0, Or.inl rfl⟩
+    by lk [hL.go], by lk [hL.nn], by lk [hL.ns], by lk [hL.nl], hk, hk0, hlr, Or.inl rfl⟩
 
 end InitECandidate.Solver.GuestBound

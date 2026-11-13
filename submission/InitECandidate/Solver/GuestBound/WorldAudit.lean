@@ -65,3 +65,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.add_handle
 #print axioms ins_body
 #print axioms mpt_insert_node_cost
+#print axioms WorldTJ.ext_lv
+#print axioms WorldTJ.slot_lv
+#print axioms WorldTJ.cv_ext
+#print axioms ImOK.store_child

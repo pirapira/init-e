@@ -27,17 +27,17 @@ theorem eval_load_any (hE : GuestEnv E) {a : Exp Word} {addr : Word}
     subst this
     exact absurd ⟨w', hm'⟩ hm
 
-/-- Result of the insertion helpers: a registered node of kind other than 0,
-in a registry that grew by nodes. -/
-def InsQ (Rg : Reg) (s : St σ) (r : Result σ) : Prop :=
+/-- Result of the insertion helpers: a registered node of kind other than 0
+at level `L`, in a registry that grew by nodes. -/
+def InsQ (Rg : Reg) (s : St σ) (L : Nat) (r : Result σ) : Prop :=
   ∃ l g' m' a R' k, r = .returned l g' m' s.ffi [.word a] ∧ Rg.Le R' ∧ R'.Kd a k ∧ k ≠ 0#64 ∧
-    WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+    R'.Lv a L ∧ WorldTJ R' g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr
 
-theorem InsQ.restore {Rg : Reg} {s : St σ} {r : Result σ} (x : VarName)
-    (old : Option (PanValue Word)) (h : InsQ Rg s r) :
-    InsQ Rg s (restorePanValueFfiLocal x old r) := by
+theorem InsQ.restore {Rg : Reg} {s : St σ} {L : Nat} {r : Result σ} (x : VarName)
+    (old : Option (PanValue Word)) (h : InsQ Rg s L r) :
+    InsQ Rg s L (restorePanValueFfiLocal x old r) := by
   obtain ⟨l, g', m', a, R', k, rfl, hq⟩ := h
   exact ⟨_, g', m', a, R', k, rfl, hq⟩
 
@@ -51,12 +51,13 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
     (hK : Rg.Kd node 1#64)
     (hseg : rl ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ rk.toNat ∧
       rk.toNat + rl.toNat ≤ hi.toNat)
-    (h : Runs E s body r) : Stopped r ∨ InsQ Rg s r := by
+    (L : Nat) (hL : Rg.Lv node L)
+    (h : Runs E s body r) : Stopped r ∨ InsQ Rg s L r := by
   have hbody := (fun_of_index 273 hE.functions (by guest_decl_at 273) (by decide +kernel)
     hlookup).1
   subst hbody
   dsimp only at h
-  refine (?_ : WPs E s _ (InsQ Rg s)) r h
+  refine (?_ : WPs E s _ (InsQ Rg s L)) r h
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   obtain ⟨hNd, hRd, hlo, htop, h8⟩ := hW.kd hK
   have hsz : nodeSize 1#64 = 64 := by decide
@@ -66,9 +67,9 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
   have e48 : (node + 48#64).toNat = node.toNat + 48 := by bv_omega
   have e56 : (node + 56#64).toNat = node.toNat + 56 := by bv_omega
   refine WPs.dec (w := sp) (eval_load_rd hE (eval_addc hE 32#64 hnode) r1) ?_
-  refine WPs.conseq (Q' := InsQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := InsQ Rg s L) ?_ (fun r h => h.restore _ _)
   refine WPs.dec (w := nl) (eval_load_rd hE (eval_addc hE 40#64 (by lk [hnode])) r2) ?_
-  refine WPs.conseq (Q' := InsQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := InsQ Rg s L) ?_ (fun r h => h.restore _ _)
   generalize hL2 : updatePanValueMap (updatePanValueMap s.locals "ek" (.word sp)) "el"
     (.word nl) = L2
   have qnode : L2 "node" = some (.word node) := by rw [← hL2]; lk [hnode]
@@ -119,7 +120,7 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
           (eval_addc hE 56#64 (by lk [qnode])) (of_eval (by lk [qvl])) ?_
         refine WPs.ret (w := node) (of_eval (by lk [qnode])) ?_
         simp only [restorePanValueFfiLocal]
-        refine ⟨_, _, _, node, Rg, 1#64, rfl, Reg.Le.refl Rg, hK, by decide, W2,
+        refine ⟨_, _, _, node, Rg, 1#64, rfl, Reg.Le.refl Rg, hK, by decide, hL, W2,
           fun _ _ => rfl, fun addr ha => ?_⟩
         show setCell (setCell s.memory (node + 48#64) vptr) (node + 56#64) vlen addr = _
         rw [setCell_ne _ (NE (by unfold HBASE at ha hlo; omega)),
@@ -138,7 +139,7 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
   obtain ⟨p, rfl, rfl, rfl, rfl, hp1, hp2⟩ := common_prefix_ret hE hret (a := sp) (al := nl)
     (b := rk) (bl := rl) (of_eval (by lk [pek])) (of_eval (by lk [pel])) (of_eval (by lk [prk]))
     (of_eval (by lk [prl]))
-  refine WPs.conseq (Q' := InsQ Rg s) ?_ (fun r h => h.restore _ _)
+  refine WPs.conseq (Q' := InsQ Rg s L) ?_ (fun r h => h.restore _ _)
   -- the leaf's segment, when it is not empty
   have hblk : nl ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ sp.toNat ∧
       sp.toNat + nl.toNat ≤ hi.toNat := by
@@ -183,21 +184,26 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
     s.memory, s.ffi⟩) (a := .op .add [.var .local "node", .const 56#64]) (addr := node + 56#64)
     (of_eval (eval_addc hE 56#64 (by lk [pnode])))
   refine WPs.decCall_ret (fun vb g m ffi hret => ?_)
-  obtain ⟨br, R1, rfl, rfl, hle1, hK1, hW1, hg1, hm1⟩ := create_branch_ret hE hret
+  obtain ⟨br, R1, rfl, rfl, hle1, hK1, hLb, hW1, hg1, hm1⟩ := create_branch_ret hE hret
     (k1 := sp + p) (l1 := nl - p) (v1 := v1) (vl1 := vl1) (k2 := rk + p) (l2 := rl - p)
     (v2 := vptr) (vl2 := vlen) (of_eval (by ev [pek])) (of_eval (by ev [pel])) hv1 hvl1
     (of_eval (by ev [prk])) (of_eval (by ev [prl])) (of_eval (by lk [pvp]))
-    (of_eval (by lk [pvl])) hW hseg1 hseg2
-  refine WPs.conseq (Q' := InsQ Rg s) ?_ (fun r h => h.restore _ _)
+    (of_eval (by lk [pvl])) hW hseg1 hseg2 (L + p.toNat)
+  refine WPs.conseq (Q' := InsQ Rg s L) ?_ (fun r h => h.restore _ _)
   refine WPs.seqG (fun a => a = ⟨updatePanValueMap (updatePanValueMap la "pl" (.word p)) "br"
-      (.word br), g, m, s.ffi⟩) (WPs.ite_both (fun w hw => ?_)) ?_
+      (.word br), g, m, s.ffi⟩ ∧ p.toNat = 0) (WPs.ite_both (fun w hw => ?_)) ?_
   · obtain ⟨x, y, hx, hy, hwv⟩ := cmp_word_inv hE hw
     rw [eval_const] at hx
     rw [evalF_local] at hy
     simp (config := { decide := true }) [update_lookup] at hx hy
     subst hx hy
     split
-    · exact WPs.skip rfl
+    · rename_i h0
+      refine WPs.skip ⟨rfl, ?_⟩
+      by_contra hne
+      have hl : (0#64 : Word) < p := by rw [BitVec.lt_def]; simp; omega
+      rw [h0] at hwv
+      simp [evalPanCmp, hl] at hwv
     · rename_i h0
       have hppos : 1 ≤ p.toNat := by
         by_contra hc0
@@ -214,11 +220,16 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
         (child := br) (of_eval (by lk [pek])) (of_eval (by lk [])) (of_eval (by lk [])) hppos
         (Or.inr (hW1.kd hK1).1) hW1
         ⟨lo, hi, hI1, h1, by omega, hW1.im_nibs hI1 (p := sp) (c := p.toNat) h1 (by omega)⟩
-      exact ⟨l, g2, m2, a, R1.addNd a 2#64, 2#64, rfl, hle1.trans (Reg.Le.addNd R1 a 2#64),
-        Reg.addNd_kd R1 a 2#64, by decide, hW2, fun x hx => (hg2 x hx).trans (hg1 x hx),
+        L (fun _ => hLb)
+      exact ⟨l, g2, m2, a, R1.addNd a 2#64 L (L + p.toNat), 2#64, rfl,
+        hle1.trans (Reg.Le.addNd R1 a 2#64 L (L + p.toNat)),
+        Reg.addNd_kd R1 a 2#64 L (L + p.toNat), by decide,
+        Reg.addNd_lv R1 a 2#64 L (L + p.toNat), hW2, fun x hx => (hg2 x hx).trans (hg1 x hx),
         fun addr ha => (hm2 addr ha).trans (hm1 addr ha)⟩
-  · rintro _ rfl
+  · rintro _ ⟨rfl, hp0⟩
     refine WPs.ret (w := br) (of_eval (by lk [])) ?_
-    exact ⟨_, g, m, br, R1, 3#64, rfl, hle1, hK1, by decide, hW1, hg1, hm1⟩
+    have e0 : L + p.toNat = L := by omega
+    rw [e0] at hLb
+    exact ⟨_, g, m, br, R1, 3#64, rfl, hle1, hK1, by decide, hLb, hW1, hg1, hm1⟩
 
 end InitECandidate.Solver.GuestBound

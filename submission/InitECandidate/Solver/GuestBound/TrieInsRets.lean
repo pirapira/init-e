@@ -24,8 +24,9 @@ theorem insert_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 : Exp Word}
     (h5 : ∀ y, E.eval s e5 = some y → y = .word vlen)
     (hW : WorldTJ Rg s.globals s.memory) (hK : Rg.Kd node 1#64)
     (hseg : rl ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ rk.toNat ∧
-      rk.toNat + rl.toNat ≤ hi.toNat) :
-    ∃ a R' k, v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a k ∧ k ≠ 0#64 ∧ WorldTJ R' g m ∧
+      rk.toNat + rl.toNat ≤ hi.toNat) (L : Nat) (hL : Rg.Lv node L) :
+    ∃ a R' k, v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a k ∧ k ≠ 0#64 ∧ R'.Lv a L ∧
+      WorldTJ R' g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
@@ -59,10 +60,10 @@ theorem insert_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 : Exp Word}
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hW hK hseg hrun with hst | ⟨l', g', m', a, R', k, heq, hle, hk, hk0, hw, hg, hm⟩
+    hW hK hseg L hL hrun with hst | ⟨l', g', m', a, R', k, heq, hle, hk, hk0, hlv, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
-    exact ⟨a, R', k, rfl, rfl, hle, hk, hk0, hw, hg, hm⟩
+    exact ⟨a, R', k, rfl, rfl, hle, hk, hk0, hlv, hw, hg, hm⟩
 
 theorem split_ext_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 : Exp Word}
     {node rk rl vptr vlen pl sl : Word}
@@ -77,8 +78,9 @@ theorem split_ext_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 : Exp Word}
     (hsl : Rd s.memory (node + 40#64) sl) (hlt : pl.toNat < sl.toNat)
     (hprl : pl.toNat ≤ rl.toNat)
     (hseg : rl ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ rk.toNat ∧
-      rk.toNat + rl.toNat ≤ hi.toNat) :
-    ∃ a R', v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a 3#64 ∧ WorldTJ R' g m ∧
+      rk.toNat + rl.toNat ≤ hi.toNat) (ℓ0 : Nat) (hL0 : Rg.Lv node ℓ0) :
+    ∃ a R', v = .word a ∧ ffi = s.ffi ∧ Rg.Le R' ∧ R'.Kd a 3#64 ∧ R'.Lv a (ℓ0 + pl.toNat) ∧
+      WorldTJ R' g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m addr = s.memory addr := by
@@ -116,10 +118,11 @@ theorem split_ext_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 : Exp Word}
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hW hK hsl hlt hprl hseg hrun with hst | ⟨l', g', m', a, R', heq, hle, hk, hw, hg, hm⟩
+    hW hK hsl hlt hprl hseg ℓ0 hL0 hrun with
+    hst | ⟨l', g', m', a, R', heq, hle, hk, hlv, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
-    exact ⟨a, R', rfl, rfl, hle, hk, hw, hg, hm⟩
+    exact ⟨a, R', rfl, rfl, hle, hk, hlv, hw, hg, hm⟩
 
 theorem node_invalidate_ret (hE : GuestEnv E) {e1 : Exp Word} {a k : Word}
     {vs : List (PanValue Word)} (h : CalleeRet E s "node_invalidate" [e1] vs g m ffi)
