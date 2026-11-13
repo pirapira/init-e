@@ -141,10 +141,12 @@ theorem eval_slot_load (hE : GuestEnv E) {x : VarName} {ea : Exp Word} {br b : W
 
 /-- Invariant of the unwind loop, relative to globals `G`, memory `M` and FFI state `F`. -/
 def UwI (Rg : Reg) (G : VarName → Option (PanValue Word)) (M : Word → Option (PanValue Word))
-    (F : FfiState σ) (sp lim : Word) (ℓ0 : Nat) (a : St σ) : Prop :=
-  ∃ R topv resv ℓ, Rg.Le R ∧ WorldTJ R a.globals a.memory ∧ a.ffi = F ∧
-    (∀ x, x ≠ "heap_ptr" → a.globals x = G x) ∧
-    (∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
+    (F : FfiState σ) (lim : Word) (ℓ0 : Nat) (a : St σ) : Prop :=
+  ∃ R topv resv ℓ sp, Rg.Le R ∧ WorldTJ R a.globals a.memory ∧ a.ffi = F ∧
+    (∀ x, x ≠ "heap_ptr" → x ≠ "scratch_ptr" → a.globals x = G x) ∧
+    a.globals "scratch_ptr" = some (.word sp) ∧ 2952790016 ≤ sp.toNat ∧
+    sp.toNat ≤ lim.toNat ∧
+    (∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ lim.toNat ≤ addr.toNat) →
       a.memory addr = M addr) ∧
     a.locals "top" = some (.word topv) ∧ a.locals "res" = some (.word resv) ∧
     DelStack R a.memory sp lim ℓ0 topv ℓ ∧
@@ -178,15 +180,15 @@ theorem uwMu_le (a : St σ) : uwMu a ≤ 2 ^ 64 := by
 set_option maxHeartbeats 32000000 in
 /-- One pop: the invariant is kept and the measure decreases. -/
 theorem uw_body (hE : GuestEnv E) {Rg : Reg} {G : VarName → Option (PanValue Word)}
-    {M : Word → Option (PanValue Word)} {F : FfiState σ} {sp lim : Word} {ℓ0 : Nat}
-    (hsp : 2952790016 ≤ sp.toNat) {a : St σ} (hI : UwI Rg G M F sp lim ℓ0 a)
-    (hct : CondTrue E a UGUARD) :
+    {M : Word → Option (PanValue Word)} {F : FfiState σ} {lim : Word} {ℓ0 : Nat}
+    {a : St σ} (hI : UwI Rg G M F lim ℓ0 a) (hct : CondTrue E a UGUARD) :
     WPs E a UBODY (fun r => ∃ l g m f, r = .normal l g m f ∧
-      UwI Rg G M F sp lim ℓ0 ⟨l, g, m, f⟩ ∧ uwMu ⟨l, g, m, f⟩ < uwMu a) := by
+      UwI Rg G M F lim ℓ0 ⟨l, g, m, f⟩ ∧ uwMu ⟨l, g, m, f⟩ < uwMu a) := by
   obtain ⟨la, ga, ma, fa⟩ := a
-  obtain ⟨R, topv, resv, ℓ, hle, hW, hf, hg, hm, qtop, qres, hst, hres⟩ := hI
+  obtain ⟨R, topv, resv, ℓ, sp, hle, hW, hf, hg, hgsp, hsp, hspl, hm, qtop, qres, hst,
+    hres⟩ := hI
   obtain ⟨w, cc, hcond, hw⟩ := hct
-  dsimp only at hW hf hg hm qtop qres hst
+  dsimp only at hW hf hg hgsp hm qtop qres hst
   subst hf
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   have hcv := eval_cmp_inv hE (op := .notEqual) (of_eval (w := topv) (by lk [qtop]))
@@ -199,8 +201,9 @@ theorem uw_body (hE : GuestEnv E) {Rg : Reg} {G : VarName → Option (PanValue W
   obtain ⟨prev, node, ℓn, h8, h3, h4, h5, r0, r1, hln, hprev, hcase⟩ := hst.inv htop
   refine WPs.dec (w := node) (eval_load_rd hE (eval_addc hE 8#64 qtop) r1) ?_
   refine WPs.seqG (fun a' => ∃ R' res', Rg.Le R' ∧ WorldTJ R' a'.globals a'.memory ∧
-      a'.ffi = fa ∧ (∀ x, x ≠ "heap_ptr" → a'.globals x = G x) ∧
-      (∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
+      a'.ffi = fa ∧ (∀ x, x ≠ "heap_ptr" → x ≠ "scratch_ptr" → a'.globals x = G x) ∧
+      a'.globals "scratch_ptr" = some (.word sp) ∧
+      (∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ lim.toNat ≤ addr.toNat) →
         a'.memory addr = M addr) ∧
       a'.locals "top" = some (.word topv) ∧ a'.locals "res" = some (.word res') ∧
       Rd a'.memory topv prev ∧ DelStack R' a'.memory sp lim ℓ0 prev ℓn ∧
@@ -225,9 +228,12 @@ theorem uw_body (hE : GuestEnv E) {Rg : Reg} {G : VarName → Option (PanValue W
           rcases hres with h0 | ⟨k, hk', -, hl'⟩
           · exact Or.inl h0
           · exact Or.inr ⟨k, hk', hl'⟩)
-      refine ⟨R1, a, hle.trans hle1, hW1, rfl, fun x hx => (hg1 x hx).trans (hg x hx),
-        fun addr ha' => (hm1 addr ha').trans (hm addr ha'), by lk [qtop], by lk [], ?_,
+      refine ⟨R1, a, hle.trans hle1, hW1, rfl, fun x h1 h2 => (hg1 x h1).trans (hg x h1 h2),
+        (hg1 _ (by decide)).trans hgsp, fun addr ha' => ?_, by lk [qtop], by lk [], ?_,
         (hprev.mono hle1).frame (fun x hx1 _ => hm1 x (Or.inr (by omega))), ha⟩
+      · rcases ha' with h1 | h1
+        · exact (hm1 addr (Or.inl h1)).trans (hm addr (Or.inl h1))
+        · exact (hm1 addr (Or.inr (by omega))).trans (hm addr (Or.inr h1))
       show Rd m1 topv prev
       unfold Rd at r0 ⊢
       rw [hm1 topv (Or.inr (by omega))]
@@ -270,11 +276,11 @@ theorem uw_body (hE : GuestEnv E) {Rg : Reg} {G : VarName → Option (PanValue W
         intro x hx
         rw [hm1 x (Or.inr (by omega))]
         exact setCell_ne _ (NE (by omega))
-      refine ⟨R1, a, hle.trans hle1, hW1, rfl, fun x hx => (hg1 x hx).trans (hg x hx),
-        fun addr ha' => ?_, by lk [qtop], by lk [], ?_,
+      refine ⟨R1, a, hle.trans hle1, hW1, rfl, fun x h1 h2 => (hg1 x h1).trans (hg x h1 h2),
+        (hg1 _ (by decide)).trans hgsp, fun addr ha' => ?_, by lk [qtop], by lk [], ?_,
         (hprev.mono hle1).frame (fun x hx1 _ => hkeep x hx1), ha⟩
       · show m1 addr = _
-        rw [hm1 addr ha']
+        rw [hm1 addr (by rcases ha' with h1 | h1 <;> [exact Or.inl h1; exact Or.inr (by omega)])]
         show setCell ma _ _ addr = _
         rw [setCell_ne _ (NE (by unfold HBASE at ha' hlo; omega))]
         exact hm addr ha'
@@ -282,13 +288,14 @@ theorem uw_body (hE : GuestEnv E) {Rg : Reg} {G : VarName → Option (PanValue W
         unfold Rd at r0 ⊢
         rw [hkeep topv h3]
         exact r0
-  · rintro ⟨lb, gb, mb, fb⟩ ⟨R', res', hle', hW', hf', hg', hm', ptop, pres, rprev, hst', hres'⟩
-    dsimp only at hW' hf' hg' hm' ptop pres rprev hst'
+  · rintro ⟨lb, gb, mb, fb⟩ ⟨R', res', hle', hW', hf', hg', hgsp', hm', ptop, pres, rprev, hst',
+      hres'⟩
+    dsimp only at hW' hf' hg' hgsp' hm' ptop pres rprev hst'
     subst hf'
     refine WPs.assign (old := topv) (w := prev) ptop
       (eval_load_rd hE (eval_addc hE 0#64 ptop) (by rw [BitVec.add_zero]; exact rprev)) ?_
     simp only [restorePanValueFfiLocal]
-    refine ⟨_, _, _, _, rfl, ⟨R', prev, res', ℓn, hle', hW', rfl, hg', hm',
+    refine ⟨_, _, _, _, rfl, ⟨R', prev, res', ℓn, sp, hle', hW', rfl, hg', hgsp', hsp, hspl, hm',
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, pres],
       hst', hres'⟩, ?_⟩
