@@ -21,11 +21,12 @@ def KnJ (g : VarName → Option (PanValue Word)) (m0 : Word → Option (PanValue
     a.locals "n" = some (.word nw) ∧ a.locals "out" = some (.word ow0) ∧
     ∃ iw : Word, a.locals "i" = some (.word iw) ∧
       ow0.toNat + 2 * iw.toNat < 33806089704 + 16 ∧ iw.toNat ≤ nw.toNat ∧ Nibs a.memory ow0 (2 * iw.toNat) ∧
-      ∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * iw.toNat ≤ x.toNat) →
-        a.memory x = m0 x
+      (∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * iw.toNat ≤ x.toNat) →
+        a.memory x = m0 x) ∧
+      ∀ p : Word, p.toNat < ow0.toNat → byteAt a.memory p = byteAt m0 p
 
 set_option maxHeartbeats 16000000 in
-theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+theorem key_to_nibbles_nib2 (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
     (hlookup : lookupPanFunction "key_to_nibbles" E.functions = some (parameters, body))
     (s : St σ) (r : Result σ) (kw nw ow0 : Word) (hk : s.locals "key" = some (.word kw))
     (hn : s.locals "n" = some (.word nw)) (ho : s.locals "out" = some (.word ow0))
@@ -33,8 +34,9 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
     Stopped r ∨ ∃ l m, r = .returned l s.globals m s.ffi [.word 0#64] ∧
       ow0.toNat + 2 * nw.toNat < 33806089704 + 16 ∧
       Nibs m ow0 (2 * nw.toNat) ∧
-      ∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
-        m x = s.memory x := by
+      (∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
+        m x = s.memory x) ∧
+      ∀ p : Word, p.toNat < ow0.toNat → byteAt m p = byteAt s.memory p := by
   have hbody := (fun_of_index 248 hE.functions (by guest_decl_at 248) (by decide +kernel)
     hlookup).1
   subst hbody
@@ -42,20 +44,23 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
   refine (?_ : WPs E s _ (fun r => ∃ l m, r = .returned l s.globals m s.ffi [.word 0#64] ∧
       ow0.toNat + 2 * nw.toNat < 33806089704 + 16 ∧
       Nibs m ow0 (2 * nw.toNat) ∧
-      ∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
-        m x = s.memory x)) r h
+      (∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
+        m x = s.memory x) ∧
+      ∀ p : Word, p.toNat < ow0.toNat → byteAt m p = byteAt s.memory p)) r h
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
   refine WPs.conseq (Q' := fun r => ∃ l m, r = .returned l s.globals m s.ffi [.word 0#64] ∧
       ow0.toNat + 2 * nw.toNat < 33806089704 + 16 ∧
       Nibs m ow0 (2 * nw.toNat) ∧
-      ∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
-        m x = s.memory x) ?_
+      (∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
+        m x = s.memory x) ∧
+      ∀ p : Word, p.toNat < ow0.toNat → byteAt m p = byteAt s.memory p) ?_
     (by rintro r ⟨l, m, rfl, hq⟩; exact ⟨_, m, rfl, hq⟩)
   refine WPs.seqG (fun a => KnJ s.globals s.memory s.ffi kw nw ow0 a)
     (WPs.loopG (I := KnJ s.globals s.memory s.ffi kw nw ow0)
       ⟨rfl, rfl, by lk [hk], by lk [hn], by lk [ho], 0#64, by lk [], by simpa using hob,
-        Nat.zero_le _, (by intro j hj; simp at hj), fun _ _ => rfl⟩ ?_ (fun a k hI _ => hI)) ?_
-  · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr⟩ ⟨w, cc, hcond, hw⟩
+        Nat.zero_le _, (by intro j hj; simp at hj), fun _ _ => rfl, fun _ _ => rfl⟩ ?_
+      (fun a k hI _ => hI)) ?_
+  · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr, hbf⟩ ⟨w, cc, hcond, hw⟩
     simp only at hg hfa hK hN hO hI hfr
     subst hg hfa
     have hi4 : (iw + 4#64).toNat = iw.toNat + 4 := by
@@ -141,9 +146,9 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hO],
       iw + 4#64,
       by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
-      by rw [hi4]; omega, by rw [hi4]; omega, ?_, fun x hx => ?_⟩
+      by rw [hi4]; omega, by rw [hi4]; omega, ?_, fun x hx => ?_, fun p hp => ?_⟩
     rotate_left
-    dsimp only at hf0 hf1 hf2 hf3 hf4 hf5 hf6 hf7 ⊢
+    dsimp only at hf0 hf1 hf2 hf3 hf4 hf5 hf6 hf7 hy0 hy1 hy2 hy3 hy4 hy5 hy6 hy7 ⊢
     rw [hi4] at hx
     rw [hf7 x (by rw [ad7]; omega)]
     rw [hf6 x (by rw [ad6]; omega)]
@@ -154,6 +159,12 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
     rw [hf1 x (by rw [ad1]; omega)]
     rw [hf0 x (by rw [ad0]; omega)]
     exact hfr x (by omega)
+    have NEp : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+    rw [hy7 p, if_neg (NEp (by rw [ad7]; omega)), hy6 p, if_neg (NEp (by rw [ad6]; omega)),
+      hy5 p, if_neg (NEp (by rw [ad5]; omega)), hy4 p, if_neg (NEp (by rw [ad4]; omega)),
+      hy3 p, if_neg (NEp (by rw [ad3]; omega)), hy2 p, if_neg (NEp (by rw [ad2]; omega)),
+      hy1 p, if_neg (NEp (by rw [ad1]; omega)), hy0 p, if_neg (NEp (by rw [ad0]; omega))]
+    exact hbf p hp
     have n0 := hnb.snoc (by omega) ad0 hw0 hy0
     have n1 := n0.snoc (by omega) (by rw [ad1]; omega) hw1 hy1
     have n2 := n1.snoc (by omega) (by rw [ad2]; omega) hw2 hy2
@@ -170,7 +181,7 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
     refine WPs.seqG (fun a => KnJ s.globals s.memory s.ffi kw nw ow0 a ∧
         a.locals "i" = some (.word nw))
       (WPs.loopG (I := KnJ s.globals s.memory s.ffi kw nw ow0) hIa ?_ ?_) ?_
-    · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr⟩ ⟨w, cc, hcond, hw⟩
+    · rintro ⟨la, ga, ma, fa⟩ ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr, hbf⟩ ⟨w, cc, hcond, hw⟩
       simp only at hg hfa hK hN hO hI hfr
       subst hg hfa
       have hcv := eval_cmp_inv hE (op := .lower) (of_eval (w := iw) (by lk [hI]))
@@ -211,20 +222,23 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup, hO],
         iw + 1#64,
         by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
-        by rw [hi1]; omega, by rw [hi1]; omega, ?_, fun x hx => ?_⟩
+        by rw [hi1]; omega, by rw [hi1]; omega, ?_, fun x hx => ?_, fun p hp => ?_⟩
       rotate_left
-      dsimp only at hf0 hf1 ⊢
+      dsimp only at hf0 hf1 hy0 hy1 ⊢
       rw [hi1] at hx
       rw [hf1 x (by rw [ad1]; omega)]
       rw [hf0 x (by rw [ad0]; omega)]
       exact hfr x (by omega)
+      have NEp : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+      rw [hy1 p, if_neg (NEp (by rw [ad1]; omega)), hy0 p, if_neg (NEp (by rw [ad0]; omega))]
+      exact hbf p hp
       have n0 := hnb.snoc (by omega) ad0 hw0 hy0
       have n1 := n0.snoc (by omega) (by rw [ad1]; omega) hw1 hy1
       have e : 2 * (iw + 1#64).toNat = 2 * iw.toNat + 1 + 1 := by
         rw [hi1]; omega
       rw [e]
       exact n1
-    · rintro a k ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr⟩ hcond
+    · rintro a k ⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr, hbf⟩ hcond
       have hcv := eval_cmp_inv hE (op := .lower) (of_eval (w := iw) (by lk [hI]))
         (of_eval (w := nw) (by lk [hN])) _ (cond_of_eval hcond)
       simp only [PanValue.word.injEq] at hcv
@@ -234,13 +248,28 @@ theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body :
         simp [evalPanCmp, hl] at hcv
       have heq : iw = nw := BitVec.eq_of_toNat_eq (by omega)
       subst heq
-      exact ⟨⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr⟩, hI⟩
-    · rintro a ⟨⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr⟩, hin⟩
+      exact ⟨⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr, hbf⟩, hI⟩
+    · rintro a ⟨⟨hg, hfa, hK, hN, hO, iw, hI, d1, d2, hnb, hfr, hbf⟩, hin⟩
       have : iw = nw := by
         rw [hI] at hin
         simpa using hin
       subst this
       refine WPs.ret (w := 0#64) (of_eval (eval_const _ _)) ?_
-      exact ⟨_, a.memory, by rw [hg, hfa], d1, hnb, hfr⟩
+      exact ⟨_, a.memory, by rw [hg, hfa], d1, hnb, hfr, hbf⟩
+
+theorem key_to_nibbles_nib (hE : GuestEnv E) (parameters : List VarName) (body : Prog Word)
+    (hlookup : lookupPanFunction "key_to_nibbles" E.functions = some (parameters, body))
+    (s : St σ) (r : Result σ) (kw nw ow0 : Word) (hk : s.locals "key" = some (.word kw))
+    (hn : s.locals "n" = some (.word nw)) (ho : s.locals "out" = some (.word ow0))
+    (hob : ow0.toNat < 33806089704 + 16) (h : Runs E s body r) :
+    Stopped r ∨ ∃ l m, r = .returned l s.globals m s.ffi [.word 0#64] ∧
+      ow0.toNat + 2 * nw.toNat < 33806089704 + 16 ∧
+      Nibs m ow0 (2 * nw.toNat) ∧
+      ∀ x : Word, (x.toNat < ow0.toNat / 8 * 8 ∨ ow0.toNat + 2 * nw.toNat ≤ x.toNat) →
+        m x = s.memory x := by
+  rcases key_to_nibbles_nib2 hE parameters body hlookup s r kw nw ow0 hk hn ho hob h with
+    hs | ⟨l, m, hr, a1, a2, a3, -⟩
+  · exact Or.inl hs
+  · exact Or.inr ⟨l, m, hr, a1, a2, a3⟩
 
 end InitECandidate.Solver.GuestBound

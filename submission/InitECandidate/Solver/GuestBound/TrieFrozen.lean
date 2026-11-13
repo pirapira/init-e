@@ -1,4 +1,5 @@
 import InitECandidate.Solver.GuestBound.TrieFresh
+import InitECandidate.Solver.GuestBound.TrieDelPush
 
 /-!
 # Freezing freshly written cells
@@ -77,5 +78,65 @@ theorem WorldTJ.fresh_cn {pv pv1 hi' : Word} (h : WorldTJ Rg g m)
 theorem WorldTJ.cn_rd {Rg' : Reg} {x w : Word} (hle : Rg.Le Rg') (h : WorldTJ Rg' g m)
     (hc : Rg.Cn x w) : Rd m x w :=
   h.cell (hle.Cn x w hc)
+
+end InitECandidate.Solver.GuestBound
+
+namespace InitECandidate.Solver.GuestBound
+open Flapjack
+
+variable {Rg : Reg} {g g' : VarName → Option (PanValue Word)}
+  {m m' : Word → Option (PanValue Word)}
+
+/-- The heap pointer moved up and nothing below the old pointer changed: the world is kept,
+whatever was written above it (unregistered allocations, the scratch arena). -/
+theorem WorldTJ.grow {pv pv1 : Word} (h : WorldTJ Rg g m)
+    (hp : g "heap_ptr" = some (.word pv)) (hp1 : g' "heap_ptr" = some (.word pv1))
+    (hpH1 : InHeap pv1) (hle : pv.toNat ≤ pv1.toNat)
+    (hg : ∀ x, x ≠ "heap_ptr" → x ≠ "scratch_ptr" → g' x = g x)
+    (hm : ∀ a : Word, a.toNat < pv.toNat → m' a = m a) :
+    WorldTJ Rg g' m' := by
+  classical
+  -- first the scratch arena and the scratch pointer, then the heap above the old pointer
+  let ms : Word → Option (PanValue Word) := fun a => if a.toNat < 2952790016 then m a else m' a
+  let gs : VarName → Option (PanValue Word) := fun x => if x = "scratch_ptr" then g' x else g x
+  have hpv : pv.toNat ≤ 2952790016 := by
+    obtain ⟨pv0, T, N, J, C, n, hp0, hpH, -⟩ := h
+    rw [hp] at hp0
+    simp only [Option.some.injEq, PanValue.word.injEq] at hp0
+    subst hp0
+    exact hpH.1
+  have hWs : WorldTJ Rg gs ms :=
+    h.scratch (fun x hx => if_neg hx) (fun a ha => if_pos ha)
+  obtain ⟨pv0, T, N, J, C, n, hp0, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := hWs
+  have e : pv0 = pv := by
+    have : gs "heap_ptr" = g "heap_ptr" := if_neg (by decide)
+    rw [this, hp] at hp0
+    simpa using hp0.symm
+  subst e
+  have hpE1 := hpH1.1
+  have hms : ∀ a : Word, a.toNat < pv0.toNat → m' a = ms a := fun a ha => by
+    show m' a = if a.toNat < 2952790016 then m a else m' a
+    rw [if_pos (by omega)]
+    exact hm a ha
+  have hgs : ∀ x, x ≠ "heap_ptr" → g' x = gs x := fun x hx => by
+    show g' x = if x = "scratch_ptr" then g' x else g x
+    by_cases hs : x = "scratch_ptr"
+    · rw [if_pos hs]
+    · rw [if_neg hs]
+      exact hg x hx hs
+  have hW1 : HeapW m' pv1 T N J C n :=
+    (hW.frame (fun a h8 _ hlt => hms a hlt)).mono hle hpE1
+  have hI1 : ImOK Rg m' pv1 T N J C := hIm.frame hle (fun x hx => by
+    obtain ⟨b1, b2, b3⟩ := hIm.cell_bounds hW hx
+    exact hms x b3)
+  refine ⟨pv1, T, N, J, C, n, hp1, hpH1, by rw [hgs _ (by decide)]; exact hJg,
+    by rw [hgs _ (by decide)]; exact hCg, by rw [hgs _ (by decide)]; exact hng, hW1, hD,
+    fun lo hi hb => (hB lo hi hb).mono hle, fun x w hc => ?_, hNd, hI1⟩
+  obtain ⟨hr, h8, hi, hhi', hf⟩ := hCn x w hc
+  refine ⟨?_, h8, hi, hhi', hf.mono hle⟩
+  have := hf.hi_
+  unfold Rd at hr ⊢
+  rw [hms x (by omega)]
+  exact hr
 
 end InitECandidate.Solver.GuestBound
