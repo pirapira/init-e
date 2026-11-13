@@ -27,6 +27,8 @@ theorem nibbles_concat_world (hE : GuestEnv E) (parameters : List VarName) (body
     Stopped r ∨ ∃ l g' m' out, r = .returned l g' m' s.ffi [.word out] ∧
       WorldTJ (Rg.addIm out (out + (al + bl))) g' m' ∧
       (out + (al + bl)).toNat = out.toNat + al.toNat + bl.toNat ∧
+      s.globals "heap_ptr" = some (.word out) ∧
+      (∀ A : Word, A.toNat % 8 = 0 → A.toNat + 8 ≤ out.toNat → m' A = s.memory A) ∧
       (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         m' addr = s.memory addr := by
@@ -37,6 +39,8 @@ theorem nibbles_concat_world (hE : GuestEnv E) (parameters : List VarName) (body
   refine (?_ : WPs E s _ (fun r => ∃ l g' m' out, r = .returned l g' m' s.ffi [.word out] ∧
     WorldTJ (Rg.addIm out (out + (al + bl))) g' m' ∧
     (out + (al + bl)).toNat = out.toNat + al.toNat + bl.toNat ∧
+    s.globals "heap_ptr" = some (.word out) ∧
+    (∀ A : Word, A.toNat % 8 = 0 → A.toNat + 8 ≤ out.toNat → m' A = s.memory A) ∧
     (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
     ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
       m' addr = s.memory addr)) r h
@@ -108,7 +112,8 @@ theorem nibbles_concat_world (hE : GuestEnv E) (parameters : List VarName) (body
   refine ⟨_, _, m2, pv, rfl, WorldTJ.fresh_nibs hW hp (by simp [updatePanValueMap]) hqH
     (by omega) (fun x hx => by simp [update_lookup, hx])
     (fun A h8 hlt => keep A h8 (Or.inl (by omega)))
-    (fun A hA => ?_) (by omega) ?_, e2, fun x hx => by simp [update_lookup, hx], fun A hA => ?_⟩
+    (fun A hA => ?_) (by omega) ?_, e2, hp, fun A h8 hlt => keep A h8 (Or.inl hlt),
+    fun x hx => by simp [update_lookup, hx], fun A hA => ?_⟩
   · rw [hc2.cells A (by unfold HBASE at hA hpB; omega),
       hc1.cells A (by unfold HBASE at hA hpB; omega)]
   · intro j hj
