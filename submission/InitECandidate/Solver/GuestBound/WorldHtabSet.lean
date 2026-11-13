@@ -19,7 +19,8 @@ theorem htab_set_retW (hE : GuestEnv E) {Rg : Reg} {e1 e2 e3 : Exp Word} {t keyp
     {m : Word → Option (PanValue Word)} {ffi : FfiState σ}
     (h : CalleeRet E s "htab_set" [e1, e2, e3] vs g m ffi)
     (h1 : E.eval s e1 = some (.word t)) (h2 : E.eval s e2 = some (.word keyp))
-    (h3 : E.eval s e3 = some (.word val)) (hD : Rg.D t kl) (hkey : KeyLoc Rg keyp kl)
+    (h3 : E.eval s e3 = some (.word val)) (hD : Rg.D t kl)
+    (hkey : KeyLoc Rg keyp kl ∨ keyp.toNat + kl.toNat ≤ HBASE)
     (hk64 : keyp.toNat + kl.toNat < 2 ^ 64) (hW : WorldTJ Rg s.globals s.memory) :
     ffi = s.ffi ∧ WorldTJ Rg g m ∧ (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
@@ -40,24 +41,30 @@ theorem htab_set_retW (hE : GuestEnv E) {Rg : Reg} {e1 e2 e3 : Exp Word} {t keyp
   obtain ⟨l1, l2, l3, l4⟩ := id hok.wf.layout
   have hfin := hat.fin
   have hpE := hpH.1
+  have htlo := hat.lo
+  have hJlo := hHW.jrn.lo
+  have hJhi := hHW.jrn.hi
   have hkeys : keyp.toNat + v.kl.toNat ≤ t.toNat ∨ t.toNat + 88 ≤ keyp.toNat := by
-    rcases hkey with ⟨lo, hi, hb, a1, a2⟩ | hs
+    rcases hkey with (⟨lo, hi, hb, a1, a2⟩ | hs) | hlow
     · rcases ((hBT lo hi hb).tabI t v hTt).1 with h | h
       · exact Or.inl (by omega)
       · exact Or.inr (by omega)
     · exact Or.inr (by omega)
+    · exact Or.inl (by omega)
   have hkB : keyp.toNat + v.kl.toNat ≤ v.keys.toNat ∨
       v.order.toNat + (v.nc.toNat + 1) * 8 ≤ keyp.toNat := by
-    rcases hkey with ⟨lo, hi, hb, a1, a2⟩ | hs
+    rcases hkey with (⟨lo, hi, hb, a1, a2⟩ | hs) | hlow
     · rcases ((hBT lo hi hb).tabI t v hTt).2 with h | h
       · exact Or.inl (by omega)
       · exact Or.inr (by omega)
     · exact Or.inr (by omega)
+    · exact Or.inl (by omega)
   have hkP : keyp.toNat + v.kl.toNat ≤ pv.toNat ∨ 2952790016 ≤ keyp.toNat := by
-    rcases hkey with ⟨lo, hi, hb, a1, a2⟩ | hs
+    rcases hkey with (⟨lo, hi, hb, a1, a2⟩ | hs) | hlow
     · have := (hBT lo hi hb).hi_
       exact Or.inl (by omega)
     · exact Or.inr hs
+    · exact Or.inl (by omega)
   have honly := htab_set_only hE parameters body hlookup
   rcases htab_set_exec hE parameters body hlookup ⟨cl, s.globals, s.memory, s.ffi⟩ _ t keyp val
     pv v kind rep (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])

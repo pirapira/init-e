@@ -36,7 +36,7 @@ theorem ws_storage_trie_world (hE : GuestEnv E) (parameters : List VarName) (bod
     (R0 : Reg) (s : St σ) (r : Result σ) (root wsv t dbv kl sp0 fv : Word)
     (hroot : s.locals "root" = some (.word root)) (hws : s.globals "ws" = some (.word wsv))
     (hct : R0.Cn (wsv + 32#64) t) (hcd : R0.Cn (wsv + 0#64) dbv) (hD : R0.D t kl)
-    (hkey : KeyLoc R0 root kl) (hk64 : root.toNat + kl.toNat < 2 ^ 64)
+    (hkey : KeyLoc R0 root kl ∨ root.toNat + kl.toNat ≤ HBASE) (hk64 : root.toNat + kl.toNat < 2 ^ 64)
     (hW : WorldTJ R0 s.globals s.memory)
     (hsp : s.globals "scratch_ptr" = some (.word sp0))
     (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
@@ -83,7 +83,7 @@ theorem ws_storage_trie_world (hE : GuestEnv E) (parameters : List VarName) (bod
     (dbv := dbv) (rh := root) hdbe (by lk [qroot]) hW hsp hfv hfs hF
   dsimp only at hg hm
   have hD' : R.D t kl := by rw [hle.D]; exact hD
-  have hkey' : KeyLoc R root kl := by
+  have hkey' : KeyLoc R root kl ∨ root.toNat + kl.toNat ≤ HBASE := by
     unfold KeyLoc at hkey ⊢
     rw [hle.B]
     exact hkey
