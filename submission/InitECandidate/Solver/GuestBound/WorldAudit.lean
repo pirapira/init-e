@@ -10,6 +10,7 @@ import InitECandidate.Solver.GuestBound.TrieKey
 import InitECandidate.Solver.GuestBound.TrieWalkFillCost
 import InitECandidate.Solver.GuestBound.TrieDecLoop
 import InitECandidate.Solver.GuestBound.TrieFrozen
+import InitECandidate.Solver.GuestBound.TrieResolve
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -110,3 +111,6 @@ open InitECandidate.Solver.GuestBound
 #print axioms decode_body_world
 #print axioms decode_body_cost
 #print axioms WorldTJ.fresh_cn
+#print axioms node_new_hashed_world
+#print axioms resolve_step_world
+#print axioms resolve_spec
