@@ -122,7 +122,7 @@ theorem split_ext_ret (hE : GuestEnv E) {e1 e2 e3 e4 e5 e6 : Exp Word}
     exact ⟨a, R', rfl, rfl, hle, hk, hw, hg, hm⟩
 
 theorem node_invalidate_ret (hE : GuestEnv E) {e1 : Exp Word} {a k : Word}
-    (h : CalleeRet E s "node_invalidate" [e1] [v] g m ffi)
+    {vs : List (PanValue Word)} (h : CalleeRet E s "node_invalidate" [e1] vs g m ffi)
     (h1 : ∀ y, E.eval s e1 = some y → y = .word a)
     (hW : WorldTJ Rg s.globals s.memory) (ha : Rg.Nd a) (hk : Rd s.memory a k)
     (hk0 : k ≠ 0#64) :
