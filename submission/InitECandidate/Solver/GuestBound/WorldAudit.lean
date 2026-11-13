@@ -9,6 +9,7 @@ import InitECandidate.Solver.GuestBound.TrieFreeze
 import InitECandidate.Solver.GuestBound.TrieKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
+import InitECandidate.Solver.GuestBound.TrieLeafIns
 
 /-! Axioms of the world-state layer results. -/
 
@@ -48,3 +49,5 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.im_nibs
 #print axioms WorldTJ.kd
 #print axioms create_branch_world
+#print axioms common_prefix_spec
+#print axioms insert_leaf_world
