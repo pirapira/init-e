@@ -75,7 +75,7 @@ theorem ins_body (hE : GuestEnv E) {Rg : Reg} {s : St σ} {key klen vptr vlen le
       key.toNat + klen.toNat ≤ hi.toNat := by
     intro h0
     obtain ⟨lo, hi, hI', hr⟩ := hblk h0
-    exact ⟨lo, hi, by rw [hle.Im]; exact hI', hr⟩
+    exact ⟨lo, hi, hle.Im _ _ hI', hr⟩
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_
   refine WPs.dec (w := 0#64) (of_eval (eval_const _ _)) ?_

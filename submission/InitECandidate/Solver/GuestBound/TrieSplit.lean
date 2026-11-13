@@ -246,7 +246,7 @@ theorem split_ext_world (hE : GuestEnv E) (parameters : List VarName) (body : Pr
         rintro rfl
         simp at hkal
       obtain ⟨lo2, hi2, hI2, hc1, hc2⟩ := hseg hrl0
-      have hI2' : R2.Im lo2 hi2 := by rw [hle2.Im]; exact hI2
+      have hI2' : R2.Im lo2 hi2 := hle2.Im _ _ hI2
       have hhi2 := hi2.isLt
       have erk : (rk + pl).toNat = rk.toNat + pl.toNat := by
         rw [BitVec.toNat_add]

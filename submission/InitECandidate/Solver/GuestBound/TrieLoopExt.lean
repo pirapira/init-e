@@ -142,7 +142,7 @@ theorem ins_ext (hE : GuestEnv E) {R0 : Reg} {key klen vptr vlen lv nd sl res : 
         by_contra hc0
         have hl : ¬ (0#64 : Word) < p := by rw [BitVec.lt_def]; simp; omega
         exact h2 (by rw [hwv2]; simp [evalPanCmp, hl])
-      have hI1 : R1.Im lo hi := by rw [hle1.Im]; exact hI
+      have hI1 : R1.Im lo hi := hle1.Im _ _ hI
       refine WPs.callA_ret (fun ve g2 m2 f2 hret2 => ?_)
       obtain ⟨ex, hvs, rfl, hW2, hg2, hm2⟩ := node_new_ext_ret hE hret2 (nib := sp) (nlen := p)
         (child := br) (of_eval (by lk [qseg])) (of_eval (by lk [qpl])) (of_eval (by lk []))

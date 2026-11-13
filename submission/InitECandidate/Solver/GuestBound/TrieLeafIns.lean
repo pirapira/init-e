@@ -214,7 +214,7 @@ theorem insert_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body : 
         simp at hp1
         omega
       obtain ⟨lo, hi, hI, h1, h2⟩ := hblk hnl
-      have hI1 : R1.Im lo hi := by rw [hle1.Im]; exact hI
+      have hI1 : R1.Im lo hi := hle1.Im _ _ hI
       refine WPs.tail_call (fun vs g2 m2 f2 hret2 l => ?_)
       obtain ⟨a, rfl, rfl, hW2, hg2, hm2⟩ := node_new_ext_ret hE hret2 (nib := sp) (nlen := p)
         (child := br) (of_eval (by lk [pek])) (of_eval (by lk [])) (of_eval (by lk [])) hppos

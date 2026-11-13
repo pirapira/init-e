@@ -269,7 +269,7 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
       (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1)))
       (hle2.Cv _ _ (Reg.addNd_cv Rg br 3#64 ℓ (ℓ + 1))) (fun h0 => by
         obtain ⟨lo, hi, hI, hr⟩ := hseg2 h0
-        exact ⟨lo, hi, by rw [hle2.Im]; exact hI, hr⟩)
+        exact ⟨lo, hi, hle2.Im _ _ hI, hr⟩)
       (fun l' g' m' R' hle hw hl hg hm => ⟨R', hle, hw, rfl, hl,
         fun x hx => (hg x hx).trans (hga x hx),
         fun addr ha => (hm addr ha).trans (hma addr ha)⟩)) ?_
