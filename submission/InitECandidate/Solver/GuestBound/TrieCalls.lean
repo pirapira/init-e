@@ -80,7 +80,8 @@ theorem node_new_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {nib nlen v
     (h4 : ∀ y, E.eval s e4 = some y → y = .word vlen)
     (hW : WorldTJ Rg s.globals s.memory)
     (hseg : nlen = 0#64 ∨ ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ nib.toNat ∧
-      nib.toNat + nlen.toNat ≤ hi.toNat ∧ NibSeg s.memory nib nlen) (ℓ : Nat) :
+      nib.toNat + nlen.toNat ≤ hi.toNat ∧ NibSeg s.memory nib nlen)
+    (hvr : VRange Rg vptr vlen) (ℓ : Nat) :
     ∃ a, v = .word a ∧ ffi = s.ffi ∧ WorldTJ (Rg.addNd a 1#64 ℓ ℓ) g m ∧
       (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
@@ -120,7 +121,7 @@ theorem node_new_leaf_ret (hE : GuestEnv E) {e1 e2 e3 e4 : Exp Word} {nib nlen v
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
     (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
-    hW hseg ℓ hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
+    hW hseg hvr ℓ hrun with hst | ⟨l', g', m', a, heq, hw, hg, hm⟩
   · exact absurd hst (fun h => h)
   · cases heq
     exact ⟨a, rfl, rfl, hw, hg, hm⟩

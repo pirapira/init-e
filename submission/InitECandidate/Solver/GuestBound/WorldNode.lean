@@ -61,12 +61,44 @@ theorem struct_cell_ne {pv a k b j x y : Word} {T : Word → Option HtabV}
   rintro rfl
   rcases hW.nodes.disj b j a k hb hN hba with h3 | h3 <;> omega
 
+/-- Cells of different nodes are different. -/
+theorem ncell_ne {pv a k b j x y : Word} {T : Word → Option HtabV}
+    {N : Word → Option Word} {J C n : Word} (hW : HeapW m pv T N J C n)
+    (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
+    (hb : N b = some j) (hy : NCell b j y) (hba : b ≠ a) : y ≠ x := by
+  have hi' := hy.inside (hW.nodes.at_ b j hb)
+  rintro rfl
+  rcases hW.nodes.disj b j a k hb hN hba with h3 | h3 <;> omega
+
+/-- A structural cell and a value cell of one node are different. -/
+theorem struct_val_ne {pv a k x y : Word} {N : Word → Option Word} (hat : NodeAt m pv N a k)
+    (hs : StructCell a k y) (hv : ValCell a k x) : y ≠ x := by
+  have NE : ∀ {u v : Word}, u.toNat ≠ v.toNat → u ≠ v := fun h e => h (congrArg _ e)
+  have e40 := node_off hat 40 (by omega)
+  change (a + 40#64).toNat = _ at e40
+  have e48 := node_off hat 48 (by omega)
+  change (a + 48#64).toNat = _ at e48
+  have e56 := node_off hat 56 (by omega)
+  change (a + 56#64).toNat = _ at e56
+  have e160 := node_off hat 160 (by omega)
+  change (a + 160#64).toNat = _ at e160
+  have e168 := node_off hat 168 (by omega)
+  change (a + 168#64).toNat = _ at e168
+  rcases hv with ⟨hk, rfl | rfl⟩ | ⟨hk, rfl | rfl⟩ <;>
+    rcases hs with rfl | ⟨hk2, rfl | rfl⟩ | ⟨hk3, i, hi, rfl⟩ <;>
+    first
+      | exact absurd (hk.symm.trans hk2) (by decide)
+      | exact absurd (hk.symm.trans hk3) (by decide)
+      | exact NE (by omega)
+      | (have ei := node_off hat (32 + 8 * i) (by omega); exact NE (by omega))
+
 /-- `ImOK` after a store into a non-structural cell of a node, away from its segment cells. -/
 theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word → Option Word}
     {J C n : Word} (w : Word) (h : ImOK Rg m pv T N J C) (hW : HeapW m pv T N J C n)
     (hN : N a = some k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
     (hx : ¬ StructCell a k x)
-    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
+    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64)
+    (hnv : ¬ ValCell a k x) :
     ImOK Rg (setCell m x w) pv T N J C := by
   have keep := node_store_keep w h hW hN hin hns
   refine h.frame (Nat.le_refl _) (fun y hy => ?_)
@@ -79,8 +111,8 @@ theorem ImOK.store_node {pv a k x : Word} {T : Word → Option HtabV} {N : Word 
       have : j = k := Option.some.inj (hb.symm.trans hN)
       subst this
       rintro rfl
-      exact hx hsy
-    · exact struct_cell_ne hW hN hin hb hsy e
+      exact hsy.elim hx hnv
+    · exact ncell_ne hW hN hin hb hsy e
 
 /-- `ImOK` after a store into a child slot: the stored node must sit at the
 child level of the parent, when the parent has one. -/
@@ -115,7 +147,16 @@ theorem ImOK.store_child {pv a k x c : Word} {T : Word → Option HtabV} {N : Wo
   refine ⟨h.free, h.offB, h.segs.frame (fun y hy => keep y (Or.inl hy)),
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib (fun y hy => keep y (Or.inl hy)),
     h.kd, h.kn, h.full, h.trf, fun u hu => ?_, h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu,
-    ?_, ?_, h.cvk, h.cvu, ?_, h.cvb, h.lvc, h.sg.frame (fun y hy => keep y (Or.inl hy))⟩
+    ?_, ?_, h.cvk, h.cvu, ?_, h.cvb, h.lvc, h.sg.frame (fun y hy => keep y (Or.inl hy)),
+    h.vals.frame' (fun y hy => by
+      obtain ⟨b, j, hb, hvy⟩ := hy
+      refine setCell_ne _ ?_
+      by_cases e : b = a
+      · subst e
+        have : j = k := Option.some.inj (hb.symm.trans hN)
+        subst this
+        exact (struct_val_ne hat hsx hvy).symm
+      · exact ncell_ne hW hN hin hb (Or.inr hvy) e)⟩
   · obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
     refine ⟨root, sec, ?_, ?_, hc⟩
     · unfold Rd at r1 ⊢
@@ -169,7 +210,8 @@ theorem ImOK.store_child {pv a k x c : Word} {T : Word → Option HtabV} {N : Wo
 theorem WorldTJ.node_other {a k x : Word} (w : Word) (h : WorldTJ Rg g m) (ha : Rg.Nd a)
     (hk : Rd m a k) (hin : a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k)
     (hx : ¬ StructCell a k x)
-    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) :
+    (hns : (k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64)
+    (hnv : ¬ ValCell a k x) :
     WorldTJ Rg g (setCell m x w) := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   obtain ⟨k', hk'⟩ := hNd a ha
@@ -177,7 +219,7 @@ theorem WorldTJ.node_other {a k x : Word} (w : Word) (h : WorldTJ Rg g m) (ha : 
   have : k' = k := Rd.inj hat.kind hk
   subst this
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW.node_other w hk' hin hx, hD, hB,
-    fun y v hc => ?_, hNd, hIm.store_node w hW hk' hin hx hns⟩
+    fun y v hc => ?_, hNd, hIm.store_node w hW hk' hin hx hns hnv⟩
   obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hc
   refine ⟨hr.frame _ ?_, h8, hi, hhi, hf⟩
   rintro rfl
@@ -244,6 +286,142 @@ theorem cache_cell {a k : Word} {c : Nat} (hc : c = 8 ∨ c = 16 ∨ c = 24) (hk
       omega
     omega
 
+/-- The two value cells named by `hc`. -/
+theorem val_pair {a k x1 x2 : Word}
+    (hc : (k = 1#64 ∧ x1 = a + 48#64 ∧ x2 = a + 56#64) ∨
+      (k = 3#64 ∧ x1 = a + 160#64 ∧ x2 = a + 168#64)) : ValCell a k x1 ∧ ValCell a k x2 := by
+  rcases hc with ⟨hk, rfl, rfl⟩ | ⟨hk, rfl, rfl⟩
+  · exact ⟨Or.inl ⟨hk, Or.inl rfl⟩, Or.inl ⟨hk, Or.inr rfl⟩⟩
+  · exact ⟨Or.inr ⟨hk, Or.inl rfl⟩, Or.inr ⟨hk, Or.inr rfl⟩⟩
+
+/-- `ImOK` after both value cells of a leaf or a branch are overwritten with a
+`VRange` pair. -/
+theorem ImOK.store_value {pv a k x1 x2 vp vl : Word} {T : Word → Option HtabV}
+    {N : Word → Option Word} {J C n : Word} (h : ImOK Rg m pv T N J C)
+    (hW : HeapW m pv T N J C n) (hN : N a = some k)
+    (hc : (k = 1#64 ∧ x1 = a + 48#64 ∧ x2 = a + 56#64) ∨
+      (k = 3#64 ∧ x1 = a + 160#64 ∧ x2 = a + 168#64))
+    (hv : VRange Rg vp vl) : ImOK Rg (setCell (setCell m x1 vp) x2 vl) pv T N J C := by
+  have NE : ∀ {u v : Word}, u.toNat ≠ v.toNat → u ≠ v := fun h e => h (congrArg _ e)
+  have hat := hW.nodes.at_ a k hN
+  obtain ⟨v1, v2⟩ := val_pair hc
+  have hin1 := v1.inside hat
+  have hin2 := v2.inside hat
+  have e32 := node_off hat 32 (by omega)
+  change (a + 32#64).toNat = _ at e32
+  have e40 := node_off hat 40 (by omega)
+  change (a + 40#64).toNat = _ at e40
+  have e48 := node_off hat 48 (by omega)
+  change (a + 48#64).toNat = _ at e48
+  have e56 := node_off hat 56 (by omega)
+  change (a + 56#64).toNat = _ at e56
+  have e160 := node_off hat 160 (by omega)
+  change (a + 160#64).toNat = _ at e160
+  have e168 := node_off hat 168 (by omega)
+  change (a + 168#64).toNat = _ at e168
+  have hns : (k = 1#64 ∨ k = 2#64) →
+      (x1 ≠ a + 32#64 ∧ x1 ≠ a + 40#64) ∧ (x2 ≠ a + 32#64 ∧ x2 ≠ a + 40#64) := by
+    intro hj
+    rcases hc with ⟨hk, rfl, rfl⟩ | ⟨hk, rfl, rfl⟩
+    · exact ⟨⟨NE (by omega), NE (by omega)⟩, NE (by omega), NE (by omega)⟩
+    · subst hk
+      rcases hj with hj | hj <;> exact absurd hj (by decide)
+  have x12 : x1 ≠ x2 := by
+    rcases hc with ⟨hk, rfl, rfl⟩ | ⟨hk, rfl, rfl⟩ <;> exact NE (by omega)
+  have ne_of : ∀ {x : Word}, a.toNat ≤ x.toNat ∧ x.toNat + 8 ≤ a.toNat + nodeSize k →
+      ((k = 1#64 ∨ k = 2#64) → x ≠ a + 32#64 ∧ x ≠ a + 40#64) →
+      ∀ y, SegCell Rg.Im N y ∨ TrCell Rg.Tr y → y ≠ x := by
+    intro x hin hnsx y hy e
+    have k0 := node_store_keep 0#64 h hW hN hin hnsx y hy
+    have k1 := node_store_keep 1#64 h hW hN hin hnsx y hy
+    rw [e] at k0 k1
+    simp only [setCell, beq_self_eq_true, if_true] at k0 k1
+    rw [← k0] at k1
+    simp at k1
+  have hm : ∀ y, SegCell Rg.Im N y ∨ TrCell Rg.Tr y ∨ SCellN N y →
+      setCell (setCell m x1 vp) x2 vl y = m y := by
+    intro y hy
+    have n1 : y ≠ x1 := by
+      rcases hy with hy | hy | ⟨b, j, hb, hsy⟩
+      · exact ne_of hin1 (fun hj => (hns hj).1) y (Or.inl hy)
+      · exact ne_of hin1 (fun hj => (hns hj).1) y (Or.inr hy)
+      · by_cases e : b = a
+        · subst e
+          have : j = k := Option.some.inj (hb.symm.trans hN)
+          subst this
+          exact struct_val_ne hat hsy v1
+        · exact ncell_ne hW hN hin1 hb (Or.inl hsy) e
+    have n2 : y ≠ x2 := by
+      rcases hy with hy | hy | ⟨b, j, hb, hsy⟩
+      · exact ne_of hin2 (fun hj => (hns hj).2) y (Or.inl hy)
+      · exact ne_of hin2 (fun hj => (hns hj).2) y (Or.inr hy)
+      · by_cases e : b = a
+        · subst e
+          have : j = k := Option.some.inj (hb.symm.trans hN)
+          subst this
+          exact struct_val_ne hat hsy v2
+        · exact ncell_ne hW hN hin2 hb (Or.inl hsy) e
+    rw [setCell_ne _ n2, setCell_ne _ n1]
+  refine h.frame' (Nat.le_refl _) hm (fun b j hb => ?_)
+  by_cases e : b = a
+  · subst e
+    have : j = k := Option.some.inj (hb.symm.trans hN)
+    subst this
+    rcases hc with ⟨hk, rfl, rfl⟩ | ⟨hk, rfl, rfl⟩
+    · subst hk
+      exact ⟨fun _ => ⟨vp, vl, (Rd.here _ _ _).frame _ x12, Rd.here _ _ _, hv⟩,
+        fun hk => absurd hk (by decide)⟩
+    · subst hk
+      exact ⟨fun hk => absurd hk (by decide),
+        fun _ => ⟨vp, vl, (Rd.here _ _ _).frame _ x12, Rd.here _ _ _, hv⟩⟩
+  · have fr : ∀ {y w : Word}, ValCell b j y → Rd m y w →
+        Rd (setCell (setCell m x1 vp) x2 vl) y w := fun hy hr =>
+      (hr.frame _ (ncell_ne hW hN hin1 hb (Or.inr hy) e)).frame _
+        (ncell_ne hW hN hin2 hb (Or.inr hy) e)
+    refine ⟨fun hk => ?_, fun hk => ?_⟩
+    · obtain ⟨p, l, r1, r2, hr⟩ := (h.vals b j hb).1 hk
+      exact ⟨p, l, fr (Or.inl ⟨hk, Or.inl rfl⟩) r1, fr (Or.inl ⟨hk, Or.inr rfl⟩) r2, hr⟩
+    · obtain ⟨p, l, r1, r2, hr⟩ := (h.vals b j hb).2 hk
+      exact ⟨p, l, fr (Or.inr ⟨hk, Or.inl rfl⟩) r1, fr (Or.inr ⟨hk, Or.inr rfl⟩) r2, hr⟩
+
+/-- Storing a value (pointer and length) into a leaf or a branch. -/
+theorem WorldTJ.node_value {a k x1 x2 vp vl : Word} (h : WorldTJ Rg g m) (ha : Rg.Nd a)
+    (hk : Rd m a k)
+    (hc : (k = 1#64 ∧ x1 = a + 48#64 ∧ x2 = a + 56#64) ∨
+      (k = 3#64 ∧ x1 = a + 160#64 ∧ x2 = a + 168#64))
+    (hv : VRange Rg vp vl) : WorldTJ Rg g (setCell (setCell m x1 vp) x2 vl) := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  obtain ⟨k', hk'⟩ := hNd a ha
+  have hat := hW.nodes.at_ a k' hk'
+  have : k' = k := Rd.inj hat.kind hk
+  subst this
+  obtain ⟨v1, v2⟩ := val_pair hc
+  have hin1 := v1.inside hat
+  have hin2 := v2.inside hat
+  have hW1 := hW.node_other vp hk' hin1 (fun hs => struct_val_ne hat hs v1 rfl)
+  have hW2 := hW1.node_other vl hk' hin2 (fun hs => struct_val_ne hat hs v2 rfl)
+  refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW2, hD, hB, fun y v hc' => ?_, hNd,
+    hIm.store_value hW hk' hc hv⟩
+  obtain ⟨hr, h8, hi, hhi, hf⟩ := hCn y v hc'
+  refine ⟨(hr.frame _ ?_).frame _ ?_, h8, hi, hhi, hf⟩
+  · rintro rfl
+    rcases hf.node a k' hk' with h1 | h1 <;> omega
+  · rintro rfl
+    rcases hf.node a k' hk' with h1 | h1 <;> omega
+
+/-- The value of a known leaf or branch. -/
+theorem WorldTJ.value {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :
+    (k = 1#64 → ∃ vp vl, Rd m (a + 48#64) vp ∧ Rd m (a + 56#64) vl ∧ VRange Rg vp vl) ∧
+    (k = 3#64 → ∃ vp vl, Rd m (a + 160#64) vp ∧ Rd m (a + 168#64) vl ∧ VRange Rg vp vl) := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  exact hIm.vals a k (hIm.kd a k hK)
+
+/-- A cache cell is not a value cell. -/
+theorem cache_not_val {a k : Word} {c : Nat} (hc : c = 8 ∨ c = 16 ∨ c = 24)
+    (htop : a.toNat + nodeSize k ≤ 2952790016) : ¬ ValCell a k (a + BitVec.ofNat 64 c) := by
+  have hsz := nodeSize_pos k
+  rcases hc with rfl | rfl | rfl <;> rintro (⟨-, h | h⟩ | ⟨-, h | h⟩) <;> bv_omega
+
 set_option maxHeartbeats 2000000 in
 /-- `node_invalidate(nd)` on a known node of kind 1–3: the cache fields are
 cleared, the world is kept. -/
@@ -276,11 +454,14 @@ theorem node_invalidate_world (hE : GuestEnv E) (parameters : List VarName) (bod
   have e32 : (a + 32#64).toNat = a.toNat + 32 := by bv_omega
   have e40 : (a + 40#64).toNat = a.toNat + 40 := by bv_omega
   have W1 := hW.node_other 0#64 ha hk hin8 hs8 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
+    (cache_not_val (Or.inl rfl) htop)
   have k1 : Rd (setCell s.memory (a + 8#64) 0#64) a k := hk.frame _ (NE (by omega))
   have W2 := W1.node_other 0#64 ha k1 hin16 hs16 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
+    (cache_not_val (Or.inr (Or.inl rfl)) htop)
   have k2 : Rd (setCell (setCell s.memory (a + 8#64) 0#64) (a + 16#64) 0#64) a k :=
     k1.frame _ (NE (by omega))
   have W3 := W2.node_other 0#64 ha k2 hin24 hs24 (fun _ => ⟨NE (by omega), NE (by omega)⟩)
+    (cache_not_val (Or.inr (Or.inr rfl)) htop)
   have k3 := k2.frame (a' := a + 24#64) 0#64 (NE (by omega))
   refine WPs.seq_store hE (addr := a + 8#64) (w := 0#64) (eval_addc hE 8#64 hnd)
     (of_eval (eval_const _ _)) ?_

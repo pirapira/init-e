@@ -27,6 +27,7 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     (hbr : s.locals "br" = some (.word br)) (hk : s.locals "k1" = some (.word k))
     (hl : s.locals "l1" = some (.word l)) (hv : s.locals "v1" = some (.word v))
     (hvl : s.locals "vl1" = some (.word vl)) (hW : WorldTJ R s.globals s.memory)
+    (hvr : VRange R v vl)
     (hK : R.Kd br 3#64) (hcv : R.Cv br ℓc)
     (hseg : l ≠ 0#64 → ∃ lo hi, R.Im lo hi ∧ lo.toNat ≤ k.toNat ∧
       k.toNat + l.toNat ≤ hi.toNat)
@@ -71,7 +72,7 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
       (nlen := l - 1#64) (vptr := v) (vlen := vl) (of_eval (eval_addc hE 1#64 hk))
       (of_eval (by ev [hl])) (of_eval (by lk [hv])) (of_eval (by lk [hvl])) hW
       (Or.inr ⟨lo, hi, hI, by omega, by omega,
-        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) ℓc
+        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) hvr ℓc
     have hK1 : (R.addNd a 1#64 ℓc ℓc).Kd br 3#64 := Or.inl hK
     obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
     have hsz : nodeSize 3#64 = 176 := by decide
@@ -101,11 +102,7 @@ theorem attach1 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     have hsz : nodeSize 3#64 = 176 := by decide
     obtain ⟨hin0, hs0⟩ := branch_val_cell (a := br) (c := 160) (Or.inl rfl) (by omega)
     obtain ⟨hin8, hs8⟩ := branch_val_cell (a := br) (c := 168) (Or.inr rfl) (by omega)
-    have W1 := hW.node_other v hNdb hRdb hin0 hs0 (fun hj => by
-      rcases hj with hj | hj <;> exact absurd hj (by decide))
-    obtain ⟨-, hRdb1, -, -, -⟩ := W1.kd hK
-    have W2 := W1.node_other vl hNdb hRdb1 hin8 hs8 (fun hj => by
-      rcases hj with hj | hj <;> exact absurd hj (by decide))
+    have W2 := hW.node_value (vp := v) (vl := vl) hNdb hRdb (Or.inr ⟨rfl, rfl, rfl⟩) hvr
     refine WPs.seq_store hE (addr := br + 160#64) (w := v) (eval_addc hE 160#64 hbr)
       (of_eval (by lk [hv])) ?_
     refine WPs.store hE (addr := br + 168#64) (w := vl) (eval_addc hE 168#64 (by lk [hbr]))
@@ -121,6 +118,7 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     (hbr : s.locals "br" = some (.word br)) (hk : s.locals "k2" = some (.word k))
     (hl : s.locals "l2" = some (.word l)) (hv : s.locals "v2" = some (.word v))
     (hvl : s.locals "vl2" = some (.word vl)) (hW : WorldTJ R s.globals s.memory)
+    (hvr : VRange R v vl)
     (hK : R.Kd br 3#64) (hcv : R.Cv br ℓc)
     (hseg : l ≠ 0#64 → ∃ lo hi, R.Im lo hi ∧ lo.toNat ≤ k.toNat ∧
       k.toNat + l.toNat ≤ hi.toNat)
@@ -165,7 +163,7 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
       (nlen := l - 1#64) (vptr := v) (vlen := vl) (of_eval (eval_addc hE 1#64 hk))
       (of_eval (by ev [hl])) (of_eval (by lk [hv])) (of_eval (by lk [hvl])) hW
       (Or.inr ⟨lo, hi, hI, by omega, by omega,
-        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) ℓc
+        hW.im_nibs hI (p := k + 1#64) (c := (l - 1#64).toNat) (by omega) (by omega)⟩) hvr ℓc
     have hK1 : (R.addNd a 1#64 ℓc ℓc).Kd br 3#64 := Or.inl hK
     obtain ⟨hNdb, hRdb, hlob, htopb, -⟩ := hW1.kd hK1
     have hsz : nodeSize 3#64 = 176 := by decide
@@ -195,11 +193,7 @@ theorem attach2 (hE : GuestEnv E) {br k l v vl : Word} {R : Reg} {ℓc : Nat}
     have hsz : nodeSize 3#64 = 176 := by decide
     obtain ⟨hin0, hs0⟩ := branch_val_cell (a := br) (c := 160) (Or.inl rfl) (by omega)
     obtain ⟨hin8, hs8⟩ := branch_val_cell (a := br) (c := 168) (Or.inr rfl) (by omega)
-    have W1 := hW.node_other v hNdb hRdb hin0 hs0 (fun hj => by
-      rcases hj with hj | hj <;> exact absurd hj (by decide))
-    obtain ⟨-, hRdb1, -, -, -⟩ := W1.kd hK
-    have W2 := W1.node_other vl hNdb hRdb1 hin8 hs8 (fun hj => by
-      rcases hj with hj | hj <;> exact absurd hj (by decide))
+    have W2 := hW.node_value (vp := v) (vl := vl) hNdb hRdb (Or.inr ⟨rfl, rfl, rfl⟩) hvr
     refine WPs.seq_store hE (addr := br + 160#64) (w := v) (eval_addc hE 160#64 hbr)
       (of_eval (by lk [hv])) ?_
     refine WPs.store hE (addr := br + 168#64) (w := vl) (eval_addc hE 168#64 (by lk [hbr]))
@@ -225,6 +219,7 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
       k1.toNat + l1.toNat ≤ hi.toNat)
     (hseg2 : l2 ≠ 0#64 → ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ k2.toNat ∧
       k2.toNat + l2.toNat ≤ hi.toNat)
+    (hvr1 : VRange Rg v1 vl1) (hvr2 : VRange Rg v2 vl2)
     (ℓ : Nat) (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a R', r = .returned l g' m' s.ffi [.word a] ∧ Rg.Le R' ∧
       R'.Kd a 3#64 ∧ R'.Lv a ℓ ∧ WorldTJ R' g' m' ∧
@@ -250,6 +245,7 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
       ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ 2952790016 ≤ addr.toNat) →
         a.memory addr = s.memory addr)
     (attach1 hE (br := br) (k := k1) (l := l1) (v := v1) (vl := vl1) (by lk []) (by lk [hk1]) (by lk [hl1]) (by lk [hv1]) (by lk [hvl1]) hW1
+      (hvr1.mono hle1.Cn)
       (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1)) (Reg.addNd_cv Rg br 3#64 ℓ (ℓ + 1))
       (fun h0 => hseg1 h0)
       (fun l' g' m' R' hle hw hl hg hm => ⟨R', hle, hw, rfl, hl,
@@ -266,6 +262,7 @@ theorem create_branch_world (hE : GuestEnv E) (parameters : List VarName) (body 
     (attach2 hE (br := br) (k := k2) (l := l2) (v := v2) (vl := vl2) (by dsimp only; rw [hla _ (by decide)]; lk []) (by dsimp only; rw [hla _ (by decide)]; lk [hk2])
       (by dsimp only; rw [hla _ (by decide)]; lk [hl2]) (by dsimp only; rw [hla _ (by decide)]; lk [hv2])
       (by dsimp only; rw [hla _ (by decide)]; lk [hvl2]) hW2
+      ((hvr2.mono hle1.Cn).mono hle2.Cn)
       (hle2.Kd _ _ (Reg.addNd_kd Rg br 3#64 ℓ (ℓ + 1)))
       (hle2.Cv _ _ (Reg.addNd_cv Rg br 3#64 ℓ (ℓ + 1))) (fun h0 => by
         obtain ⟨lo, hi, hI, hr⟩ := hseg2 h0

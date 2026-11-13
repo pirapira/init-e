@@ -37,7 +37,10 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
     (hx : k = 2#64 → (∀ nl, Rd m' (a + 40#64) nl → ℓc = ℓ + nl.toNat) ∧
       ∀ c, Rd m' (a + 48#64) c → c ≠ 0#64 → Rg.Lv c ℓc)
     (hb : k = 3#64 → ℓc = ℓ + 1 ∧
-      ∀ i c, i < 16 → Rd m' (a + BitVec.ofNat 64 (32 + 8 * i)) c → c ≠ 0#64 → Rg.Lv c ℓc) :
+      ∀ i c, i < 16 → Rd m' (a + BitVec.ofNat 64 (32 + 8 * i)) c → c ≠ 0#64 → Rg.Lv c ℓc)
+    (hval : (k = 1#64 → ∃ vp vl, Rd m' (a + 48#64) vp ∧ Rd m' (a + 56#64) vl ∧
+        VRange Rg vp vl) ∧
+      (k = 3#64 → ∃ vp vl, Rd m' (a + 160#64) vp ∧ Rd m' (a + 168#64) vl ∧ VRange Rg vp vl)) :
     ImOK (Rg.addNd a k ℓ ℓc) m' pv' T (addN N a k) J C := by
   classical
   have hold_ne : ∀ b j, N b = some j → b ≠ a := by
@@ -93,7 +96,7 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
           exact r1
         · unfold Rd at r2 ⊢
           rw [hfr _ i2.1 (by omega)]
-          exact r2⟩
+          exact r2, ?_⟩
   rotate_left
   · rcases hK with hK | ⟨rfl, rfl⟩
     · have hN := h.kd b j hK
@@ -212,6 +215,41 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
       obtain ⟨ℓc', hc'⟩ := h.lvc b ℓb j hl hNj hj
       exact ⟨ℓc', Or.inl hc'⟩
     · exact ⟨ℓc, Or.inr ⟨rfl, rfl⟩⟩
+  · intro b j hNb
+    unfold addN at hNb
+    by_cases e : b = a
+    · subst e
+      simp only [if_true, Option.some.injEq] at hNb
+      subst hNb
+      exact hval
+    · simp only [if_neg e] at hNb
+      have hat := hW.nodes.at_ b j hNb
+      have := hat.hi
+      refine ⟨fun hk => ?_, fun hk => ?_⟩
+      · obtain ⟨vp, vl, r1, r2, hv⟩ := (h.vals b j hNb).1 hk
+        have c1 : ValCell b j (b + 48#64) := Or.inl ⟨hk, Or.inl rfl⟩
+        have c2 : ValCell b j (b + 56#64) := Or.inl ⟨hk, Or.inr rfl⟩
+        have i1 := c1.inside hat
+        have i2 := c2.inside hat
+        refine ⟨vp, vl, ?_, ?_, hv⟩
+        · unfold Rd at r1 ⊢
+          rw [hfr _ (c1.al hat) (by omega)]
+          exact r1
+        · unfold Rd at r2 ⊢
+          rw [hfr _ (c2.al hat) (by omega)]
+          exact r2
+      · obtain ⟨vp, vl, r1, r2, hv⟩ := (h.vals b j hNb).2 hk
+        have c1 : ValCell b j (b + 160#64) := Or.inr ⟨hk, Or.inl rfl⟩
+        have c2 : ValCell b j (b + 168#64) := Or.inr ⟨hk, Or.inr rfl⟩
+        have i1 := c1.inside hat
+        have i2 := c2.inside hat
+        refine ⟨vp, vl, ?_, ?_, hv⟩
+        · unfold Rd at r1 ⊢
+          rw [hfr _ (c1.al hat) (by omega)]
+          exact r1
+        · unfold Rd at r2 ⊢
+          rw [hfr _ (c2.al hat) (by omega)]
+          exact r2
   unfold addN at hb
   by_cases e : b = a
   · subst e
@@ -331,7 +369,9 @@ theorem node_new_ext_world (hE : GuestEnv E) (parameters : List VarName) (body :
         have e2 : c = child := Rd.inj r2 h48
         subst e2
         exact hchl hc0⟩)
-      (fun hk => absurd hk (by decide))⟩, fun x hx => by simp [update_lookup, hx],
+      (fun hk => absurd hk (by decide))
+      ⟨fun hk => absurd hk (by decide), fun hk => absurd hk (by decide)⟩⟩,
+    fun x hx => by simp [update_lookup, hx],
     fun addr ha => keep addr (by unfold HBASE at ha hbase; omega)⟩
   · obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hc
     refine ⟨?_, h8, hi, hhi, hf.node_add (Nat.le_refl _) hpq⟩
@@ -357,6 +397,7 @@ theorem node_new_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body 
     (hW : WorldTJ Rg s.globals s.memory)
     (hseg : nlen = 0#64 ∨ ∃ lo hi, Rg.Im lo hi ∧ lo.toNat ≤ nib.toNat ∧ nib.toNat + nlen.toNat ≤ hi.toNat ∧
       NibSeg s.memory nib nlen)
+    (hvr : VRange Rg vptr vlen)
     (ℓ : Nat) (h : Runs E s body r) :
     Stopped r ∨ ∃ l g' m' a, r = .returned l g' m' s.ffi [.word a] ∧
       WorldTJ (Rg.addNd a 1#64 ℓ ℓ) g' m' ∧ (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
@@ -428,6 +469,12 @@ theorem node_new_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body 
     rw [← hm']
     exact (((Rd.here _ (pv + 32#64) nib).frame _ (NE (by omega))).frame _ (NE (by omega))).frame _
       (NE (by omega))
+  have h48 : Rd m' (pv + 48#64) vptr := by
+    rw [← hm']
+    exact (Rd.here _ (pv + 48#64) vptr).frame _ (NE (by omega))
+  have h56 : Rd m' (pv + 56#64) vlen := by
+    rw [← hm']
+    exact Rd.here _ (pv + 56#64) vlen
   have hpq : pv.toNat ≤ qv.toNat := by omega
   have hbase : HBASE ≤ pv.toNat := by omega
   have hW' : HeapW m' qv T (addN N pv 1#64) J C n :=
@@ -443,7 +490,9 @@ theorem node_new_leaf_world (hE : GuestEnv E) (parameters : List VarName) (body 
     fun lo hi hb => (hBT lo hi hb).node_add (Nat.le_refl _) hpq, fun x w hc => ?_,
     fun a ha => ?_, hIT.node_add hHW (fun x _ hlt => keep x (by omega)) (Nat.le_refl _) hpq
       (fun _ => ⟨nib, nlen, h32, h40, hseg⟩) (fun hk => absurd hk (by decide))
-      (fun hk => absurd hk (by decide))⟩, fun x hx => by simp [update_lookup, hx],
+      (fun hk => absurd hk (by decide))
+      ⟨fun _ => ⟨vptr, vlen, h48, h56, hvr⟩, fun hk => absurd hk (by decide)⟩⟩,
+    fun x hx => by simp [update_lookup, hx],
     fun addr ha => keep addr (by unfold HBASE at ha hbase; omega)⟩
   · obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hc
     refine ⟨?_, h8, hi, hhi, hf.node_add (Nat.le_refl _) hpq⟩

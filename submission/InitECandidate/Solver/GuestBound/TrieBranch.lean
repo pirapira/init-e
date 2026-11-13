@@ -93,6 +93,17 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
       unfold Rd
       rw [hz, if_pos ⟨by omega, by omega, by omega⟩]
     exact hr1.frame _ (NE (by omega))
+  have hzv : ∀ c : Nat, 8 ≤ c → c < 176 → c % 8 = 0 →
+      Rd m' (pv + BitVec.ofNat 64 c) 0#64 := by
+    intro c h1 h2 h3
+    have e : (pv + BitVec.ofNat 64 c).toNat = pv.toNat + c := by
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    rw [← hm']
+    have hr1 : Rd m1 (pv + BitVec.ofNat 64 c) 0#64 := by
+      unfold Rd
+      rw [hz, if_pos ⟨by omega, by omega, by omega⟩]
+    exact hr1.frame _ (NE (by omega))
   have hbr : ∀ i : Nat, i < 16 → ∃ c : Word,
       Rd m' (pv + BitVec.ofNat 64 (32 + 8 * i)) c ∧ IsChild N c :=
     fun i hi => ⟨0#64, hz0 i hi, Or.inl rfl⟩
@@ -108,7 +119,11 @@ theorem node_new_branch_world (hE : GuestEnv E) (parameters : List VarName) (bod
     fun lo hi hb => (hBT lo hi hb).node_add (Nat.le_refl _) hpq, fun x w hc => ?_,
     fun a ha => ?_, hIT.node_add hHW (fun x _ hlt => keep x (by omega)) (Nat.le_refl _) hpq
       (fun hk => absurd hk (by decide)) (fun hk => absurd hk (by decide))
-      (fun _ => ⟨rfl, fun i c hi r1 hc0 => absurd (Rd.inj r1 (hz0 i hi)) hc0⟩)⟩, fun x hx => by simp [update_lookup, hx],
+      (fun _ => ⟨rfl, fun i c hi r1 hc0 => absurd (Rd.inj r1 (hz0 i hi)) hc0⟩)
+      ⟨fun hk => absurd hk (by decide), fun _ => ⟨0#64, 0#64,
+        hzv 160 (by omega) (by omega) (by omega), hzv 168 (by omega) (by omega) (by omega),
+        VRange.zero Rg 0#64⟩⟩⟩,
+    fun x hx => by simp [update_lookup, hx],
     fun addr ha => keep addr (by unfold HBASE at ha hbase; omega)⟩
   · obtain ⟨hr, h8, hi, hhi, hf⟩ := hCT x w hc
     refine ⟨?_, h8, hi, hhi, hf.node_add (Nat.le_refl _) hpq⟩
