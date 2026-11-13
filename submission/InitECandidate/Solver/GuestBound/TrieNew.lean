@@ -80,7 +80,20 @@ theorem ImOK.node_add {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
           rw [hfr _ d8 (by omega)]
           exact r2,
       h.offT, h.offC, h.offI, h.offTT, fun b ℓb hL => ?_, fun b ℓ1 ℓ2 h1 h2 => ?_, ?_, ?_,
-      fun b ℓb hL => ?_, fun b ℓ1 ℓ2 h1 h2 => ?_, ?_, ?_, ?_⟩
+      fun b ℓb hL => ?_, fun b ℓ1 ℓ2 h1 h2 => ?_, ?_, ?_, ?_,
+      fun b sp nl hS => by
+        obtain ⟨⟨j, hj, hj12⟩, r1, r2⟩ := h.sg b sp nl hS
+        have hat := hW.nodes.at_ b j hj
+        have i1 := seg_cell_in hat hj12 (x := b + 32#64) (Or.inl rfl)
+        have i2 := seg_cell_in hat hj12 (x := b + 40#64) (Or.inr rfl)
+        have := hat.hi
+        refine ⟨⟨j, by unfold addN; rw [if_neg (hold_ne b j hj)]; exact hj, hj12⟩, ?_, ?_⟩
+        · unfold Rd at r1 ⊢
+          rw [hfr _ i1.1 (by omega)]
+          exact r1
+        · unfold Rd at r2 ⊢
+          rw [hfr _ i2.1 (by omega)]
+          exact r2⟩
   rotate_left
   · rcases hK with hK | ⟨rfl, rfl⟩
     · have hN := h.kd b j hK

@@ -62,7 +62,7 @@ theorem WorldTJ.set_root {t c : Word} (h : WorldTJ Rg g m) (ht : Rg.Tr t)
       nib_frame (fun lo hi hI => (hIm.free lo hi hI).1) hIm.nib hseg, hIm.kd, hIm.kn, hIm.full,
       hIm.trf, fun u hu => ?_, hIm.offT, hIm.offC, hIm.offI, hIm.offTT, hIm.lvk, hIm.lvu,
       hIm.lvx.frame hlv, hIm.lvb.frame hlv, hIm.cvk, hIm.cvu, hIm.cvx.frame hlv, hIm.cvb,
-      hIm.lvc⟩⟩
+      hIm.lvc, hIm.sg.frame hseg⟩⟩
   · obtain ⟨hr, hx8, hi', hhi', hf'⟩ := hCn x w hcn
     refine ⟨hr.frame _ (NE ?_), hx8, hi', hhi', hf'⟩
     rcases hIm.offC x w t hcn ht with h3 | h3 <;> omega
@@ -100,7 +100,7 @@ theorem WorldTJ.add_handle {lo hi root sec : Word} (h : WorldTJ Rg g m) (hb : Rg
     hNd, ⟨hIm.free, fun a b c d hab hI => hIm.offB a b c d hab.1 hI, hIm.segs, hIm.nib, hIm.kd,
       hIm.kn, hIm.full, fun u hu => ?_, fun u hu => ?_, fun a b u hab hu => ?_,
       fun x w u hcx hu => ?_, fun a b u hI hu => ?_, fun t u ht hu => ?_, hIm.lvk, hIm.lvu,
-      hIm.lvx, hIm.lvb, hIm.cvk, hIm.cvu, hIm.cvx, hIm.cvb, hIm.lvc⟩⟩
+      hIm.lvx, hIm.lvb, hIm.cvk, hIm.cvu, hIm.cvx, hIm.cvb, hIm.lvc, hIm.sg⟩⟩
   · rcases hu with hu | rfl
     · exact hIm.trf u hu
     · exact ⟨h8, hi, hhi, hB _ _ hb⟩

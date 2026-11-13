@@ -115,7 +115,7 @@ theorem ImOK.store_child {pv a k x c : Word} {T : Word → Option HtabV} {N : Wo
   refine ⟨h.free, h.offB, h.segs.frame (fun y hy => keep y (Or.inl hy)),
     nib_frame (fun lo hi hI => (h.free lo hi hI).1) h.nib (fun y hy => keep y (Or.inl hy)),
     h.kd, h.kn, h.full, h.trf, fun u hu => ?_, h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu,
-    ?_, ?_, h.cvk, h.cvu, ?_, h.cvb, h.lvc⟩
+    ?_, ?_, h.cvk, h.cvu, ?_, h.cvb, h.lvc, h.sg.frame (fun y hy => keep y (Or.inl hy))⟩
   · obtain ⟨root, sec, r1, r2, hc⟩ := h.trv u hu
     refine ⟨root, sec, ?_, ?_, hc⟩
     · unfold Rd at r1 ⊢

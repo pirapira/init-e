@@ -33,6 +33,8 @@ structure Reg where
   Lv : Word → Nat → Prop
   /-- The level at which the children of an extension or branch sit. -/
   Cv : Word → Nat → Prop
+  /-- Recorded segments (pointer and length) of leaves and extensions. -/
+  Sg : Word → Word → Word → Prop
 
 /-- The cells of the trie handles. -/
 def TrCell (Tr : Word → Prop) (x : Word) : Prop := ∃ t, Tr t ∧ (x = t ∨ x = t + 8#64)
@@ -78,6 +80,23 @@ theorem CvX.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {N : Word 
   unfold Rd at r1 ⊢
   rw [← hm _ ⟨a, _, hN, Or.inr (Or.inl ⟨rfl, Or.inl rfl⟩)⟩]
   exact r1
+
+/-- Recorded segments are what the segment cells hold. -/
+def SgOK (Rg : Reg) (m : Word → Option (PanValue Word)) (N : Word → Option Word) : Prop :=
+  ∀ a sp nl, Rg.Sg a sp nl → (∃ k, N a = some k ∧ (k = 1#64 ∨ k = 2#64)) ∧
+    Rd m (a + 32#64) sp ∧ Rd m (a + 40#64) nl
+
+theorem SgOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {N : Word → Option Word}
+    (h : SgOK Rg m N) (hm : ∀ x, SegCell Rg.Im N x → m' x = m x) : SgOK Rg m' N := by
+  intro a sp nl hS
+  obtain ⟨⟨k, hN, hk⟩, r1, r2⟩ := h a sp nl hS
+  refine ⟨⟨k, hN, hk⟩, ?_, ?_⟩
+  · unfold Rd at r1 ⊢
+    rw [hm _ (Or.inl ⟨a, k, hN, hk, Or.inl rfl⟩)]
+    exact r1
+  · unfold Rd at r2 ⊢
+    rw [hm _ (Or.inl ⟨a, k, hN, hk, Or.inr rfl⟩)]
+    exact r2
 
 /-- A structural cell is aligned. -/
 theorem StructCell.al {m : Word → Option (PanValue Word)} {pv : Word} {N : Word → Option Word}
@@ -128,6 +147,7 @@ structure ImOK (Rg : Reg) (m : Word → Option (PanValue Word)) (pv : Word)
   cvb : ∀ a ℓ ℓc, Rg.Lv a ℓ → Rg.Cv a ℓc → N a = some 3#64 → ℓc = ℓ + 1
   /-- A levelled extension or branch has a child level. -/
   lvc : ∀ a ℓ k, Rg.Lv a ℓ → N a = some k → (k = 2#64 ∨ k = 3#64) → ∃ ℓc, Rg.Cv a ℓc
+  sg : SgOK Rg m N
 
 /-- A handle cell is an aligned cell inside the handle. -/
 theorem tr_cell_in {Rg : Reg} {m : Word → Option (PanValue Word)} {pv : Word}
@@ -238,7 +258,8 @@ theorem ImOK.tab_step {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv
         rw [hT _ ⟨u, hu, Or.inr rfl⟩]
         exact r2,
     h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu, h.lvx.frame hLv, h.lvb.frame hLv, h.cvk, h.cvu,
-    h.cvx.frame hLv, h.cvb, h.lvc⟩
+    h.cvx.frame hLv, h.cvb, h.lvc,
+    h.sg.frame (seg_cell_step hW (fun lo hi hI => (h.free lo hi hI).2) hs.heapStep hF)⟩
 
 /-- A cell `ImOK` depends on is an aligned heap cell below the heap pointer. -/
 theorem ImOK.cell_bounds {Rg : Reg} {m : Word → Option (PanValue Word)} {pv x : Word}
@@ -291,7 +312,8 @@ theorem ImOK.frame {Rg : Reg} {m m' : Word → Option (PanValue Word)} {pv pv' :
     h.offT, h.offC, h.offI, h.offTT, h.lvk, h.lvu,
     h.lvx.frame (fun x hx => hm x (Or.inr (Or.inr hx))),
     h.lvb.frame (fun x hx => hm x (Or.inr (Or.inr hx))), h.cvk, h.cvu,
-    h.cvx.frame (fun x hx => hm x (Or.inr (Or.inr hx))), h.cvb, h.lvc⟩
+    h.cvx.frame (fun x hx => hm x (Or.inr (Or.inr hx))), h.cvb, h.lvc,
+    h.sg.frame (fun x hx => hm x (Or.inl hx))⟩
 
 /-- Heap pointer, live tables, journal and trie nodes, with the registry `Rg`. -/
 def WorldTJ (Rg : Reg) (g : VarName → Option (PanValue Word))

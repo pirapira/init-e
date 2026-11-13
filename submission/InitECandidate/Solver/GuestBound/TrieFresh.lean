@@ -21,7 +21,7 @@ def Reg.addIm (Rg : Reg) (lo hi : Word) : Reg :=
 
 theorem Reg.Le.addIm (Rg : Reg) (lo hi : Word) : Rg.Le (Rg.addIm lo hi) :=
   ⟨rfl, rfl, rfl, fun _ _ h => Or.inl h, fun _ h => h, fun _ _ h => h, fun _ _ h => h,
-    fun _ _ h => h⟩
+    fun _ _ h => h, fun _ _ _ h => h⟩
 
 theorem WorldTJ.fresh_nibs {pv pv1 hi' : Word} (h : WorldTJ Rg g m)
     (hp : g "heap_ptr" = some (.word pv)) (hp1 : g' "heap_ptr" = some (.word pv1))

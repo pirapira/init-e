@@ -56,7 +56,8 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   refine ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, fun a b hab => hB a b hab.1, hCn,
     hNd, ⟨fun a b hI => ?_, fun a b c d hab hI => ?_, hIm.segs.mono (fun a b hI => Or.inl hI),
-      fun a b hI => ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+      fun a b hI => ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+      ?_⟩⟩
   · rcases hI with hI | ⟨rfl, rfl⟩
     · exact hIm.free a b hI
     · exact ⟨h8, (hB _ _ hb).prefix hle⟩
@@ -91,6 +92,7 @@ theorem WorldTJ.freeze {lo hi hi' : Word} (h : WorldTJ Rg g m) (hb : Rg.B lo hi)
   · exact hIm.cvx
   · exact hIm.cvb
   · exact hIm.lvc
+  · exact hIm.sg
 
 /-- A node registered with its kind: the kind cell, and the node's bounds. -/
 theorem WorldTJ.kd {a k : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k) :
@@ -166,6 +168,28 @@ theorem WorldTJ.lv_unique {a : Word} {ℓ ℓ' : Nat} (h : WorldTJ Rg g m) (h1 :
     (h2 : Rg.Lv a ℓ') : ℓ = ℓ' := by
   obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
   exact hIm.lvu a ℓ ℓ' h1 h2
+
+/-- The registry with a recorded segment. -/
+def Reg.addSg (Rg : Reg) (a sp nl : Word) : Reg :=
+  { Rg with Sg := fun x p n => Rg.Sg x p n ∨ (x = a ∧ p = sp ∧ n = nl) }
+
+/-- Record the segment of a leaf or extension: its cells never change. -/
+theorem WorldTJ.learn_sg {a k sp nl : Word} (h : WorldTJ Rg g m) (hK : Rg.Kd a k)
+    (hk : k = 1#64 ∨ k = 2#64) (r1 : Rd m (a + 32#64) sp) (r2 : Rd m (a + 40#64) nl) :
+    WorldTJ (Rg.addSg a sp nl) g m := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  exact ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd,
+    { hIm with
+      sg := fun b p q hS => by
+        rcases hS with hS | ⟨rfl, rfl, rfl⟩
+        · exact hIm.sg b p q hS
+        · exact ⟨⟨k, hIm.kd _ _ hK, hk⟩, r1, r2⟩ }⟩
+
+/-- A recorded segment, read back in any invariant state. -/
+theorem WorldTJ.sg {a sp nl : Word} (h : WorldTJ Rg g m) (hS : Rg.Sg a sp nl) :
+    Rd m (a + 32#64) sp ∧ Rd m (a + 40#64) nl := by
+  obtain ⟨pv, T, N, J, C, n, hp, hpH, hJg, hCg, hng, hW, hD, hB, hCn, hNd, hIm⟩ := h
+  exact (hIm.sg a sp nl hS).2
 
 /-- Any sub-range of an immutable block is a nibble array. -/
 theorem WorldTJ.im_nibs {lo hi p : Word} {c : Nat} (h : WorldTJ Rg g m) (hI : Rg.Im lo hi)
