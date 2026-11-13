@@ -7,6 +7,7 @@ import InitECandidate.Solver.GuestBound.TrieNew
 import InitECandidate.Solver.GuestBound.WorldNode
 import InitECandidate.Solver.GuestBound.TrieFreeze
 import InitECandidate.Solver.GuestBound.TrieKey
+import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
 import InitECandidate.Solver.GuestBound.TrieLeafIns
@@ -87,3 +88,9 @@ open InitECandidate.Solver.GuestBound
 #print axioms delete_node_cost
 #print axioms mpt_set_world
 #print axioms mpt_set_cost
+#print axioms keccak_f1600_frame
+#print axioms keccak_absorb_frame
+#print axioms keccak256_frame
+#print axioms mpt_nibble_key_world
+#print axioms nibKeySpec
+#print axioms localOnly_sound

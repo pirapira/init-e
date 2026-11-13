@@ -21,10 +21,12 @@ registry that grew, and the returned nibble key lies in an immutable block.
 `Pre` is whatever the eventual proof needs of the registry and the globals
 (the hashing buffers). -/
 def NibKeySpec (E : Env σ) (Pre : Reg → (VarName → Option (PanValue Word)) → Prop) : Prop :=
-  ∀ (Rg : Reg) (s : St σ) (e1 e2 e3 : Exp Word) (v : PanValue Word)
+  ∀ (Rg : Reg) (s : St σ) (e1 e2 e3 : Exp Word) (mv kv kl : Word) (v : PanValue Word)
     (g : VarName → Option (PanValue Word)) (m : Word → Option (PanValue Word))
     (ffi : FfiState σ),
     CalleeRet E s "mpt_nibble_key" [e1, e2, e3] [v] g m ffi →
+    E.eval s e1 = some (.word mv) → E.eval s e2 = some (.word kv) →
+    E.eval s e3 = some (.word kl) → kl.toNat < 2 ^ 32 →
     WorldTJ Rg s.globals s.memory → Pre Rg s.globals →
     ∃ nb nl R', v = .rStruct [.word nb, .word nl] ∧ ffi = s.ffi ∧ Rg.Le R' ∧ WorldTJ R' g m ∧
       (nl ≠ 0#64 → ∃ lo hi, R'.Im lo hi ∧ lo.toNat ≤ nb.toNat ∧
@@ -169,6 +171,7 @@ theorem mpt_set_world (hE : GuestEnv E) {Pre : Reg → (VarName → Option (PanV
     (hklen : s.locals "klen" = some (.word klen)) (hvp : s.locals "vptr" = some (.word vptr))
     (hvl : s.locals "vlen" = some (.word vlen))
     (hW : WorldTJ Rg s.globals s.memory) (hT : Rg.Tr mh) (hPre : Pre Rg s.globals)
+    (hkl : klen.toNat < 2 ^ 32)
     (hsp : s.globals "scratch_ptr" = some (.word sp0))
     (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
     (hF : 2952790016 ≤ fv.toNat) (h : Runs E s body r) :
@@ -180,7 +183,8 @@ theorem mpt_set_world (hE : GuestEnv E) {Pre : Reg → (VarName → Option (PanV
   refine (?_ : WPs E s _ (SetQ Rg s sp0)) r h
   have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
   refine WPs.decCall_ret (fun v g1 m1 f1 hret => ?_)
-  obtain ⟨nb, nl, R1, rfl, rfl, hle1, hW1, hblk, hg1, hm1⟩ := hNK Rg s _ _ _ _ _ _ _ hret hW hPre
+  obtain ⟨nb, nl, R1, rfl, rfl, hle1, hW1, hblk, hg1, hm1⟩ := hNK Rg s _ _ _ mh key klen _ _ _ _ hret (by lk [hmv]) (by lk [hkeyv])
+    (by lk [hklen]) hkl hW hPre
   refine WPs.conseq (Q' := SetQ Rg s sp0) ?_ (fun r h => h.restore _ _)
   have hT1 := hle1.Tr _ hT
   obtain ⟨root, sec, r1, -, hroot, hlo, htop, h8, hl0⟩ := hW1.root hT1
@@ -295,6 +299,7 @@ theorem mpt_set_cost (hE : GuestEnv E) {Pre : Reg → (VarName → Option (PanVa
     (hklen : s.locals "klen" = some (.word klen)) (hvp : s.locals "vptr" = some (.word vptr))
     (hvl : s.locals "vlen" = some (.word vlen))
     (hW : WorldTJ Rg s.globals s.memory) (hT : Rg.Tr mh) (hPre : Pre Rg s.globals)
+    (hkl : klen.toNat < 2 ^ 32)
     (hsp : s.globals "scratch_ptr" = some (.word sp0))
     (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
     (hF : 2952790016 ≤ fv.toNat)
@@ -387,7 +392,8 @@ theorem mpt_set_cost (hE : GuestEnv E) {Pre : Reg → (VarName → Option (PanVa
     decide +kernel
   · rintro a v g m ffi rfl hret -
     obtain ⟨nb, nl, R1, rfl, rfl, hle1, hW1, hblk, hg1, -⟩ :=
-      hNK Rg _ _ _ _ _ _ _ _ hret.ret hW hPre
+      hNK Rg _ _ _ _ mh key klen _ _ _ _ hret.ret (by lk [hmv]) (by lk [hkeyv])
+        (by lk [hklen]) hkl hW hPre
     exact ⟨nb, nl, R1, g, m, rfl, hW1, hle1.Tr _ hT, hblk, hg1⟩
   · rintro a val ⟨nb, nl, R1, g1, m1, rfl, hW1, hT1, hblk, hg1⟩ hval -
     obtain ⟨root, sec, r1, -, hroot, -, -, -, hl0⟩ := hW1.root hT1
