@@ -14,6 +14,7 @@ import InitECandidate.Solver.GuestBound.TrieResolve
 import InitECandidate.Solver.GuestBound.TrieCompact
 import InitECandidate.Solver.GuestBound.TrieDecFinal
 import InitECandidate.Solver.GuestBound.TrieDecWrap
+import InitECandidate.Solver.GuestBound.TrieMptNew
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -129,3 +130,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms decode_node_world
 #print axioms decode_mpt_cost
 #print axioms decode_node_cost
+#print axioms WorldTJ.fresh_handle
+#print axioms mpt_new_world
+#print axioms decode_witness_to_mpt_world
+#print axioms mpt_from_witness_world

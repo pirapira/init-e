@@ -232,4 +232,204 @@ theorem decode_node_ret (hE : GuestEnv E) {e1 e2 e3 : Exp Word} {R0 : Reg}
 
 end rets
 
+
+/-- What `decode_witness_to_mpt` guarantees: a root at level 0 (or null). -/
+def DwQ (R0 : Reg) (s : St σ) (sp0 : Word) (r : Result σ) : Prop :=
+  ∃ l g m, ∃ (res : Word) (R : Reg), r = .returned l g m s.ffi [.word res] ∧ R0.Le R ∧
+    WorldTJ R g m ∧ DRes R 0 res ∧ (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
+    ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ sp0.toNat ≤ addr.toNat) → m addr = s.memory addr
+
+theorem DwQ.restore {R0 : Reg} {sp0 : Word} {x : VarName} {old : Option (PanValue Word)}
+    {r : Result σ} (h : DwQ R0 s sp0 r) : DwQ R0 s sp0 (restorePanValueFfiLocal x old r) := by
+  obtain ⟨l, g, m, res, R, rfl, hk⟩ := h
+  exact ⟨_, g, m, res, R, rfl, hk⟩
+
+set_option maxHeartbeats 16000000 in
+theorem decode_witness_to_mpt_world (hE : GuestEnv E) (parameters : List VarName)
+    (body : Prog Word)
+    (hlookup : lookupPanFunction "decode_witness_to_mpt" E.functions = some (parameters, body))
+    (R0 : Reg) (s : St σ) (r : Result σ) (dbv rh sp0 fv : Word)
+    (hdb : s.locals "db" = some (.word dbv)) (hrh : s.locals "root_hash" = some (.word rh))
+    (hW : WorldTJ R0 s.globals s.memory)
+    (hsp : s.globals "scratch_ptr" = some (.word sp0))
+    (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
+    (hF : 2952790016 ≤ fv.toNat) (h : Runs E s body r) :
+    Stopped r ∨ DwQ R0 s sp0 r := by
+  have hbody := (fun_of_index 265 hE.functions (by guest_decl_at 265) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (DwQ R0 s sp0)) r h
+  have NE : ∀ {a b : Word}, a.toNat ≠ b.toNat → a ≠ b := fun h e => h (congrArg _ e)
+  have dqm : ∀ r, DwQ R0 s sp0 r → DwQ R0 s sp0 r := fun _ h => h
+  refine WPs.decCall_ret (fun v g m ffi hret =>
+    WPs.conseq (Q' := DwQ R0 s sp0) ?_ (fun r h => h.restore))
+  obtain ⟨hg, hm, hf'⟩ := CalleeRet.quiet
+    (keepFn_sound (quietKeeper E) hE.functions 1 "memeq" memeq_quiet) hret
+  subst g m ffi
+  refine WPs.seqG (fun a => a = ⟨updatePanValueMap s.locals "is_empty" v, s.globals, s.memory,
+      s.ffi⟩) (WPs.ite_both (fun w _ => ?_)) ?_
+  · split
+    · exact WPs.skip rfl
+    · exact WPs.ret (w := 0#64) (of_eval (eval_const _ _))
+        ⟨_, _, _, 0#64, R0, rfl, Reg.Le.refl R0, hW, Or.inl rfl, fun _ _ => rfl, fun _ _ => rfl⟩
+  intro a ha
+  rw [ha]
+  clear ha a
+  refine WPs.decCall_retS (fun vr g m ffi hret hsh =>
+    WPs.conseq (Q' := DwQ R0 s sp0) ?_ (fun r h => h.restore))
+  obtain ⟨hg, hm, hf'⟩ := CalleeRet.quiet (nodedb_lookup_quiet hE) hret
+  subst g m ffi
+  obtain ⟨q0, q1, q2, rfl⟩ := struct3_of_shape hsh
+  refine WPs.guard_quiet (mpt_fail_quiet hE) ?_
+  refine WPs.name_locals (fun L hLL => ?_)
+  dsimp only at hLL
+  have qdb : L "db" = some (.word dbv) := by rw [hLL]; lk [hdb]
+  have qrh : L "root_hash" = some (.word rh) := by rw [hLL]; lk [hrh]
+  have qr : L "r" = some (.rStruct [.word q0, .word q1, .word q2]) := by rw [hLL]; lk []
+  clear hLL
+  refine WPs.decCall_ret (fun vn g m ffi hret =>
+    WPs.conseq (Q' := DwQ R0 s sp0) ?_ (fun r h => h.restore))
+  obtain ⟨res, R, rfl, rfl, hle, hW', hres, hg, hm⟩ := decode_node_ret hE 0 hret
+    (dbv := dbv) (pw := q1) (nw := q2) (by lk [qdb])
+    (by rw [eval_rField _ 1 "r" _ qr]; rfl) (by rw [eval_rField _ 2 "r" _ qr]; rfl)
+    hW hsp hfv hfs hF
+  dsimp only at hg hm
+  refine WPs.seqG (fun a => ∃ L' g' m', a = ⟨L', g', m', s.ffi⟩ ∧
+      L' "nd" = some (.word res) ∧ WorldTJ R g' m' ∧
+      (∀ x, x ≠ "heap_ptr" → g' x = s.globals x) ∧
+      ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ sp0.toNat ≤ addr.toNat) →
+        m' addr = s.memory addr)
+    (WPs.ite_both (fun w hw => ?_)) ?_
+  · split
+    · exact WPs.skip ⟨_, _, _, rfl, by lk [], hW', hg, hm⟩
+    · rename_i hw0
+      obtain ⟨x, y, hx, hy, hwv⟩ := cmp_word_inv hE hw
+      simp (config := { decide := true }) only [evalF_local, update_lookup, if_true, eval_const,
+        Option.some.injEq, PanValue.word.injEq] at hx hy
+      subst hx hy
+      have hr0 : res ≠ 0#64 := by
+        rintro rfl
+        apply hw0
+        rw [hwv]
+        simp [evalPanCmp]
+      obtain ⟨k, hK, -⟩ : ∃ k, R.Kd res k ∧ R.Lv res 0 := by
+        rcases hres with h0 | h0
+        · exact absurd h0 hr0
+        · exact h0
+      obtain ⟨pv, hp, hpH, hpB⟩ := hW'.heap_ptr
+      have hpE := hpH.1
+      refine WPs.decCall_alloc hE (pv := pv) (nv := 32#64) (eval_const _ _) hp hpH
+        (fun qv hq hqH => ?_)
+      have hq' : pv.toNat + 32 ≤ qv.toNat := hq
+      have hqE := hqH.1
+      refine WPs.seq_call_ret (fun vs g2 m2 f2 hret2 => ?_)
+      obtain ⟨hg2, hf2, hhull⟩ := memcpy_hull_ret hE hret2 (dst := pv) (nW := 32#64)
+        (v2 := .word rh) (by lk []) (by lk [qrh]) (eval_const _ _)
+        (by rw [show (32#64 : Word).toNat = 32 from rfl]; omega)
+      subst hg2 hf2
+      have h32 : (32#64 : Word).toNat = 32 := rfl
+      have hW2 : WorldTJ R (updatePanValueMap g "heap_ptr" (.word qv)) m2 :=
+        WorldTJ.grow hW' hp (by simp [updatePanValueMap]) hqH (by omega)
+          (fun x h1 _ => by simp [update_lookup, h1])
+          (fun a ha => hhull a (Or.inl (by have := hpH.2; omega)))
+      obtain ⟨-, -, hrlo, hrhi, -⟩ := hW2.kd hK
+      have hsz := nodeSize_ge k
+      have e24 : (res + 24#64).toNat = res.toNat + 24 := by
+        rw [BitVec.toNat_add, show (24#64 : Word).toNat = 24 from rfl]
+        omega
+      refine WPs.store hE (addr := res + 24#64) (w := pv) (eval_addc hE 24#64 (by lk []))
+        (of_eval (by lk [])) ?_
+      simp only [restorePanValueFfiLocal]
+      refine ⟨_, _, _, rfl,
+        by simp (config := { decide := true }) [restorePanValueLocal, update_lookup],
+        hW2.cache_store pv (c := 24) (Or.inr (Or.inr rfl)) hK,
+        fun x hx => by
+          simp only [update_lookup]
+          rw [if_neg (by simpa using hx)]
+          exact hg x hx,
+        fun addr ha => ?_⟩
+      have n1 : addr ≠ res + 24#64 := NE (by unfold HBASE at ha hrlo; omega)
+      show setCell m2 (res + 24#64) pv addr = _
+      rw [setCell_ne _ n1, hhull addr (by unfold HBASE at ha hpB; rw [h32]; omega)]
+      exact hm addr ha
+  rintro _ ⟨L', g', m', rfl, qnd, hW3, hg3, hm3⟩
+  refine WPs.ret (w := res) (of_eval (by lk [qnd])) ?_
+  exact ⟨_, g', m', res, R, rfl, hle, hW3, hres, hg3, hm3⟩
+
+section rets
+
+variable {vs : List (PanValue Word)} {g : VarName → Option (PanValue Word)}
+  {m : Word → Option (PanValue Word)} {ffi : FfiState σ}
+
+/-- What a returning `decode_witness_to_mpt` leaves. -/
+theorem decode_witness_to_mpt_ret (hE : GuestEnv E) {e1 e2 : Exp Word} {R0 : Reg}
+    {dbv rh sp0 fv : Word} {v : PanValue Word}
+    (h : CalleeRet E s "decode_witness_to_mpt" [e1, e2] [v] g m ffi)
+    (h1 : E.eval s e1 = some (.word dbv)) (h2 : E.eval s e2 = some (.word rh))
+    (hW : WorldTJ R0 s.globals s.memory)
+    (hsp : s.globals "scratch_ptr" = some (.word sp0))
+    (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
+    (hF : 2952790016 ≤ fv.toNat) :
+    ∃ (res : Word) (R : Reg), v = .word res ∧ ffi = s.ffi ∧ R0.Le R ∧ WorldTJ R g m ∧
+      DRes R 0 res ∧ (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
+      ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ sp0.toNat ≤ addr.toNat) →
+        m addr = s.memory addr := by
+  obtain ⟨parameters, body, values, cl, l, hlookup, hvalues, hbind, hrun⟩ := h
+  have hparams := (fun_of_index 265 hE.functions (by guest_decl_at 265) (by decide +kernel)
+    hlookup).2
+  simp only [evalArgs_cons, evalArgs_nil, h1, h2, Option.map_some, Option.some.injEq] at hvalues
+  subst hvalues
+  rw [hparams] at hbind
+  simp [bindPanValueParameters] at hbind
+  rcases decode_witness_to_mpt_world hE parameters body hlookup R0
+    ⟨cl, s.globals, s.memory, s.ffi⟩ _ dbv rh sp0 fv
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+    (by rw [← hbind]; simp (config := { decide := true }) [updatePanValueMap])
+    hW hsp hfv hfs hF hrun with hst | ⟨l', g', m', res, R, heq, hle, hW', hres, hg, hm⟩
+  · exact absurd hst (fun h => h)
+  · cases heq
+    exact ⟨res, R, rfl, rfl, hle, hW', hres, hg, hm⟩
+
+end rets
+
+/-- What `mpt_from_witness` guarantees: a trie handle in a larger registry. -/
+def MfQ (R0 : Reg) (s : St σ) (sp0 : Word) (r : Result σ) : Prop :=
+  ∃ l g m, ∃ (t : Word) (R : Reg), r = .returned l g m s.ffi [.word t] ∧ R0.Le R ∧ R.Tr t ∧
+    WorldTJ R g m ∧ (∀ x, x ≠ "heap_ptr" → g x = s.globals x) ∧
+    ∀ addr : Word, (addr.toNat + 8 ≤ HBASE ∨ sp0.toNat ≤ addr.toNat) → m addr = s.memory addr
+
+set_option maxHeartbeats 8000000 in
+theorem mpt_from_witness_world (hE : GuestEnv E) (parameters : List VarName)
+    (body : Prog Word)
+    (hlookup : lookupPanFunction "mpt_from_witness" E.functions = some (parameters, body))
+    (R0 : Reg) (s : St σ) (r : Result σ) (dbv rh sec sp0 fv : Word)
+    (hdb : s.locals "db" = some (.word dbv)) (hrh : s.locals "root_hash" = some (.word rh))
+    (hsec : s.locals "secured" = some (.word sec))
+    (hW : WorldTJ R0 s.globals s.memory)
+    (hsp : s.globals "scratch_ptr" = some (.word sp0))
+    (hfv : s.globals "frame_mem_ptr" = some (.word fv)) (hfs : fv.toNat ≤ sp0.toNat)
+    (hF : 2952790016 ≤ fv.toNat) (h : Runs E s body r) :
+    Stopped r ∨ MfQ R0 s sp0 r := by
+  have hbody := (fun_of_index 269 hE.functions (by guest_decl_at 269) (by decide +kernel)
+    hlookup).1
+  subst hbody
+  dsimp only at h
+  refine (?_ : WPs E s _ (MfQ R0 s sp0)) r h
+  refine WPs.decCall_ret (fun v g m ffi hret =>
+    WPs.conseq (Q' := MfQ R0 s sp0) ?_ (fun r h => by
+      obtain ⟨l, g, m, t, R, rfl, hk⟩ := h
+      exact ⟨_, g, m, t, R, rfl, hk⟩))
+  obtain ⟨res, R, rfl, rfl, hle, hW', hres, hg, hm⟩ := decode_witness_to_mpt_ret hE hret
+    (dbv := dbv) (rh := rh) (by lk [hdb]) (by lk [hrh]) hW hsp hfv hfs hF
+  refine WPs.tail_call (fun vs g2 m2 f2 hret2 l => ?_)
+  obtain ⟨t, rfl, hf2, hW2, hg2, hm2⟩ := mpt_new_ret hE hret2 (root := res) (sec := sec)
+    (by lk []) (by lk [hsec]) hW' hres
+  try dsimp only at hf2 hg2 hm2
+  subst hf2
+  have hsp0 := sp0.isLt
+  exact ⟨l, g2, m2, t, R.addTr1 t, rfl, hle.trans (Reg.Le.addTr1 R t), Or.inr rfl, hW2,
+    fun x hx => (hg2 x hx).trans (hg x hx),
+    fun addr ha => (hm2 addr (by omega)).trans (hm addr ha)⟩
+
 end InitECandidate.Solver.GuestBound
