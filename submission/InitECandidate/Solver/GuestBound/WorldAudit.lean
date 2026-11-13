@@ -25,6 +25,7 @@ import InitECandidate.Solver.GuestBound.RlpItemRange
 import InitECandidate.Solver.GuestBound.RlpLenSpec
 import InitECandidate.Solver.GuestBound.RlpTotSpec
 import InitECandidate.Solver.GuestBound.RlpSlicesSpec
+import InitECandidate.Solver.GuestBound.NodeDb
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -163,3 +164,7 @@ open InitECandidate.Solver.GuestBound
 #print axioms rlp_list_count_items
 #print axioms rlp_list_to_slices_items
 #print axioms Items.entry_le
+#print axioms htab_get_val
+#print axioms NodeDb.mono
+#print axioms nodedb_lookup_spec
+#print axioms nodedblookup_spec_ret
