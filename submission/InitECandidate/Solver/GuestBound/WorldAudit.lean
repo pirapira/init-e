@@ -12,6 +12,7 @@ import InitECandidate.Solver.GuestBound.TrieDecLoop
 import InitECandidate.Solver.GuestBound.TrieFrozen
 import InitECandidate.Solver.GuestBound.TrieResolve
 import InitECandidate.Solver.GuestBound.TrieCompact
+import InitECandidate.Solver.GuestBound.TrieDecFinal
 import InitECandidate.Solver.GuestBound.TrieNibKey
 import InitECandidate.Solver.GuestBound.TrieBranch
 import InitECandidate.Solver.GuestBound.TrieIns
@@ -118,3 +119,8 @@ open InitECandidate.Solver.GuestBound
 #print axioms WorldTJ.grow
 #print axioms key_to_nibbles_nib2
 #print axioms compact_to_nibbles_nib
+#print axioms ds_branch
+#print axioms ds_ext
+#print axioms decode_step_world
+#print axioms decode_witness_body_world
+#print axioms decode_witness_body_cost
